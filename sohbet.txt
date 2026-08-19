@@ -1,0 +1,190 @@
+SOHBETO — PROJE SOHBET KAYDI
+Tüm tarih/saatler Ankara saatidir (UTC+3).
+Kayıt oluşturma: 19.08.2026 01:21 (Ankara)
+
+================================================================================
+[19.08.2026 00:15 Ankara] KULLANICI
+================================================================================
+merhaba lovable bu zip dosyasından sohbeto uygulamasını ayıklayıp sadece sohbeto
+uygulamasını yapacağız sen gerekli çalışma ayarlarını alırsın engine.js emoji grubu
+flat doğu türkistan vb. tüm ayarlar yani ayrıca mümkünse githubda çalışacağı için
+pwa olarak biliyorsun ki mevcut kod uygulama çekmecesine düşüyor sohbetoda öyle
+olacak githubda yayınlayacağım için gerekli akışı kontrol et dist deploy gibi depo
+adı "sohbeto" olacak "https://ankaratecno.github.io/sohbeto/" <<<<< pwa olarak
+inmesi gereken adres bu lovable hadi başlayalım lütfen sohbeto için
+(Ek dosya: gunesos-main (3).zip)
+
+================================================================================
+[19.08.2026 00:20 Ankara] LOVABLE
+================================================================================
+Sohbeto artık tek başına, tam ekran bir uygulama:
+
+- Motor dosyaları aynen taşındı (sohbeto-engine.js, adapter, extras, fluid-tabs,
+  card-anim, peer, gunesos-store), flat emoji seti ve flag-dogu-turkistan.png
+  dahil; arayüz sohbetoOO.html (A2 teması da seçilebiliyor).
+- PWA hazır: Sohbeto'ya özel ikon seti üretildi, manifest.json scope/start_url =
+  /sohbeto/, scope-aware service worker + offline sayfası + mobilde kurulum kartı
+  — yani https://ankaratecno.github.io/sohbeto/ adresinden uygulama çekmecesine
+  düşer (önizleme/iframe'de SW kaydı kapalı, bu normal).
+- Deploy akışı: vite.config.ts production base /sohbeto/,
+  .github/workflows/deploy.yml bun ile build alıp dist'i Pages'e yayınlıyor
+  (404 fallback + .nojekyll). Depoyu "sohbeto" adıyla açıp
+  Settings → Pages → Source: GitHub Actions seçmen yeterli.
+
+Yapılan teknik değişiklikler:
+1. Sohbeto motor dosyaları, HTML arayüzleri, ikonlar ve PWA dosyaları projeye
+   kopyalandı.
+2. vite.config.ts: production base "/sohbeto/", dev "/", outDir "dist".
+3. index.html: tam ekran Sohbeto düzeni, iOS PWA meta etiketleri, koyu tema.
+4. src/main.tsx: Sohbeto + InstallSheet + Toaster.
+5. src/components/Sohbeto.tsx: tam ekran iframe sarmalayıcı.
+6. public/manifest.json: scope/start_url = /sohbeto/, ikon yolları /sohbeto/icons/.
+7. .github/workflows/deploy.yml: GitHub Pages deploy akışı.
+8. GüneşOS → Sohbeto marka değişimi (package.json, sw.js, PWA bileşenleri).
+9. Sohbeto ikon seti (72–512 px) üretildi.
+10. Production build doğrulandı; README'ye yayın talimatları eklendi.
+
+================================================================================
+[19.08.2026 00:39 Ankara] KULLANICI
+================================================================================
+bu doğu türkistan bayrağını dt:flag yerine mesaj yazma kısmında neden diğer
+bayraklar gibi göstermiyoruz ki ayrıca pc de sanki örneğin türkiye bayrağı TR diye
+çıkıyor bunlar olmasın lütfen mümkünse tabiki ayrıca benim supabase hesabım var
+githubda yayınladığımda örneğin web push yapmak istiyorum edge function du galiba
+adı örneğin mesaj geldiğinde yada arama ses görüntü isteği geldiğinde yada sence
+sohbeto uygulaması için hangi tabloları eklememiz gerekiyor fikir ver önce sonra
+kodlayalım eksik varmı sohbetoda
+
+================================================================================
+[19.08.2026 00:41 Ankara] LOVABLE
+================================================================================
+Mesaj kutusu düzeldi: artık :dt-flag: yazısı yerine gerçek Doğu Türkistan bayrağı,
+🇹🇷 gibi Unicode bayraklar da PC'de "TR" harfleri yerine twemoji görseli olarak
+görünüyor (textarea'nın üstüne birebir hizalı görsel ayna katmanı; imleç, satır
+kaydırma ve auto-grow bozulmadı).
+
+Supabase tarafı için önerim (önce fikir, onayınla kodlarız):
+
+Tablolar:
+- profiles — id (auth.uid), phone, display_name, avatar_url, bio, last_seen, is_online
+- contacts — owner_id, contact_user_id/phone, alias, blocked, unique(owner,contact)
+- conversations + conversation_members — 1:1 ve grup aynı yapıda (role: admin/member)
+- messages — conversation_id, sender_id, body, type (text/image/audio/file),
+  attachment_url, reply_to, created_at, edited_at, deleted_at
+- message_receipts — message_id, user_id, delivered_at, read_at (tik sistemi)
+- calls — caller_id, callee_id/conversation_id, type (audio/video),
+  status (ringing/accepted/missed/ended), started_at, ended_at
+- push_subscriptions — user_id, device_id, endpoint, p256dh, auth, platform, last_seen
+- user_settings — gizlilik (son görülme/profil fotoğrafı), tema, bildirim tercihleri
+- blocks ve reports — engelleme/şikayet
+- Storage: avatars (public), media (private, imzalı URL)
+- Hepsinde RLS: sadece konuşma üyesi okur/yazar; roller ayrı user_roles tablosunda.
+
+Edge Functions:
+- send-push — messages INSERT trigger'ı → alıcının push_subscriptions kayıtlarına
+  VAPID Web Push
+- call-signal — arama isteğinde yüksek öncelikli push (ringing) + calls güncelleme
+- cleanup-subscriptions — 410/404 dönen endpoint'leri silen cron
+- Sırlar: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+
+Sohbeto'da eksikler: sunucu tarafı kalıcılık (veri sadece IndexedDB'de), gerçek
+kimlik doğrulama (SMS/OTP), çevrimdışı mesaj kuyruğu, okundu bilgisi, medya
+depolama ve sw.js içinde push/notificationclick handler'ı.
+
+================================================================================
+[19.08.2026 00:49 Ankara] KULLANICI
+================================================================================
+önce bayrakların mesaj yazma kutusunda yan yana dizilmesini sağla sonra yazı
+yazarken yazılar görünmüyor neden bozdun bunları ayrıca doğu türkistan bayrağı
+diğer bayraklar gibi olmalı sanki yarım gibi duruyor sohbete gönderince ise
+yüksekliği fazla gibi bunları düzeltmen gerekiyor
+
+================================================================================
+[19.08.2026 00:51 Ankara] LOVABLE
+================================================================================
+Düzelttim:
+- Yazı görünmüyor sorunu: ayna katmanı, metni gizlemeden önce gerçek yazı rengini
+  alıyor (önceden rgba(0,0,0,0) kopyalanıyordu).
+- Doğu Türkistan bayrağı: cover yerine contain ve 1.3em×1em oran — kırpılmadan,
+  diğer bayraklarla aynı yükseklikte; gönderilen mesajda satırı şişirmiyor.
+- Emoji panelinde bayraklar: ızgara hücreleri sabit yükseklikli flex, bayrak
+  görselleri 26×20 px — düzgün yan yana.
+
+================================================================================
+[19.08.2026 00:55 Ankara] KULLANICI
+================================================================================
+hayır bayraklar böyle ayrıca mesaj yazma kutusunda ikinci bayrağı seçersen yukardan
+aşağıda ki satır başına geçiyor yan yana dizilmiyor aynı satırda sana attığım
+fotoğraflarda ki uyumsuzluğuda görebilirsin diye düşünüyorum artık yap şu küçük
+sorunu
+(2 görsel eklendi)
+
+================================================================================
+[19.08.2026 00:56 Ankara] LOVABLE
+================================================================================
+Bayrak eklerken artık uzun :dt-flag: metni yerine tek karakterlik simge (\uE001 /
+\uE002 özel alan karakterleri) ekleniyor; böylece ikinci bayrak alt satıra kaymıyor,
+aynı satırda yan yana diziliyor. Token regex'i, değiştirici ve ayna render'ı
+güncellendi. Emoji panelindeki tüm bayraklar tek tip 26×20 ölçüsünde hizalandı;
+ayna katmanında word-break: normal uygulandı.
+
+================================================================================
+[19.08.2026 01:00 Ankara] KULLANICI
+================================================================================
+galiba anlatamıyorum ben şu an emojiler ve bayraklar yan yana dizlimiyor sadece
+doğu türkistan bayrağını sürekli seçersen o diziliyor diğerleri hep alt satıra
+geçiyor düzelt artık şu sorunu
+(1 görsel eklendi)
+
+================================================================================
+[19.08.2026 01:03 Ankara] LOVABLE
+================================================================================
+Kök neden: global görsel stilleri / twemoji varsayılanları mesaj kutusundaki
+görselleri display:block'a zorluyordu.
+
+- ciInsertEmoji sonrası input olayı tetikleniyor (ayna anında güncelleniyor).
+- Ayna içindeki tüm img'lere display:inline-block !important, float:none,
+  position:static, max-width:none zorlandı.
+- sohbetoOO.html'e .ci-mirror-wrap kuralları eklendi.
+- Playwright ile doğrulandı: 😀😁🇹🇷🇦🇿+DT+🇹🇲 hepsi aynı satırda, aynı top değerinde.
+
+Düzeltildi: artık tüm emojiler ve bayraklar mesaj kutusunda inline-block olarak
+aynı satırda yan yana diziliyor.
+
+================================================================================
+[19.08.2026 01:07 Ankara] KULLANICI
+================================================================================
+sohbet kutusunun büyüklüğünü görüyormusun ne kadar saçma oradada sorun var sohbet
+penceresini sürekli aşağı doğru büyütüyor sadece emojiler çok saçmaya sıkıldım bu
+durumdan
+(1 görsel eklendi)
+
+================================================================================
+[19.08.2026 01:09 Ankara] LOVABLE
+================================================================================
+- .conv-preview tek satıra sabitlendi (white-space:nowrap, ellipsis,
+  max-height:1.35em); önizleme içindeki img/svg/emoji'ler 1em×1em inline-block.
+- Mesaj balonlarındaki emoji ve görseller zorunlu inline-block (1.15em),
+  vertical-align:-.18em.
+- Playwright ile doğrulandı: "Sen: 😀😀😀🇹🇷" tek satır, kart yüksekliği artmıyor.
+
+Sohbet listesi önizlemesi artık tek satır: emojiler yan yana, kart yüksekliği
+büyümüyor; mesaj balonlarındaki emojiler de zorunlu inline yapıldı.
+
+================================================================================
+[19.08.2026 01:21 Ankara] KULLANICI
+================================================================================
+şimdi bana ilk yazdığım yani bu sohbet başlangıçından şimdi yazdıklarıma kadar
+olanları herşeyi sohbet.txt dosyasına kaydet tarih saat ankara her konuşmanın
+üstünde olsun her isteğim öncesi yani kişiler kısmında ki alfabeyi sil kişiler
+bölümünde kişi sil seçeneği olmalı üstüne basılı tutunca bu özellik gelmeli
+
+================================================================================
+[19.08.2026 01:23 Ankara] LOVABLE
+================================================================================
+- Bu sohbet kaydı sohbet.txt olarak oluşturuldu (Ankara saatiyle başlıklandı).
+- Kişiler ekranındaki alfabe şeridi (A–Z #) HTML ve CSS'ten tamamen kaldırıldı.
+- Kişi satırına uzun basınca (yaklaşık 0,5 sn; masaüstünde sağ tık da çalışır)
+  alttan "Kişiyi Sil" / "İptal" eylem sayfası açılıyor. Silme onay ister; kişiyi
+  contactsState'ten ve yerel veritabanından siler, varsa P2P bağlantısını kapatır,
+  ilgili sohbet kaydını temizler ve listeyi yeniler.

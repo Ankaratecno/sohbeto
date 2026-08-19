@@ -1,0 +1,2500 @@
+<!DOCTYPE html>
+<html lang="tr" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Otomatik çeviriyi engelle: Türkçe arayüz Türkçe kalsın (özellikle telefonda Chrome auto-translate isimleri bozuyor) -->
+    <meta name="google" content="notranslate">
+    <meta http-equiv="Content-Language" content="tr">
+    <title>Sohbeto - Minimalist</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Tema Renkleri (Dinamik Değişecek) */
+            --primary-green: #0a7c4a; 
+            --primary-green-hover: #08633b;
+            --light-green-bg: #e6f3eb; /* İkonların arkasındaki açık renk */
+            
+            /* Zemin Rengi (Dinamik Değişecek) */
+            --bg-white: #ffffff;
+            
+            /* Sabit Renkler */
+            --text-main: #111111;
+            --text-secondary: #6b7280;
+            --border-light: #f3f4f6;
+            --nav-bg: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-white);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Klavye açıldığında sayfa kaymasın: gövde görünür alana sabit. */
+            position: fixed;
+            left: 0;
+            right: 0;
+            top: 0;
+            height: var(--app-h, 100dvh);
+            background-color: #f0f2f5; 
+            transition: background-color 0.3s ease;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+
+        .app-container {
+            width: 100%;
+            height: 100vh;
+            /* Klavye açıldığında görünür alan küçülür: başlık üstte kalsın,
+               sadece mesaj listesi kaysın. */
+            height: var(--app-h, 100dvh);
+            max-width: 600px;
+
+            background-color: var(--bg-white);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            transition: background-color 0.3s ease;
+        }
+
+        .app-container.instant-open .screen { transition: none; }
+
+        @media (max-width: 600px) {
+            .app-container {
+                max-width: 100%;
+                box-shadow: none;
+            }
+        }
+
+        /* ========== SPLASH (Korunan kısım — "güvenli sohbet") ========== */
+        #screenSplash{
+            display:flex;position:fixed;inset:0;z-index:9999;
+            background:radial-gradient(ellipse at 30% 20%,#1e1b4b 0%,#0e1621 60%,#0a0e1a 100%);
+            align-items:center;justify-content:center;flex-direction:column;
+            animation:fadeIn .35s ease;
+        }
+        #screenSplash.fade-out{animation:splashOut .45s ease forwards;pointer-events:none}
+        #screenSplash.gone{display:none}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes slideUpSheet{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes splashOut{to{opacity:0;transform:scale(1.04)}}
+        .splash-icon{
+            width:38vw;max-width:200px;min-width:140px;aspect-ratio:1;
+            filter:drop-shadow(0 18px 36px rgba(99,102,241,.55)) drop-shadow(0 6px 10px rgba(0,0,0,.45));
+            animation:splashIn .8s cubic-bezier(.2,.9,.25,1.15);
+        }
+        @keyframes splashIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+        .splash-name{
+            margin-top:22px;font-size:22px;font-weight:800;letter-spacing:.5px;
+            background:linear-gradient(135deg,#22d3ee 0%,#6366f1 100%);
+            -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+            animation:fadeIn .9s ease .2s backwards;
+        }
+        .splash-tag{margin-top:6px;font-size:12px;color:#7c8da6;animation:fadeIn .9s ease .35s backwards}
+
+        /* Ekran Geçiş Sınıfları */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            opacity: 1;
+            transform: translateX(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+            background-color: var(--bg-white);
+            z-index: 10;
+        }
+        .hidden-screen {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: translateX(0);
+            z-index: 5;
+            transition: none;
+        }
+
+        /* Gizlenen sohbet katmanı bir kare dahi alttaki ekrana sızmamalı. */
+        #screen-chat.hidden-screen { display:none; }
+
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 80px;
+        }
+        .content-area::-webkit-scrollbar { display: none; }
+
+        /* Doğrulama Ekranı */
+        .auth-header {
+            padding: 24px;
+            padding-top: max(30px, env(safe-area-inset-top));
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .back-btn { font-size: 1.2rem; color: var(--text-main); margin-bottom: 24px; cursor: pointer; }
+        .brand-text { color: var(--primary-green); font-weight: 600; font-size: 1.1rem; margin-bottom: 32px; }
+        .auth-title { font-size: 2.2rem; font-weight: 700; line-height: 1.1; margin-bottom: 12px; letter-spacing: -0.5px; }
+        .auth-subtitle { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 40px; }
+
+        .code-input-container { display: flex; gap: 8px; margin-bottom: 24px; width: 100%; justify-content: space-between; }
+        .code-input {
+            width: calc((100% - 40px) / 6);
+            max-width: 45px;
+            aspect-ratio: 1 / 1.2;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            text-align: center;
+            font-weight: 600;
+            color: var(--text-main);
+            background: transparent;
+        }
+        .code-input:focus { outline: none; border-color: var(--primary-green); box-shadow: 0 0 0 2px var(--light-green-bg); }
+
+        .btn-solid {
+            background-color: var(--primary-green);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            width: 100%;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-solid:hover { background-color: var(--primary-green-hover); }
+
+        /* Ana Header */
+        .main-header {
+            padding: 20px 24px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-white);
+            z-index: 20;
+            position: sticky;
+            top: 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .main-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.3px; }
+        .header-icon { font-size: 1.2rem; color: var(--primary-green); cursor: pointer; }
+
+        .search-container { padding: 12px 24px; background-color: var(--bg-white); }
+        .search-box { display: flex; align-items: center; background-color: #f3f4f6; border-radius: 12px; padding: 10px 16px; }
+        .search-box i { color: #9ca3af; font-size: 0.9rem; margin-right: 10px; }
+        .search-box input { border: none; background: transparent; width: 100%; font-size: 0.95rem; color: var(--text-main); }
+        .search-box input:focus { outline: none; }
+        .search-box input::placeholder { color: #9ca3af; }
+
+        #screen-sohbetler .content-area { padding: 4px 14px 92px; background: linear-gradient(180deg, var(--bg-white), rgba(243,244,246,.7)); }
+        #screen-sohbetler .conv-item {
+            position: relative; display: flex; align-items: center; gap: 12px;
+            margin: 8px 0; padding: 12px 12px;
+            background: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.82);
+            border-radius: 22px; box-shadow: 0 10px 24px rgba(15,23,42,.07);
+            cursor: pointer; transition: transform .16s ease, background .16s ease, box-shadow .16s ease;
+        }
+        #screen-sohbetler .conv-item::after { content:""; position:absolute; left:14px; right:14px; bottom:-5px; height:1px; background:rgba(255,255,255,.65); }
+        #screen-sohbetler .conv-item:hover { background:#fff; box-shadow:0 14px 28px rgba(15,23,42,.09); }
+        #screen-sohbetler .conv-item:active { transform:scale(.99); }
+        #screen-sohbetler .conv-avatar {
+            width: 50px; height: 50px; border-radius: 17px; flex: 0 0 50px; overflow: hidden;
+            display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700;
+            background: linear-gradient(135deg, var(--primary-green), #12b981); color:#fff;
+            box-shadow:0 6px 14px rgba(15,23,42,.14); border:1px solid rgba(0,0,0,.04);
+        }
+        #screen-sohbetler .conv-avatar img { width:100%; height:100%; object-fit:cover; }
+        #screen-sohbetler .conv-info { min-width:0; flex:1; padding-right:4px; }
+        #screen-sohbetler .conv-name { font-size:.92rem; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        #screen-sohbetler .conv-preview { margin-top:4px; font-size:.78rem; line-height:1.25; color:var(--text-secondary); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        #screen-sohbetler .conv-meta { align-self:stretch; min-width:42px; display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; gap:8px; }
+        #screen-sohbetler .conv-time { font-size:.66rem; font-weight:600; color:#9ca3af; white-space:nowrap; }
+        #screen-sohbetler .conv-unread { min-width:20px; height:20px; padding:0 6px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:var(--primary-green); color:#fff; font-size:.66rem; font-weight:800; box-shadow:0 4px 10px rgba(10,124,74,.26); }
+
+
+        /* Ayarlar Listesi */
+        .settings-list { display: flex; flex-direction: column; width: 100%; padding: 0 16px; margin-top: 10px; }
+        .settings-item {
+            display: flex; align-items: center;
+            padding: 16px 8px;
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .settings-item:active { opacity: 0.7; }
+        .settings-item:last-child { border-bottom: none; }
+        
+        .settings-icon-wrapper {
+            width: 44px; height: 44px;
+            border-radius: 14px;
+            display: flex; justify-content: center; align-items: center;
+            margin-right: 16px; flex-shrink: 0;
+            color: white; font-size: 1.1rem;
+        }
+        .icon-dynamic { background-color: var(--primary-green); opacity: 0.85; }
+        .icon-warning { background-color: #dc9b35; }
+        .icon-danger  { background-color: #c4624b; }
+
+        .settings-text { flex-grow: 1; display: flex; flex-direction: column; }
+        .settings-item-title { font-size: 1.05rem; font-weight: 500; color: var(--text-main); margin-bottom: 2px; }
+        .settings-item-subtitle { font-size: 0.85rem; color: var(--text-secondary); }
+        .settings-action { margin-left: 12px; color: #9ca3af; font-size: 0.9rem; }
+
+        /* Toggle Switch */
+        .toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1;
+            transition: .3s; border-radius: 30px;
+        }
+        .toggle-slider:before {
+            position: absolute; content: "";
+            height: 22px; width: 22px;
+            left: 2px; bottom: 2px;
+            background-color: white;
+            transition: .3s; border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .toggle-switch input:checked + .toggle-slider { background-color: var(--primary-green); }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
+
+        /* Tema Alt Sayfası */
+        .theme-header {
+            padding: 20px 24px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            display: flex; align-items: center;
+            border-bottom: 1px solid var(--border-light);
+            background-color: var(--bg-white);
+        }
+        .theme-header i { margin-right: 16px; font-size: 1.2rem; cursor: pointer; }
+
+        .settings-section { width: 100%; margin-top: 24px; text-align: left; padding: 0 24px; }
+        .settings-section h3 {
+            font-size: 0.9rem; color: var(--text-secondary);
+            font-weight: 600; margin-bottom: 12px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .palette-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+        .color-swatch {
+            width: 36px; height: 36px;
+            border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.2s, border-color 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .color-swatch:hover { transform: scale(1.1); }
+        .color-swatch.active { border-color: var(--text-main); transform: scale(1.15); }
+
+        .circle-icon-bg {
+            width: 120px; height: 120px;
+            background-color: var(--light-green-bg);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 10px;
+        }
+
+        /* ===== Profil Bloğu (Ayarlar başına eklenen) ===== */
+        .profile-block {
+            display: flex; flex-direction: column; align-items: center;
+            padding: 24px 24px 8px;
+        }
+        .profile-pic-select {
+            width: 96px; height: 96px; border-radius: 50%;
+            position: relative; cursor: pointer;
+            transition: transform .2s ease;
+        }
+        .profile-pic-select:hover { transform: scale(1.04); }
+        .profile-pic-select .pic-circle {
+            width: 100%; height: 100%; border-radius: 50%;
+            background: linear-gradient(135deg, #22d3ee, #6366f1, #a855f7);
+            border: 3px solid var(--light-green-bg);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 38px; color: #fff; overflow: hidden;
+            box-shadow: 0 8px 22px -8px rgba(99,102,241,.45);
+        }
+        .profile-pic-select .pic-circle img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .profile-pic-select .pic-badge {
+            position: absolute; bottom: 2px; right: 2px;
+            width: 30px; height: 30px; border-radius: 50%;
+            background: var(--primary-green);
+            color: #fff; display: flex; align-items: center; justify-content: center;
+            font-size: 13px;
+            border: 3px solid var(--bg-white);
+            box-shadow: 0 2px 6px rgba(0,0,0,.18);
+        }
+        .profile-hint {
+            margin-top: 10px;
+            font-size: .82rem;
+            color: var(--text-secondary);
+        }
+
+        .profile-fields {
+            padding: 8px 24px 4px;
+            display: flex; flex-direction: column; gap: 14px;
+        }
+        .profile-field label {
+            display: flex; align-items: center; gap: 6px;
+            font-size: .82rem; font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+        .profile-field label .lbl-emoji { font-size: .95rem; }
+        .profile-field input,
+        .profile-field textarea {
+            width: 100%;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: .95rem;
+            color: var(--text-main);
+            background: var(--bg-white);
+            font-family: 'Inter', sans-serif;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .profile-field textarea { resize: none; min-height: 76px; }
+        .profile-field input:focus,
+        .profile-field textarea:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px var(--light-green-bg);
+        }
+        .profile-divider {
+            height: 1px;
+            background: var(--border-light);
+            margin: 18px 24px 4px;
+        }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background-color: var(--nav-bg);
+            display: flex; justify-content: space-around; align-items: center;
+            padding-top: 12px;
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
+            border-top: 1px solid var(--border-light);
+            z-index: 20;
+        }
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            color: #9ca3af; font-size: 0.75rem; font-weight: 500;
+            cursor: pointer; width: 25%;
+            transition: color 0.2s;
+        }
+        .nav-item i { font-size: 1.3rem; margin-bottom: 6px; transition: transform 0.2s; }
+        .nav-item.active { color: var(--primary-green); }
+        .nav-item.active i { transform: translateY(-2px); font-weight: 600; }
+
+        .empty-state {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100%; text-align: center; padding: 0 40px;
+        }
+        .empty-icon {
+            width: 80px; height: 80px;
+            background-color: var(--light-green-bg);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 24px;
+        }
+
+        /* ===== Kişi Avatar (tıklanabilir) ===== */
+        .contact-row { display:flex; align-items:center; padding:12px 4px; border-bottom:1px solid rgba(0,0,0,.04); cursor:pointer; transition:background-color .15s; border-radius:10px; }
+        .contact-row:hover { background:rgba(0,0,0,.025); }
+        .contact-avatar {
+            width:44px; height:44px; border-radius:50%;
+            background:var(--primary-green); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; margin-right:14px; flex-shrink:0;
+            cursor:pointer; overflow:hidden;
+            transition:transform .18s ease, box-shadow .18s ease;
+            box-shadow:0 2px 6px rgba(0,0,0,.08);
+        }
+        .contact-avatar:hover { transform:scale(1.06); box-shadow:0 4px 12px rgba(0,0,0,.15); }
+        .contact-avatar img { width:100%; height:100%; object-fit:cover; }
+
+        /* ===== Kişi Kartı (Modal) ===== */
+        #contactCardOverlay {
+            position:absolute; inset:0; z-index:60;
+            background:rgba(0,0,0,0); 
+            display:none; align-items:center; justify-content:center;
+            transition:background .25s ease;
+            pointer-events:none;
+        }
+        #contactCardOverlay.open {
+            display:flex; pointer-events:auto;
+            background:rgba(0,0,0,0.42);
+            backdrop-filter:blur(4px);
+            -webkit-backdrop-filter:blur(4px);
+        }
+        /* === Kişi Kartı: boyut + animasyon varyasyonları (Adım 14) ===
+           Overlay'e size-lg / size-md / size-sm  ve  anim-default / anim-spin / anim-flip
+           sınıfları sohbeto-card-anim.js tarafından eklenir. */
+        .contact-card {
+            background:var(--bg-white); border-radius:24px;
+            padding:24px 22px 20px;
+            box-shadow:0 24px 60px -10px rgba(0,0,0,.35);
+            transform-origin: var(--tx, 50%) var(--ty, 50%);
+            opacity:0;
+            transition: transform .42s cubic-bezier(.2,.9,.25,1.15), opacity .28s ease;
+        }
+        /* Varsayılan boyut (geri uyum için) */
+        .contact-card { width:86%; max-width:340px; }
+
+        /* Boyutlar */
+        #contactCardOverlay.size-lg .contact-card { width:86%; max-width:340px; padding:24px 22px 20px; border-radius:24px; }
+        #contactCardOverlay.size-md .contact-card { width:74%; max-width:280px; padding:18px 18px 16px; border-radius:20px; }
+        #contactCardOverlay.size-sm .contact-card { width:64%; max-width:230px; padding:14px 14px 12px; border-radius:18px; }
+        #contactCardOverlay.size-md .cc-avatar { width:78px; height:78px; font-size:30px; margin-bottom:10px; }
+        #contactCardOverlay.size-sm .cc-avatar { width:60px; height:60px; font-size:22px; margin-bottom:8px; }
+        #contactCardOverlay.size-md .cc-name  { font-size:1.05rem; }
+        #contactCardOverlay.size-sm .cc-name  { font-size:.95rem; }
+        #contactCardOverlay.size-sm .cc-phone { font-size:.74rem; }
+        #contactCardOverlay.size-sm .cc-actions { margin-top:14px; gap:6px; }
+        #contactCardOverlay.size-sm .cc-action { padding:8px 4px; border-radius:12px; }
+        #contactCardOverlay.size-sm .cc-action span { font-size:.66rem; }
+        #contactCardOverlay.size-sm .cc-msg-btn { padding:10px; font-size:.85rem; margin-top:10px; }
+
+        /* Anim 1 — Varsayılan: tıklanan noktadan büyüyerek aç, geri kapanırken aynı noktaya küçül */
+        #contactCardOverlay.anim-default .contact-card { transform: scale(.05) translate(var(--dx,0), var(--dy,0)); }
+        #contactCardOverlay.anim-default.open .contact-card { transform: scale(1) translate(0,0); opacity:1; }
+        #contactCardOverlay.anim-default.closing .contact-card { transform: scale(.05) translate(var(--dx,0), var(--dy,0)); opacity:0; }
+
+        /* Anim 2 — Dönerek gel: kart 540° dönerek büyür, kapanırken ters yöne dönüp küçülür */
+        #contactCardOverlay.anim-spin { perspective: 1200px; }
+        #contactCardOverlay.anim-spin .contact-card {
+            transform: scale(.05) rotate(-540deg);
+            transition: transform .58s cubic-bezier(.18,.85,.25,1.08), opacity .35s ease;
+        }
+        #contactCardOverlay.anim-spin.open    .contact-card { transform: scale(1)   rotate(0deg);    opacity:1; }
+        #contactCardOverlay.anim-spin.closing .contact-card { transform: scale(.05) rotate(540deg);  opacity:0; }
+
+        /* Anim 3 — Sürpriz: 3B kart çevirme (flip) + hafif yukarı yay; kapanırken ters çevrilir */
+        #contactCardOverlay.anim-flip { perspective: 1500px; }
+        #contactCardOverlay.anim-flip .contact-card {
+            transform-style: preserve-3d;
+            transform: rotateY(115deg) rotateX(-14deg) translateY(-36px) scale(.82);
+            transition: transform .6s cubic-bezier(.2,.85,.25,1.05), opacity .35s ease;
+            box-shadow: 0 30px 80px -10px rgba(0,0,0,.5);
+        }
+        #contactCardOverlay.anim-flip.open    .contact-card { transform: rotateY(0deg)    rotateX(0deg)  translateY(0)    scale(1);   opacity:1; }
+        #contactCardOverlay.anim-flip.closing .contact-card { transform: rotateY(-115deg) rotateX(14deg) translateY(-36px) scale(.82); opacity:0; }
+
+        #contactCardOverlay.closing { background:rgba(0,0,0,0); backdrop-filter:none; -webkit-backdrop-filter:none; }
+
+        /* Tema ayarlarındaki seçim ızgaraları (kart boyutu + animasyonu) */
+        .pick-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:6px; }
+        .pick-tile {
+            border:2px solid transparent; border-radius:14px;
+            background:var(--light-green-bg, #eafaf2);
+            padding:12px 8px; text-align:center; cursor:pointer;
+            transition: transform .15s, border-color .15s, background .15s;
+            font-family:inherit;
+        }
+        .pick-tile:hover { transform: translateY(-2px); }
+        .pick-tile.active { border-color: var(--primary-green, #0a7c4a); background:#fff; box-shadow:0 6px 14px rgba(10,124,74,.18); }
+        .pick-tile .pt-demo {
+            width:100%; aspect-ratio:1/1; max-width:64px; margin:0 auto 6px;
+            border-radius:12px; background:linear-gradient(135deg,#0a7c4a,#16a34a);
+            display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800;
+            box-shadow:0 4px 10px rgba(10,124,74,.25);
+        }
+        .pick-tile .pt-demo.lg { width:64px; height:64px; font-size:22px; }
+        .pick-tile .pt-demo.md { width:48px; height:48px; font-size:18px; }
+        .pick-tile .pt-demo.sm { width:34px; height:34px; font-size:14px; }
+        .pick-tile .pt-label { font-size:.74rem; font-weight:700; color:var(--text-main,#111); }
+        .pick-tile .pt-sub   { font-size:.65rem; color:var(--text-secondary,#6b7280); margin-top:2px; }
+        .cc-avatar {
+            width:96px; height:96px; border-radius:50%;
+            margin:0 auto 14px;
+            background:linear-gradient(135deg,var(--primary-green),var(--primary-green-hover));
+            color:#fff; display:flex; align-items:center; justify-content:center;
+            font-size:38px; font-weight:700; overflow:hidden;
+            box-shadow:0 10px 24px -6px rgba(0,0,0,.25);
+        }
+        .cc-avatar img { width:100%; height:100%; object-fit:cover; }
+        .cc-name { text-align:center; font-size:1.2rem; font-weight:700; color:var(--text-main); letter-spacing:-.2px; }
+        .cc-phone { text-align:center; font-size:.85rem; color:var(--text-secondary); margin-top:3px; }
+        .cc-actions { display:flex; justify-content:space-around; margin-top:20px; gap:8px; }
+        .cc-action {
+            flex:1; display:flex; flex-direction:column; align-items:center;
+            gap:6px; padding:10px 6px; border-radius:14px;
+            background:var(--light-green-bg); color:var(--primary-green);
+            cursor:pointer; transition:transform .15s, background .15s;
+            border:none; font-family:inherit;
+        }
+        .cc-action:hover { transform:translateY(-2px); }
+        .cc-action:active { transform:translateY(0); }
+        .cc-action i { font-size:1.05rem; }
+        .cc-action span { font-size:.72rem; font-weight:600; }
+        .cc-msg-btn {
+            margin-top:14px; width:100%;
+            padding:12px; border-radius:14px;
+            background:var(--primary-green); color:#fff;
+            border:none; font-weight:600; font-size:.95rem; cursor:pointer;
+            transition:background .2s;
+            font-family:inherit;
+        }
+        .cc-msg-btn:hover { background:var(--primary-green-hover); }
+
+        /* ===== Sohbet Detay Ekranı ===== */
+        .chat-header {
+            padding: 10px 12px;
+            padding-top: max(12px, env(safe-area-inset-top));
+            display:flex; align-items:center; gap:8px;
+            background:var(--bg-white);
+            border-bottom:1px solid var(--border-light);
+            position:sticky; top:0; z-index:25;
+        }
+        .chat-hbtn {
+            width:36px; height:36px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            color:var(--primary-green); cursor:pointer;
+            transition:background .15s;
+            flex-shrink:0; background:transparent; border:none;
+            font-size:1rem;
+        }
+        .chat-hbtn:hover { background:var(--light-green-bg); }
+        .chat-h-avatar {
+            width:38px; height:38px; border-radius:50%;
+            background:var(--primary-green); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; flex-shrink:0; overflow:hidden;
+            font-size:.95rem;
+        }
+        .chat-h-avatar img { width:100%; height:100%; object-fit:cover; }
+        .chat-h-info { flex:1; min-width:0; line-height:1.15; }
+        .chat-h-name { font-weight:600; font-size:.98rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .chat-h-status { font-size:.72rem; color:var(--primary-green); margin-top:2px; }
+
+        .chat-messages {
+            flex:1; overflow-y:auto;
+            padding:14px 14px 4px;
+            display:flex; flex-direction:column; gap:8px;
+            background:var(--oo-chat-bg, linear-gradient(180deg, var(--bg-white) 0%, var(--light-green-bg) 280%));
+            background-attachment:local;
+        }
+        /* Kısa sohbetlerde de son mesaj giriş alanının hemen üstünde başlar. */
+        .chat-messages::before { content:''; margin-top:auto; flex:0 0 0; }
+        .chat-messages::-webkit-scrollbar { display:none; }
+        /* "yazıyor…" animasyonu daima en altta kalsın (flex order) */
+        .chat-messages > #typingIndicator { order:99999; }
+
+        .msg-bubble {
+            max-width:78%; padding:9px 13px; border-radius:18px;
+            font-size:.92rem; line-height:1.35; word-wrap:break-word;
+            box-shadow:0 1px 1px rgba(0,0,0,.04);
+            animation:msgIn .22s ease;
+        }
+        @keyframes msgIn { from{ opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+        .msg-me { align-self:flex-end; background:var(--primary-green); color:#fff; border-bottom-right-radius:6px; }
+        .msg-them { align-self:flex-start; background:#fff; color:var(--text-main); border-bottom-left-radius:6px; border:1px solid rgba(0,0,0,.04); }
+        .msg-time { font-size:.62rem; opacity:.6; margin-top:3px; text-align:right; }
+        .chat-empty { text-align:center; color:var(--text-secondary); font-size:.85rem; padding:30px 24px; }
+
+        .chat-input-bar {
+            padding: 8px 8px;
+            padding-bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+            background:var(--bg-white);
+            border-top:1px solid var(--border-light);
+            display:flex; align-items:center; gap:6px;
+            min-width:0;
+        }
+        .ci-field {
+            flex:1 1 auto; min-width:0;
+            display:flex; align-items:flex-end;
+            background:#f3f4f6; border-radius:22px;
+            padding:4px 6px; gap:2px;
+            transition:background .15s;
+        }
+        .ci-field:focus-within { background:#eef0f3; }
+        .ci-field input,
+        .ci-field textarea {
+            flex:1 1 auto; min-width:0;
+            border:none; background:transparent; outline:none;
+            font-size:.95rem; color:var(--text-main); font-family:inherit;
+            padding:6px 4px;
+        }
+        /* Mesaj kutusu: yazı sağa kaymaz, satır atlayarak yukarı doğru büyür */
+        .ci-field textarea#chatInput {
+            display:block; resize:none;
+            max-height:132px; overflow-y:auto;
+            line-height:1.38; white-space:pre-wrap;
+            overflow-wrap:break-word; word-break:break-word;
+            scrollbar-width:none;
+        }
+        .ci-field textarea#chatInput::-webkit-scrollbar { width:0; height:0; }
+        .ci-mirror-wrap { width:100%; }
+        .ci-mirror-wrap > div[aria-hidden="true"] img {
+            display:inline-block !important;
+            float:none !important;
+            position:static !important;
+            max-width:none !important;
+            white-space:nowrap;
+        }
+        .ci-field input::placeholder,
+        .ci-field textarea::placeholder { color:#9ca3af; }
+
+        .ci-inner-btn {
+            width:32px; height:32px; border-radius:50%;
+            background:transparent; border:none; color:var(--text-secondary);
+            display:flex; align-items:center; justify-content:center; cursor:pointer;
+            flex-shrink:0; font-size:1rem; padding:0;
+            transition:background .15s, color .15s, transform .15s;
+        }
+        .ci-inner-btn:hover { background:rgba(0,0,0,.05); color:var(--primary-green); }
+        .ci-inner-btn.active { color:var(--primary-green); background:var(--light-green-bg); }
+        .ci-send {
+            width:40px; height:40px; border-radius:50%;
+            background:var(--primary-green); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            cursor:pointer; flex-shrink:0; border:none;
+            transition:background .15s, transform .15s;
+            font-size:.95rem;
+        }
+        .ci-send:hover { background:var(--primary-green-hover); transform:scale(1.05); }
+        .ci-send:active { transform:scale(.95); }
+        .ci-send.recording { background:#dc2626; animation:micPulse 1s ease-in-out infinite; }
+        @keyframes micPulse { 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.12);} }
+        .ci-send .send-arrow,
+        .ci-send .send-mic { display:none; }
+        .ci-send.is-send .send-arrow { display:inline; }
+        .ci-send.is-mic .send-mic { display:inline; }
+
+        /* Tek seferlik responsive: 360px ve altı için ek sıkıştırma */
+        @media (max-width: 360px) {
+            .chat-input-bar { padding:6px 6px; gap:4px; }
+            .ci-inner-btn { width:28px; height:28px; font-size:.9rem; }
+            .ci-send { width:36px; height:36px; }
+            .ci-field { padding:3px 4px; }
+            .ci-field input { font-size:.9rem; }
+        }
+
+        /* ===== Ek panel ve Emoji paneli (klavyenin yerini alır) ===== */
+        .ci-panel {
+            background:var(--bg-white);
+            border-top:1px solid var(--border-light);
+            max-height:280px; overflow:hidden;
+            display:flex; flex-direction:column;
+            animation:ciPanelIn .18s ease;
+        }
+        .ci-panel.hidden { display:none; }
+        @keyframes ciPanelIn { from{ transform:translateY(8px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
+        .ci-panel-head {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:10px 14px 6px; border-bottom:1px solid var(--border-light);
+        }
+        .ci-panel-title { font-weight:700; font-size:.95rem; color:var(--text-main); letter-spacing:.2px; }
+        .ci-panel-tabs { display:flex; gap:4px; }
+        .ci-tab {
+            border:none; background:transparent; cursor:pointer;
+            padding:6px 12px; border-radius:14px;
+            font-size:.82rem; color:var(--text-secondary); font-weight:600;
+            transition:background .15s, color .15s;
+        }
+        .ci-tab:hover { color:var(--primary-green); }
+        .ci-tab.active { background:var(--light-green-bg); color:var(--primary-green); }
+        .ci-emoji-grid {
+            flex:1; overflow-y:auto;
+            display:grid; grid-template-columns:repeat(auto-fill, minmax(38px, 1fr));
+            gap:2px; padding:8px 10px;
+        }
+        .ci-emoji-grid button {
+            border:none; background:transparent; cursor:pointer;
+            font-size:1.45rem; padding:4px 0; border-radius:8px;
+            transition:background .12s, transform .12s;
+        }
+        .ci-emoji-grid button:hover { background:var(--light-green-bg); transform:scale(1.15); }
+        .ci-emoji-grid button {
+            display:flex; align-items:center; justify-content:center;
+            line-height:1; height:38px;
+        }
+        .ci-emoji-grid img { width:26px; height:20px; object-fit:contain; display:block; }
+        .ci-emoji-grid img.emoji { width:24px; height:24px; }
+        .ci-attach-grid {
+            display:grid; grid-template-columns:repeat(4, 1fr);
+            gap:10px; padding:14px 14px 18px;
+        }
+        .ci-attach-item {
+            display:flex; flex-direction:column; align-items:center; gap:6px;
+            background:transparent; border:none; cursor:pointer;
+            color:var(--text-main); font-size:.72rem; font-weight:500;
+        }
+        .ci-attach-item .ci-attach-ic {
+            width:48px; height:48px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            color:#fff; font-size:1.1rem;
+            box-shadow:0 4px 10px -4px rgba(0,0,0,.2);
+            transition:transform .15s;
+        }
+        .ci-attach-item:hover .ci-attach-ic { transform:scale(1.08); }
+        .ci-attach-ic.ic-photo  { background:linear-gradient(135deg,#a855f7,#7c3aed); }
+        .ci-attach-ic.ic-camera { background:linear-gradient(135deg,#0a7c4a,#10b981); }
+        .ci-attach-ic.ic-doc    { background:linear-gradient(135deg,#3b82f6,#1d4ed8); }
+        .ci-attach-ic.ic-loc    { background:linear-gradient(135deg,#ef4444,#b91c1c); }
+
+        /* ===== Motor mesaj balonu hizalama köprüsü =====
+           Motor: <div class="msg msg-own|msg-other|msg-private"><div class="msg-bubble">…</div></div>
+           OO'nun kendi .msg-bubble stili var; sadece dış kapsayıcıyı flex'e çevirip
+           kendi/karşı tarafa hizalıyoruz ve renkleri bağlıyoruz. */
+        .chat-messages .msg { display:flex; width:100%; }
+        .chat-messages .msg-own { justify-content:flex-end; }
+        .chat-messages .msg-other,
+        .chat-messages .msg-private { justify-content:flex-start; }
+        .chat-messages .msg > .msg-bubble {
+            max-width:min(78%, 420px);
+            padding:7px 11px 5px;
+            border-radius:14px;
+            box-shadow:0 1px 2px rgba(15,23,42,.07);
+            font-size:.93rem; line-height:1.38;
+            overflow-wrap:break-word; word-break:normal; white-space:pre-wrap;
+        }
+        .chat-messages .msg-own > .msg-bubble {
+            background:var(--oo-own-bg, #e7fbe1); color:var(--oo-own-fg, #0f172a);
+            border:1px solid var(--oo-own-border, rgba(10,124,74,.10));
+            border-bottom-right-radius:5px;
+        }
+
+        .chat-messages .msg-other > .msg-bubble,
+        .chat-messages .msg-private > .msg-bubble {
+            background:#fff; color:var(--text-main);
+            border:1px solid rgba(15,23,42,.05);
+            border-bottom-left-radius:5px;
+        }
+        /* Emoji'ler satır satır kırılmasın, aynı satırda kalsın */
+        .chat-messages .msg-bubble .msg-text {
+            white-space:pre-wrap; overflow-wrap:break-word; word-break:normal;
+        }
+        .chat-messages .msg-bubble img.emoji,
+        .chat-messages .msg-bubble .msg-text img {
+            display:inline-block !important; float:none !important; position:static !important;
+            width:1.15em; height:1.15em; max-width:none;
+            vertical-align:-.18em; margin:0 .04em;
+        }
+        .chat-messages .msg-bubble .msg-text.emoji-only {
+            font-size:1.9rem; line-height:1.15; letter-spacing:.04em;
+        }
+        .chat-messages .msg-bubble .msg-text.emoji-only img.emoji { width:1.05em; height:1.05em; }
+        /* Medya balonları */
+        .chat-messages .msg-bubble.has-media { padding:4px 4px 3px; }
+        .chat-messages .msg-media-img,
+        .chat-messages .msg-media-video {
+            display:block; width:100%; max-width:260px; max-height:320px;
+            object-fit:cover; border-radius:11px; background:#0002;
+        }
+        .chat-messages .msg-media-audio { display:none; }
+        /* ===== Şık sesli mesaj oynatıcısı ===== */
+        .chat-messages .oo-voice {
+            display:flex; align-items:center; gap:10px; padding:6px 8px 6px 6px;
+            min-width:186px; max-width:250px;
+        }
+        .chat-messages .oo-voice .ov-play {
+            flex:none; width:34px; height:34px; border-radius:50%; border:none; cursor:pointer;
+            display:flex; align-items:center; justify-content:center; font-size:.82rem;
+            background:rgba(255,255,255,.22); color:inherit; transition:transform .12s, background .15s;
+        }
+        .chat-messages .msg-other .oo-voice .ov-play,
+        .chat-messages .msg-private .oo-voice .ov-play { background:var(--primary-green); color:#fff; }
+        .chat-messages .oo-voice .ov-play:active { transform:scale(.92); }
+        .chat-messages .oo-voice .ov-mid { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+        .chat-messages .oo-voice .ov-wave { display:flex; align-items:center; gap:2px; height:20px; }
+        .chat-messages .oo-voice .ov-wave i {
+            display:block; width:2px; border-radius:2px; background:currentColor; opacity:.35;
+            transition:opacity .18s, transform .18s;
+        }
+        .chat-messages .oo-voice.playing .ov-wave i { animation:ovBar .9s ease-in-out infinite; opacity:.75; }
+        .chat-messages .oo-voice.playing .ov-wave i:nth-child(3n) { animation-delay:.15s }
+        .chat-messages .oo-voice.playing .ov-wave i:nth-child(3n+1) { animation-delay:.3s }
+        @keyframes ovBar { 0%,100%{ transform:scaleY(.55) } 50%{ transform:scaleY(1.25) } }
+        .chat-messages .oo-voice .ov-dur { font-size:.63rem; opacity:.6; letter-spacing:.02em; }
+        /* Gönderiliyor durumu: yumuşak parıltı */
+        .chat-messages .oo-voice.sending .ov-wave i { opacity:.28; }
+        .chat-messages .oo-voice.sending .ov-mid::after {
+            content:''; height:2px; border-radius:2px; background:currentColor; opacity:.25;
+            animation:ovLoad 1.1s ease-in-out infinite;
+        }
+        @keyframes ovLoad { 0%{ width:12%; opacity:.18 } 50%{ width:86%; opacity:.4 } 100%{ width:12%; opacity:.18 } }
+        .chat-messages .msg-media-file {
+            display:flex; align-items:center; gap:9px; padding:9px 11px; font-size:.85rem;
+            color:inherit; text-decoration:none; font-weight:600; max-width:250px;
+        }
+        .chat-messages .msg-media-file .oo-file-ic {
+            flex:none; width:32px; height:32px; border-radius:9px; display:flex;
+            align-items:center; justify-content:center; font-size:.85rem;
+            background:rgba(255,255,255,.22); color:inherit;
+        }
+        .chat-messages .msg-other .msg-media-file .oo-file-ic,
+        .chat-messages .msg-private .msg-media-file .oo-file-ic { background:var(--primary-green); color:#fff; }
+        .chat-messages .msg-media-file .oo-file-name {
+            flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        }
+        /* Medya kutusu + video oynat rozeti */
+        .chat-messages .oo-media-wrap { position:relative; display:block; cursor:pointer; }
+        .chat-messages .oo-media-wrap .msg-media-img,
+        .chat-messages .oo-media-wrap .msg-media-video { cursor:pointer; }
+        .chat-messages .oo-play-badge {
+            position:absolute; inset:0; margin:auto; width:46px; height:46px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center; color:#fff; font-size:1rem;
+            background:rgba(0,0,0,.45); backdrop-filter:blur(3px); pointer-events:none;
+            box-shadow:0 4px 14px rgba(0,0,0,.35);
+        }
+        /* Gönderim yüzdesi barı */
+        .chat-messages .oo-upload {
+            display:flex; align-items:center; gap:7px; padding:5px 7px 2px;
+        }
+        .chat-messages .oo-upload-track {
+            flex:1; height:4px; border-radius:4px; overflow:hidden;
+            background:rgba(0,0,0,.14);
+        }
+        .chat-messages .msg-own .oo-upload-track { background:rgba(255,255,255,.28); }
+        .chat-messages .oo-upload-track i {
+            display:block; height:100%; width:0%; border-radius:4px;
+            background:currentColor; opacity:.85; transition:width .18s ease;
+        }
+        .chat-messages .oo-upload-pct { font-size:.62rem; opacity:.75; min-width:30px; text-align:right; }
+        .chat-messages .msg.is-uploading .oo-media-wrap { filter:brightness(.9); }
+        /* Tam ekran medya görüntüleyici */
+        .oo-viewer {
+            position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.94);
+            display:flex; align-items:center; justify-content:center; padding:16px;
+            animation:ooViewerIn .16s ease;
+        }
+        .oo-viewer.hidden { display:none; }
+        @keyframes ooViewerIn { from { opacity:0 } to { opacity:1 } }
+        .oo-viewer .oo-viewer-body { max-width:100%; max-height:100%; display:flex; }
+        .oo-viewer img, .oo-viewer video {
+            max-width:100%; max-height:88vh; border-radius:10px; object-fit:contain; background:#000;
+        }
+        .oo-viewer .oo-viewer-close {
+            position:absolute; top:14px; right:14px; width:40px; height:40px; border:none;
+            border-radius:50%; background:rgba(255,255,255,.14); color:#fff; font-size:1.05rem;
+            cursor:pointer; display:flex; align-items:center; justify-content:center;
+        }
+        /* Kamera modalı */
+        .oo-cam {
+            position:fixed; inset:0; z-index:10000; background:#000; display:flex;
+            flex-direction:column; align-items:center; justify-content:center;
+        }
+        .oo-cam.hidden { display:none; }
+        .oo-cam video { width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+        .oo-cam-top {
+            position:absolute; top:0; left:0; right:0; display:flex; align-items:center;
+            justify-content:space-between; padding:14px 16px; z-index:2;
+        }
+        .oo-cam-btn {
+            width:42px; height:42px; border:none; border-radius:50%; cursor:pointer;
+            background:rgba(255,255,255,.16); color:#fff; font-size:1rem;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .oo-cam-bottom {
+            position:absolute; bottom:0; left:0; right:0; z-index:2; padding:22px 18px 30px;
+            display:flex; align-items:center; justify-content:space-between; gap:16px;
+            background:linear-gradient(to top, rgba(0,0,0,.55), transparent);
+        }
+        .oo-cam-shutter {
+            width:74px; height:74px; border-radius:50%; border:5px solid rgba(255,255,255,.85);
+            background:rgba(255,255,255,.25); cursor:pointer; transition:background .15s, transform .12s;
+        }
+        .oo-cam-shutter:active { transform:scale(.94); }
+        .oo-cam.recording .oo-cam-shutter { background:#ef4444; border-color:#fca5a5; }
+        .oo-cam-hint { color:#fff; font-size:.72rem; opacity:.8; text-align:center; flex:1; }
+        .oo-cam-timer {
+            position:absolute; top:64px; left:50%; transform:translateX(-50%); z-index:3;
+            color:#fff; font-size:.8rem; background:rgba(239,68,68,.85); padding:3px 10px;
+            border-radius:20px; display:none;
+        }
+        .oo-cam.recording .oo-cam-timer { display:block; }
+
+        .chat-messages .msg-bubble.has-media .msg-meta { padding:2px 6px 1px; }
+        .chat-messages .msg-bubble .msg-meta {
+            display:flex; align-items:center; gap:6px; justify-content:flex-end;
+        }
+        /* Mesaj balonlarında gönderen adı / P2P-WSS-ÖZEL etiketleri görünmesin */
+        .chat-messages .msg-bubble .msg-sender,
+        .chat-messages .msg-bubble .msg-tag,
+        .chat-messages .msg-own > .msg-bubble .msg-meta:first-child { display:none !important; }
+        /* Sohbet listesinde önizleme emojilerini normal boyutta tut */
+        /* Önizleme tek satır: -webkit-box kullanınca her <img> ayrı satıra düşüyordu */
+        #screen-sohbetler .conv-preview {
+            font-size:.78rem; line-height:1.3;
+            display:block !important; -webkit-line-clamp:none;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            max-height:1.35em;
+        }
+        #screen-sohbetler .conv-preview img,
+        #screen-sohbetler .conv-preview svg,
+        .conv-preview img.emoji {
+            display:inline-block !important; float:none !important; position:static !important;
+            width:1em; height:1em; max-height:1em; max-width:none;
+            vertical-align:-0.15em; margin:0 .04em;
+        }
+
+        #screen-sohbetler .conv-avatar span { font-size:1.05rem !important; line-height:1; }
+        .chat-h-avatar span { font-size:.95rem !important; line-height:1; }
+        /* Tek tik sistemi: gri = gönderildi, yeşil = iletildi, mavi = okundu */
+        .chat-messages .msg-bubble .tick { font-size:.72rem; line-height:1; }
+        .chat-messages .msg-bubble .tick.gray  { color:#9ca3af; }
+        .chat-messages .msg-bubble .tick.green { color:#16a34a; }
+        .chat-messages .msg-bubble .tick.blue  { color:#2f8ff5; }
+        .chat-messages .msg-bubble .msg-time { font-size:.63rem; opacity:.55; }
+        .chat-messages .msg-deleted > .msg-bubble { background:#f3f4f6 !important; border-color:rgba(15,23,42,.05) !important; }
+        /* Gece arka planında karşı taraf baloncukları okunur kalsın */
+        body.oo-chat-dark .chat-messages .msg-other > .msg-bubble,
+        body.oo-chat-dark .chat-messages .msg-private > .msg-bubble {
+            background:#1f2937; color:#e5e7eb; border-color:rgba(255,255,255,.07);
+        }
+        body.oo-chat-dark .chat-messages .msg-bubble .msg-time { opacity:.7; }
+        .chat-messages .msg-deleted .msg-deleted-text { color:#6b7280; font-style:italic; }
+
+        /* ===== ARAMA EKRANI (Adım 4) ===== */
+        #screen-ooCall, #screen-ooIncoming {
+            position:absolute; inset:0; z-index:70;
+            background:linear-gradient(160deg,#0f3d2e 0%, #0a7c4a 55%, #064d2c 100%);
+            color:#fff; display:flex; flex-direction:column;
+            /* Bottom: nav bar (parent OS) ~64px + safe area */
+            padding:max(28px, env(safe-area-inset-top)) 22px calc(max(22px, env(safe-area-inset-bottom)) + 72px);
+        }
+        #screen-ooCall.hidden-screen, #screen-ooIncoming.hidden-screen { display:none; }
+        /* Video stage — engine'in #videoLocal/#videoRemote node'ları buraya taşınır */
+        .ooc-video-stage {
+            position:absolute; inset:0; z-index:1;
+            background:#000; display:none;
+            overflow:hidden;
+        }
+        #screen-ooCall.video-on .ooc-video-stage { display:block; }
+        #screen-ooCall.video-on .ooc-mid > .ooc-avatar,
+        #screen-ooCall.video-on .ooc-mid > .ooc-name { display:none; }
+        #screen-ooCall.video-on .ooc-mid > .ooc-duration {
+            display:block; position:absolute; left:0; right:0;
+            top:calc(max(28px, env(safe-area-inset-top)) + 58px);
+            z-index:3; text-align:center;
+        }
+        #screen-ooCall.video-on .ooc-top,
+        #screen-ooCall.video-on .ooc-actions { position:relative; z-index:3; text-shadow:0 1px 6px rgba(0,0,0,.6); }
+        .ooc-video-stage .ooc-remote {
+            position:absolute; inset:0;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .ooc-video-stage .ooc-remote video,
+        .ooc-video-stage .ooc-remote > * > video {
+            width:100% !important; height:100% !important; object-fit:cover; display:block;
+        }
+        .ooc-video-stage .ooc-local {
+            position:absolute; right:14px;
+            top:calc(max(28px, env(safe-area-inset-top)) + 60px);
+            width:28%; max-width:140px; aspect-ratio:9/14;
+            border-radius:14px; overflow:hidden; z-index:2;
+            background:#111; box-shadow:0 6px 20px rgba(0,0,0,.5);
+            border:2px solid rgba(255,255,255,.18);
+        }
+        .ooc-video-stage .ooc-local video,
+        .ooc-video-stage .ooc-local > * > video {
+            width:100% !important; height:100% !important; object-fit:cover; display:block;
+        }
+        .ooc-top { text-align:center; padding-top:6px; }
+        .ooc-mode { font-size:.78rem; letter-spacing:2px; opacity:.75; text-transform:uppercase; }
+        .ooc-status { font-size:.95rem; opacity:.9; margin-top:6px; min-height:1.1em; }
+        .ooc-mid { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
+        .ooc-avatar {
+            width:148px; height:148px; border-radius:50%;
+            background:linear-gradient(135deg,#34b7f1,#128c7e);
+            display:flex; align-items:center; justify-content:center;
+            font-size:56px; font-weight:700; color:#fff; overflow:hidden;
+            box-shadow:0 18px 40px -10px rgba(0,0,0,.55);
+            animation:oocPulse 2.2s ease-in-out infinite;
+        }
+        #screen-ooCall.connected .ooc-avatar { animation:none; }
+        @keyframes oocPulse {
+            0%,100% { box-shadow:0 18px 40px -10px rgba(0,0,0,.55), 0 0 0 0 rgba(255,255,255,.25); }
+            50%     { box-shadow:0 18px 40px -10px rgba(0,0,0,.55), 0 0 0 18px rgba(255,255,255,0); }
+        }
+        .ooc-avatar img { width:100%; height:100%; object-fit:cover; }
+        .ooc-name { font-size:1.55rem; font-weight:600; letter-spacing:-.3px; text-align:center; }
+        .ooc-duration { font-size:1rem; opacity:.85; font-variant-numeric:tabular-nums; }
+        .ooc-actions {
+            display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+            padding:18px 4px 4px;
+        }
+        .ooc-btn {
+            display:flex; flex-direction:column; align-items:center; gap:6px;
+            background:transparent; border:none; color:#fff; cursor:pointer;
+            font-family:inherit;
+        }
+        .ooc-btn .ooc-ico {
+            width:58px; height:58px; border-radius:50%;
+            background:rgba(255,255,255,.14);
+            display:flex; align-items:center; justify-content:center;
+            font-size:1.15rem; transition:background .15s, transform .12s;
+            backdrop-filter:blur(6px);
+        }
+        .ooc-btn:hover .ooc-ico { background:rgba(255,255,255,.22); }
+        .ooc-btn:active .ooc-ico { transform:scale(.94); }
+        .ooc-btn.active .ooc-ico { background:#fff; color:var(--primary-green); }
+        .ooc-btn span { font-size:.72rem; opacity:.85; }
+        .ooc-btn.danger .ooc-ico { background:#e63946; }
+        .ooc-btn.danger:hover .ooc-ico { background:#d62836; }
+
+        /* ========== TOAST NOTIFICATIONS (Mesajlar tarzı) ========== */
+        #sohbetoNotifLayer {
+            position: fixed; top: 0; left: 0; right: 0;
+            z-index: 99999; pointer-events: none;
+            display: flex; flex-direction: column; align-items: stretch;
+            gap: 8px; padding: max(6px, env(safe-area-inset-top)) 0 0;
+        }
+        .sb-toast {
+            pointer-events: auto;
+            width: 100%; max-width: 100%;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
+            border: 1px solid rgba(15,23,42,.06);
+            border-radius: 0;
+            box-shadow: 0 18px 40px -16px rgba(15,23,42,.35), 0 4px 12px rgba(15,23,42,.08);
+            padding: 10px 14px;
+            display: flex; align-items: flex-start; gap: 12px;
+            transform: translateY(-130%);
+            opacity: 0;
+            transition: transform .35s cubic-bezier(.2,.9,.25,1.15), opacity .25s ease;
+            touch-action: pan-y;
+            user-select: none;
+        }
+        .sb-toast.in { transform: translateY(0); opacity: 1; }
+        .sb-toast.out { transform: translateY(-130%); opacity: 0; }
+        .sb-toast.swipe-left  { transform: translateX(-120%); opacity: 0; transition: transform .25s ease, opacity .25s ease; }
+        .sb-toast.swipe-right { transform: translateX(120%);  opacity: 0; transition: transform .25s ease, opacity .25s ease; }
+        .sb-toast-ico {
+            width: 38px; height: 38px; border-radius: 11px; flex: 0 0 38px;
+            background: linear-gradient(135deg,#34d399,#22c55e 55%,#15803d);
+            display: grid; place-items: center; color: #fff;
+            box-shadow: 0 6px 14px -6px rgba(34,197,94,.6);
+        }
+        .sb-toast-body { flex: 1; min-width: 0; }
+        .sb-toast-title { font-size: 13px; font-weight: 700; color: #0b1220; line-height: 1.2; }
+        .sb-toast-text { font-size: 12.5px; color: #334155; line-height: 1.4; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
+        .sb-toast-time { font-size: 11px; color: #94a3b8; font-weight: 600; flex-shrink: 0; margin-left: 6px; }
+
+        /* OTP pulse glow (Telegram tarzı sıralı doldurma) */
+        @keyframes sbOtpPulse {
+            0%   { transform: scale(.7);  box-shadow: 0 0 0 0 rgba(10,124,74,.55); }
+            55%  { transform: scale(1.18); box-shadow: 0 0 0 10px rgba(10,124,74,0); }
+            100% { transform: scale(1);   box-shadow: 0 0 0 0 rgba(10,124,74,0); }
+        }
+        .code-input.sb-fill-pulse {
+            animation: sbOtpPulse .55s cubic-bezier(.2,.9,.25,1.15);
+            border-color: var(--primary-green) !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Mesajlar tarzı bildirim katmanı -->
+    <div id="sohbetoNotifLayer" aria-live="polite"></div>
+
+    <script>
+    (function(){
+        var MES_ICO_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+        function nowLabel(){
+            try { return new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); }
+            catch(e){ return ''; }
+        }
+        window.__sohbetoNotify = function(opts){
+            opts = opts || {};
+            var layer = document.getElementById('sohbetoNotifLayer');
+            if (!layer) return;
+            var title = opts.title || 'Mesajlar';
+            var text  = opts.text  || '';
+            var dur   = typeof opts.duration === 'number' ? opts.duration : 1400;
+            var sticky = !!opts.sticky;
+            var idTag  = opts.id || '';
+            var el = document.createElement('div');
+            el.className = 'sb-toast';
+            if (idTag) el.setAttribute('data-toast-id', idTag);
+            el.innerHTML =
+                '<div class="sb-toast-ico">'+ MES_ICO_SVG +'</div>' +
+                '<div class="sb-toast-body">'+
+                    '<div class="sb-toast-title"></div>'+
+                    '<div class="sb-toast-text"></div>'+
+                '</div>'+
+                '<div class="sb-toast-time"></div>';
+            el.querySelector('.sb-toast-title').textContent = title;
+            el.querySelector('.sb-toast-text').textContent = text;
+            el.querySelector('.sb-toast-time').textContent = nowLabel();
+            layer.appendChild(el);
+            // animate in
+            requestAnimationFrame(function(){ el.classList.add('in'); });
+            // swipe to dismiss
+            var startX = null, dx = 0;
+            function onStart(e){
+                var p = (e.touches && e.touches[0]) || e;
+                startX = p.clientX; dx = 0;
+                el.style.transition = 'none';
+            }
+            function onMove(e){
+                if (startX === null) return;
+                var p = (e.touches && e.touches[0]) || e;
+                dx = p.clientX - startX;
+                el.style.transform = 'translate('+dx+'px,0)';
+                el.style.opacity = String(Math.max(0, 1 - Math.abs(dx)/180));
+            }
+            function onEnd(){
+                if (startX === null) return;
+                el.style.transition = '';
+                if (Math.abs(dx) > 80) {
+                    el.classList.add(dx < 0 ? 'swipe-left' : 'swipe-right');
+                    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 260);
+                } else {
+                    el.style.transform = ''; el.style.opacity = '';
+                }
+                startX = null; dx = 0;
+            }
+            el.addEventListener('touchstart', onStart, {passive:true});
+            el.addEventListener('touchmove', onMove, {passive:true});
+            el.addEventListener('touchend', onEnd);
+            el.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+            // auto dismiss (sticky değilse)
+            if (!sticky) {
+                setTimeout(function(){
+                    if (!el.parentNode) return;
+                    el.classList.remove('in');
+                    el.classList.add('out');
+                    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 380);
+                }, dur);
+            }
+            return el;
+        };
+
+        // Belirli id'ye sahip yapışkan toast'ı kapat
+        window.__sohbetoDismissToast = function(id){
+            try {
+                var nodes = document.querySelectorAll('#sohbetoNotifLayer .sb-toast[data-toast-id="'+id+'"]');
+                nodes.forEach(function(el){
+                    el.classList.remove('in');
+                    el.classList.add('out');
+                    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 380);
+                });
+            } catch(e){}
+        };
+
+        // Engine parent'a 'sohbeto:code' postMessage'ı atıyor — yakalayıp
+        // hem üst bildirim olarak göster, hem de OTP kutularını sırayla doldur.
+        // Aynı zamanda A2 arayüzü açıksa A2 iframe'ine de ilet.
+        try {
+            var _origPostMessage = window.parent && window.parent.postMessage;
+            if (_origPostMessage) {
+                var _wrapped = function(msg, targetOrigin, transfer){
+                    try {
+                        if (msg && msg.type === 'sohbeto:code' && msg.code) {
+                            var code = String(msg.code);
+                            // 2.5 sn sonra üstten YAPIŞKAN bildirim düş, sonra OTP otomatik doldurulur.
+                            // Bildirim, içeri girilince (enterMain) veya kullanıcı swipe ile kapatınca yok olur.
+                            setTimeout(function(){
+                                window.__sohbetoNotify && window.__sohbetoNotify({
+                                    title: 'Mesajlar · Sohbeto',
+                                    text: '🔐 Sohbeto Doğrulama Kodun: ' + code + '\nKodu kimseyle paylaşma. Bu kod 5 dakika geçerlidir.',
+                                    sticky: true,
+                                    id: 'sohbeto-code'
+                                });
+                                window.__sohbetoFillOtp && window.__sohbetoFillOtp(code);
+                                // A2 arayüzü görünürse oraya da yolla
+                                try {
+                                    var ov = document.getElementById('a2FrameOverlay');
+                                    var fr = document.getElementById('a2Frame');
+                                    if (ov && ov.style.display !== 'none' && fr && fr.contentWindow) {
+                                        fr.contentWindow.postMessage({ __sohbeto_a2_ack: true, action: 'code', code: code }, '*');
+                                    }
+                                } catch(e){}
+                            }, 2500);
+                        }
+                        if (msg && msg.type === 'sohbeto:registered') {
+                            // A2 açıksa 3 hoş geldin bildirimini A2 içinde tetikle
+                            try {
+                                var ov2 = document.getElementById('a2FrameOverlay');
+                                var fr2 = document.getElementById('a2Frame');
+                                if (ov2 && ov2.style.display !== 'none' && fr2 && fr2.contentWindow) {
+                                    fr2.contentWindow.postMessage({ __sohbeto_a2_ack: true, action: 'welcomeBurst' }, '*');
+                                }
+                            } catch(e){}
+                        }
+                    } catch(e){}
+                    return _origPostMessage.call(window.parent, msg, targetOrigin, transfer);
+                };
+                window.parent.postMessage = _wrapped;
+            }
+        } catch(e){}
+
+        // Telegram tarzı sıralı OTP doldurma + nabız glow
+        window.__sohbetoFillOtp = function(code){
+            code = String(code || '').replace(/\D/g,'').slice(0,6);
+            if (code.length !== 6) return;
+            var inputs = document.querySelectorAll('#codeInputs .code-input');
+            if (!inputs.length) return;
+            inputs.forEach(function(i){ i.value=''; i.classList.remove('sb-fill-pulse'); });
+            var i = 0;
+            (function step(){
+                if (i >= 6) return;
+                var inp = inputs[i];
+                if (inp){
+                    inp.value = code[i];
+                    inp.classList.remove('sb-fill-pulse');
+                    void inp.offsetWidth;
+                    inp.classList.add('sb-fill-pulse');
+                    try { inp.dispatchEvent(new Event('input', {bubbles:true})); } catch(e){}
+                }
+                i++;
+                setTimeout(step, 180);
+            })();
+        };
+    })();
+    </script>
+
+
+    <!-- ========== SPLASH (Sohbeto · güvenli sohbet) ========== -->
+    <div id="screenSplash">
+        <svg class="splash-icon" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="Sohbeto">
+            <defs>
+                <linearGradient id="splashBody" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#22d3ee"/>
+                    <stop offset="55%" stop-color="#6366f1"/>
+                    <stop offset="100%" stop-color="#a855f7"/>
+                </linearGradient>
+                <linearGradient id="splashGloss" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(255,255,255,0.55)"/>
+                    <stop offset="55%" stop-color="rgba(255,255,255,0.05)"/>
+                    <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+                </linearGradient>
+                <radialGradient id="splashSpark" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#fff7ae"/>
+                    <stop offset="100%" stop-color="#f59e0b"/>
+                </radialGradient>
+            </defs>
+            <rect x="2" y="2" width="60" height="60" rx="16" ry="16" fill="url(#splashBody)"/>
+            <rect x="2" y="2" width="60" height="34" rx="16" ry="16" fill="url(#splashGloss)"/>
+            <rect x="2.5" y="2.5" width="59" height="59" rx="15.5" ry="15.5" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+            <path d="M16 22c0-3.3 2.7-6 6-6h20c3.3 0 6 2.7 6 6v14c0 3.3-2.7 6-6 6H30l-7 6v-6h-1c-3.3 0-6-2.7-6-6V22z" fill="rgba(255,255,255,0.96)"/>
+            <text x="32" y="36" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="800" fill="#6366f1" letter-spacing="-0.5">So</text>
+            <circle cx="48" cy="16" r="4" fill="url(#splashSpark)"/>
+            <circle cx="48" cy="16" r="4" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="0.8"/>
+        </svg>
+        <div class="splash-name">Sohbeto</div>
+        <div class="splash-tag">güvenli sohbet</div>
+    </div>
+
+    <!-- Adım 10: TEMA SEÇİCİ — ilk açılışta (tema henüz seçilmediyse) gösterilir -->
+    <div id="screen-themepicker" class="screen hidden-screen" style="z-index:9000;background:radial-gradient(ellipse at 30% 20%,#1e1b4b 0%,#0e1621 60%,#0a0e1a 100%);color:#e5e7eb;padding:32px 24px;align-items:center;justify-content:center;text-align:center;">
+        <div style="max-width:360px;width:100%;display:flex;flex-direction:column;align-items:center;gap:18px;animation:fadeIn .5s ease;">
+            <svg viewBox="0 0 64 64" width="92" height="92" style="filter:drop-shadow(0 14px 28px rgba(99,102,241,.55));" aria-hidden="true">
+                <defs>
+                    <linearGradient id="tpBody" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#22d3ee"/>
+                        <stop offset="55%" stop-color="#6366f1"/>
+                        <stop offset="100%" stop-color="#a855f7"/>
+                    </linearGradient>
+                </defs>
+                <rect x="2" y="2" width="60" height="60" rx="16" ry="16" fill="url(#tpBody)"/>
+                <path d="M16 22c0-3.3 2.7-6 6-6h20c3.3 0 6 2.7 6 6v14c0 3.3-2.7 6-6 6H30l-7 6v-6h-1c-3.3 0-6-2.7-6-6V22z" fill="rgba(255,255,255,0.96)"/>
+                <text x="32" y="36" text-anchor="middle" font-family="system-ui" font-size="14" font-weight="800" fill="#6366f1">So</text>
+            </svg>
+            <h2 style="margin:0;font-size:22px;font-weight:800;background:linear-gradient(135deg,#22d3ee,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Sohbeto ile birçok arayüz seni bekliyor</h2>
+            <p style="margin:0;color:#9aa6bd;font-size:13px;line-height:1.55;">İstediğin arayüzü seç. İlerleyen sürümlerde farklı temalar açıldıkça burada görünecek.</p>
+            <div id="themePickerList" style="width:100%;display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+                <button type="button" onclick="window.__chooseTheme && window.__chooseTheme('OO')"
+                    style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:linear-gradient(180deg,#e8ecf2,#d4d9e2);border:1px solid rgba(11,58,85,.12);color:#1a2733;cursor:pointer;text-align:left;transition:transform .15s ease,box-shadow .15s ease;"
+                    onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 24px -10px rgba(42,166,200,.5)';"
+                    onmouseout="this.style.transform='';this.style.boxShadow='';">
+                    <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#2aa6c8,#1e7c98);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;letter-spacing:.5px;box-shadow:0 8px 16px -8px rgba(42,166,200,.7);font-family:'Inter',sans-serif;">So</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14px;color:#0b3a55;">So — Genel</div>
+                        <div style="font-size:11px;color:#5b7a8c;">Klasik, modern ve hızlı — varsayılan deneyim.</div>
+                    </div>
+                    <i class="fa-solid fa-arrow-right" style="color:#2aa6c8;"></i>
+                </button>
+                <button type="button" onclick="window.__chooseTheme && window.__chooseTheme('A2')"
+                    style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:linear-gradient(180deg,#dff3fb 0%,#bfe3f1 60%,#9ecfe2 100%);border:1px solid rgba(103,214,196,.45);color:#0b3a55;cursor:pointer;text-align:left;transition:transform .15s ease,box-shadow .15s ease;"
+                    onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 24px -10px rgba(103,214,196,.6)';"
+                    onmouseout="this.style.transform='';this.style.boxShadow='';">
+                    <!-- akvaryum: kum şeridi -->
+                    <span aria-hidden="true" style="position:absolute;left:0;right:0;bottom:0;height:10px;background:linear-gradient(180deg,#e9d8b0,#d2bb86);opacity:.9;"></span>
+                    <!-- yüzen küçük balık -->
+                    <svg aria-hidden="true" viewBox="0 0 60 30" width="36" height="18" style="position:absolute;right:46px;bottom:14px;opacity:.85;">
+                        <ellipse cx="22" cy="15" rx="14" ry="7" fill="#f5a623"/>
+                        <polygon points="36,15 48,8 48,22" fill="#67d6c4"/>
+                        <circle cx="14" cy="13" r="1.6" fill="#1a2733"/>
+                    </svg>
+                    <svg aria-hidden="true" viewBox="0 0 60 30" width="22" height="12" style="position:absolute;right:100px;bottom:6px;opacity:.7;">
+                        <ellipse cx="22" cy="15" rx="10" ry="5" fill="#b07cff"/>
+                        <polygon points="32,15 42,10 42,20" fill="#b07cff"/>
+                    </svg>
+                    <!-- baloncuklar -->
+                    <span aria-hidden="true" style="position:absolute;left:80px;top:8px;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.85);"></span>
+                    <span aria-hidden="true" style="position:absolute;left:110px;top:18px;width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.7);"></span>
+                    <div style="position:relative;z-index:1;width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;letter-spacing:.5px;box-shadow:0 8px 16px -8px rgba(42,166,200,.7);">A2</div>
+                    <div style="position:relative;z-index:1;flex:1;">
+                        <div style="font-weight:700;font-size:14px;color:#0b3a55;">A2 — Akvaryum</div>
+                        <div style="font-size:11px;color:#3d5a6b;">Sakin, su altı esintili alternatif arayüz.</div>
+                    </div>
+                    <i class="fa-solid fa-arrow-right" style="position:relative;z-index:1;color:#0b3a55;"></i>
+                </button>
+                <div style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.12);color:#6b7691;text-align:left;">
+                    <div style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-weight:800;">?</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:13px;color:#9aa6bd;">Yakında daha fazla arayüz</div>
+                        <div style="font-size:11px;">5–6 farklı tema üzerinde çalışıyoruz.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OO KARŞILAMA / BAŞLA EKRANI -->
+    <div id="screen-oo-welcome" class="screen hidden-screen" style="z-index:8500;background:#ffffff;color:#0b3a55;padding:24px;align-items:stretch;justify-content:flex-start;">
+        <div style="display:flex;align-items:center;height:40px;">
+            <button type="button" onclick="window.__sohbetoBackToThemes && window.__sohbetoBackToThemes()" aria-label="Geri" style="background:transparent;border:0;color:#0b3a55;font-size:20px;cursor:pointer;padding:6px 10px;border-radius:10px;">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;max-width:360px;width:100%;margin:0 auto;animation:fadeIn .5s ease;">
+            <div style="width:128px;height:128px;border-radius:34px;background:linear-gradient(135deg,#2aa6c8,#1e7c98);display:grid;place-items:center;box-shadow:0 18px 36px -14px rgba(42,166,200,.55);position:relative;">
+                <span style="font-family:'Inter',sans-serif;font-size:52px;font-weight:800;color:#fff;letter-spacing:-1px;">So</span>
+            </div>
+            <h1 style="margin:0;font-size:42px;font-weight:800;letter-spacing:.5px;background:linear-gradient(135deg,#2aa6c8,#1e7c98);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Sohbeto</h1>
+            <p style="margin:0;color:#5b7a8c;font-size:14px;line-height:1.55;max-width:280px;">Dünyanın en özgür sohbet uygulamasına hoş geldin. Başlamak için aşağıdaki butona dokun.</p>
+            <button type="button" onclick="window.__sohbetoOoStart && window.__sohbetoOoStart()" style="margin-top:8px;background:linear-gradient(135deg,#2aa6c8,#1e7c98);color:#fff;border:0;padding:14px 38px;border-radius:999px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 14px 28px -14px rgba(42,166,200,.7);">Başla</button>
+            <div style="margin-top:6px;font-size:11px;color:#9aa6bd;letter-spacing:1.5px;font-weight:600;">SOHBETO · So</div>
+        </div>
+    </div>
+
+    <div class="app-container">
+
+        <!-- 0. NUMARA EKRANI (Mesajlara kod gönder) -->
+        <!-- Splash (screenSplash) en üstte iken bu ekran zaten görünmez; adapter
+             ilk açılışta hangi ekrana gideceğine karar verene kadar gizli kalsın
+             ki "screen-phone" bir frame parlayıp arkasından themepicker'a sıçramasın. -->
+        <div id="screen-phone" class="screen hidden-screen">
+            <div class="auth-header">
+                <div>
+                    <i class="fa-solid fa-arrow-left back-btn" onclick="window.__sohbetoBackToThemes && window.__sohbetoBackToThemes()"></i>
+                    <div class="brand-text">Sohbeto</div>
+                    <h1 class="auth-title">Numaraya<br>Mesaj Gönder</h1>
+                    <p class="auth-subtitle">Devam etmek için telefon numaranızı girin.<br>Mesajlar uygulamanıza 6 haneli doğrulama kodu göndereceğiz.</p>
+
+                    <input id="phoneInput" type="tel" inputmode="tel" placeholder="+90 555 123 45 67"
+                        style="width:100%;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;font-size:1rem;font-weight:500;color:var(--text-main);background:transparent;margin-bottom:16px"
+                        onfocus="this.style.borderColor='var(--primary-green)';this.style.boxShadow='0 0 0 3px var(--light-green-bg)';"
+                        onblur="this.style.borderColor='#e5e7eb';this.style.boxShadow='none';"
+                        value="+90 ">
+
+                    <p class="text-[0.8rem] text-[var(--text-secondary)] font-medium">
+                        Kod, <span style="color: var(--primary-green); font-weight:600;">Mesajlar</span> uygulamasına ulaşacak.
+                    </p>
+                </div>
+
+                <div class="mt-auto pb-4">
+                    <button class="btn-solid" onclick="app.sendCode()">Kodu Gönder</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. DOĞRULAMA EKRANI -->
+        <div id="screen-auth" class="screen hidden-screen">
+            <div class="auth-header">
+                <div>
+                    <i class="fa-solid fa-arrow-left back-btn" onclick="app.navigate('phone')"></i>
+                    <div class="brand-text">Sohbeto</div>
+                    <h1 class="auth-title">Doğrulama<br>Kodu</h1>
+                    <p class="auth-subtitle"><span id="authPhoneLabel">+90 555 123 45 67</span> numarasına<br>gönderilen 6 haneli kodu Mesajlar'dan alın.</p>
+
+                    <div class="code-input-container" id="codeInputs">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                    </div>
+
+                    <div class="mb-10 text-sm">
+                        <span class="text-[0.8rem] text-[var(--text-secondary)] font-medium">Kodu yeniden gönder
+                            <span style="color: var(--primary-green); cursor:pointer; font-weight:600" onclick="app.sendCode(true)">tekrar gönder</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mt-auto pb-4">
+                    <button class="btn-solid" onclick="app.verifyCode()">Doğrula</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. SOHBETLER -->
+        <div id="screen-sohbetler" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Sohbetler</div>
+                <div class="header-icon"><i class="fa-regular fa-pen-to-square"></i></div>
+            </div>
+            <div class="search-container">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" placeholder="Ara">
+                </div>
+            </div>
+            <div class="content-area"></div>
+        </div>
+
+        <!-- 3. KİŞİLER -->
+        <div id="screen-kisiler" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Kişiler</div>
+                <div class="header-icon" onclick="openAddContact()"><i class="fa-solid fa-plus" style="font-weight: 300;"></i></div>
+            </div>
+            <div class="search-container">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="contactSearch" placeholder="Ara" oninput="renderContacts()">
+                </div>
+            </div>
+            <div class="content-area position-relative">
+                <div id="contactsList" style="padding: 4px 24px 20px;"></div>
+                <div id="contactsEmpty" class="empty-state" style="display:none">
+                    <div class="empty-icon">
+                        <i class="fa-regular fa-address-book" style="font-size:32px;color:var(--primary-green)"></i>
+                    </div>
+                    <button class="btn-solid" style="max-width:240px;padding:14px;border-radius:10px" onclick="openAddContact()">Kişi Ekle</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kişi Ekle Sheet -->
+        <div id="addContactSheet" class="screen hidden-screen" style="z-index:30;background:rgba(0,0,0,0.4);justify-content:flex-end;">
+            <div style="background:var(--bg-white);width:100%;border-radius:24px 24px 0 0;padding:24px;box-shadow:0 -10px 30px rgba(0,0,0,.15);animation:slideUpSheet .25s ease;">
+                <div style="width:40px;height:4px;background:#e5e7eb;border-radius:2px;margin:0 auto 16px"></div>
+                <h3 style="font-size:1.3rem;font-weight:700;margin-bottom:18px">Yeni Kişi</h3>
+                <div style="display:flex;flex-direction:column;gap:14px">
+                    <div>
+                        <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:6px">📌 Ad Soyad</label>
+                        <input id="newContactName" type="text" placeholder="Örn. Ayşe Yılmaz" maxlength="40"
+                            style="width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;font-size:.95rem;font-family:inherit">
+                    </div>
+                    <div>
+                        <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:6px">📞 Telefon</label>
+                        <input id="newContactPhone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" maxlength="20"
+                            style="width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;font-size:.95rem;font-family:inherit">
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:22px">
+                    <button onclick="closeAddContact()" style="flex:1;padding:14px;border-radius:12px;border:1px solid #e5e7eb;background:transparent;font-weight:600;color:var(--text-main)">Vazgeç</button>
+                    <button class="btn-solid" style="flex:1;padding:14px" onclick="saveContact()">Kaydet</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- KİŞİ KARTI OVERLAY -->
+        <div id="contactCardOverlay" onclick="closeContactCard(event)">
+            <div class="contact-card" id="contactCard" onclick="event.stopPropagation()">
+                <div class="cc-avatar" id="ccAvatar">?</div>
+                <div class="cc-name" id="ccName">—</div>
+                <div class="cc-phone" id="ccPhone">—</div>
+                <div class="cc-actions">
+                    <button class="cc-action" onclick="ccCall()"><i class="fa-solid fa-phone"></i><span>Sesli</span></button>
+                    <button class="cc-action" onclick="ccVideo()"><i class="fa-solid fa-video"></i><span>Görüntülü</span></button>
+                    <button class="cc-action" onclick="ccInfo()"><i class="fa-solid fa-circle-info"></i><span>Bilgi</span></button>
+                </div>
+                <button class="cc-msg-btn" onclick="ccOpenChat()"><i class="fa-regular fa-comment" style="margin-right:6px"></i>Mesaj Gönder</button>
+            </div>
+        </div>
+
+        <!-- ARAMA EKRANI (Adım 4) -->
+        <div id="screen-ooCall" class="screen hidden-screen">
+            <div class="ooc-video-stage">
+                <div class="ooc-remote" id="oocVideoRemote"></div>
+                <div class="ooc-local"  id="oocVideoLocal"></div>
+            </div>
+            <div class="ooc-top">
+                <div class="ooc-mode" id="oocMode">Sesli Arama</div>
+                <div class="ooc-status" id="oocStatus">Çalıyor…</div>
+            </div>
+            <div class="ooc-mid">
+                <div class="ooc-avatar" id="oocAvatar">?</div>
+                <div class="ooc-name" id="oocName">—</div>
+                <div class="ooc-duration" id="oocDuration">00:00</div>
+            </div>
+            <div class="ooc-actions">
+                <button class="ooc-btn" id="oocMute" onclick="oocToggleMute()" aria-label="Sessize al">
+                    <div class="ooc-ico"><i class="fa-solid fa-microphone-slash"></i></div>
+                    <span>Sessiz</span>
+                </button>
+                <button class="ooc-btn" id="oocSpeaker" onclick="oocToggleSpeaker()" aria-label="Hoparlör">
+                    <div class="ooc-ico"><i class="fa-solid fa-volume-high"></i></div>
+                    <span>Hoparlör</span>
+                </button>
+                <button class="ooc-btn" id="oocVideo" onclick="oocToggleVideo()" aria-label="Görüntülü">
+                    <div class="ooc-ico"><i class="fa-solid fa-video"></i></div>
+                    <span>Video</span>
+                </button>
+                <button class="ooc-btn danger" onclick="oocHangup()" aria-label="Kapat">
+                    <div class="ooc-ico"><i class="fa-solid fa-phone-slash"></i></div>
+                    <span>Kapat</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- GELEN ARAMA EKRANI (Adım 4 — callee tarafı) -->
+        <div id="screen-ooIncoming" class="screen hidden-screen">
+            <div class="ooc-top">
+                <div class="ooc-mode" id="ooiMode">Gelen Sesli Arama</div>
+                <div class="ooc-status" id="ooiStatus">Seni arıyor…</div>
+            </div>
+            <div class="ooc-mid">
+                <div class="ooc-avatar" id="ooiAvatar">?</div>
+                <div class="ooc-name" id="ooiName">—</div>
+                <div class="ooc-duration" id="ooiDuration">00:00</div>
+            </div>
+            <div class="ooc-actions" style="grid-template-columns:repeat(2,1fr);gap:24px;padding:18px 18px 4px">
+                <button class="ooc-btn danger" onclick="ooiReject()" aria-label="Reddet">
+                    <div class="ooc-ico"><i class="fa-solid fa-phone-slash"></i></div>
+                    <span>Reddet</span>
+                </button>
+                <button class="ooc-btn" onclick="ooiAccept()" aria-label="Kabul et" style="--accept-bg:#22c55e">
+                    <div class="ooc-ico" style="background:#22c55e"><i class="fa-solid fa-phone"></i></div>
+                    <span>Kabul</span>
+                </button>
+            </div>
+        </div>
+
+
+        <div id="screen-chat" class="screen hidden-screen" style="z-index:18;">
+            <div class="chat-header">
+                <button class="chat-hbtn" onclick="closeChat()" title="Geri" aria-label="Geri"><i class="fa-solid fa-arrow-left"></i></button>
+                <div class="chat-h-avatar" id="chatHAvatar">?</div>
+                <div class="chat-h-info">
+                    <div class="chat-h-name" id="chatHName">—</div>
+                    <div class="chat-h-status" id="chatHStatus">çevrimiçi</div>
+                </div>
+                <button class="chat-hbtn" onclick="chatVideo()" title="Görüntülü arama" aria-label="Görüntülü arama"><i class="fa-solid fa-video"></i></button>
+                <button class="chat-hbtn" onclick="chatCall()" title="Sesli arama" aria-label="Sesli arama"><i class="fa-solid fa-phone"></i></button>
+                <button class="chat-hbtn" onclick="chatMore()" title="Sohbet ayarları" aria-label="Sohbet ayarları"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                <button class="chat-hbtn" onclick="chatNext()" title="Sonraki kişi" aria-label="Sonraki kişi"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input-bar">
+                <div class="ci-field">
+                    <button type="button" class="ci-inner-btn ci-plus" id="ciPlusBtn" onclick="chatToggleAttach()" aria-label="Ekle"><i class="fa-solid fa-plus"></i></button>
+                    <textarea id="chatInput" rows="1" placeholder="Bir mesaj yaz..." oninput="updateSendIcon();ciAutoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMsg()}" onfocus="ciClosePanels()"></textarea>
+                    <button type="button" class="ci-inner-btn ci-emoji" id="ciEmojiBtn" onclick="chatToggleEmoji()" aria-label="Emoji"><i class="fa-regular fa-face-smile"></i></button>
+                    <button type="button" class="ci-inner-btn ci-cam" onclick="chatCamera()" aria-label="Kamera"><i class="fa-solid fa-camera"></i></button>
+                </div>
+                <button class="ci-send is-mic" id="chatSendBtn" onclick="onSendBtn()" aria-label="Gönder">
+                    <i class="fa-solid fa-microphone send-mic"></i>
+                    <i class="fa-solid fa-paper-plane send-arrow"></i>
+                </button>
+            </div>
+            <div class="ci-panel hidden" id="ciAttachPanel">
+                <div class="ci-panel-head">
+                    <div class="ci-panel-title">Ekle</div>
+                </div>
+                <div class="ci-attach-grid">
+                    <button type="button" class="ci-attach-item" onclick="chatPickPhoto()"><div class="ci-attach-ic ic-photo"><i class="fa-solid fa-image"></i></div><span>Fotoğraf</span></button>
+                    <button type="button" class="ci-attach-item" onclick="chatCamera()"><div class="ci-attach-ic ic-camera"><i class="fa-solid fa-camera"></i></div><span>Kamera</span></button>
+                    <button type="button" class="ci-attach-item" onclick="chatPickDoc()"><div class="ci-attach-ic ic-doc"><i class="fa-solid fa-file"></i></div><span>Dosya</span></button>
+                    <button type="button" class="ci-attach-item" onclick="chatPickLocation()"><div class="ci-attach-ic ic-loc"><i class="fa-solid fa-location-dot"></i></div><span>Konum</span></button>
+                </div>
+            </div>
+            <div class="ci-panel hidden" id="ciEmojiPanel">
+                <div class="ci-panel-head">
+                    <div class="ci-panel-title">Emoji</div>
+                    <div class="ci-panel-tabs">
+                        <button type="button" class="ci-tab active" data-emoji-tab="faces" onclick="ciSwitchEmojiTab('faces')">İfadeler</button>
+                        <button type="button" class="ci-tab" data-emoji-tab="flags" onclick="ciSwitchEmojiTab('flags')">Bayraklar</button>
+                    </div>
+                </div>
+                <div class="ci-emoji-grid" id="ciEmojiGrid"></div>
+            </div>
+        </div>
+        <div id="screen-gruplar" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Gruplar</div>
+                <div class="header-icon" id="hdr-create-group" role="button" tabindex="0" title="Yeni grup" aria-label="Yeni grup"><i class="fa-solid fa-plus" style="font-weight: 300;"></i></div>
+            </div>
+            <div class="content-area" id="groups-content">
+                <div class="empty-state" id="groups-empty">
+                    <div class="empty-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary-green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </div>
+                    <button class="btn-solid" id="btn-create-group" style="max-width:240px;padding:14px;border-radius:10px">Grup Oluştur</button>
+                </div>
+                <div id="groups-list"></div>
+            </div>
+        </div>
+
+        <!-- 5. AYARLAR -->
+        <div id="screen-ayarlar" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Ayarlar</div>
+            </div>
+
+            <div class="content-area">
+
+                <!-- ===== Profil Bloğu (yeni eklenen) ===== -->
+                <div class="profile-block">
+                    <div class="profile-pic-select" onclick="document.getElementById('profilePicInput').click()">
+                        <div class="pic-circle" id="profilePicCircle">
+                            <i class="fa-regular fa-user"></i>
+                        </div>
+                        <div class="pic-badge"><i class="fa-solid fa-camera"></i></div>
+                    </div>
+                    <div class="profile-hint">Değiştirmek için tıklayın</div>
+                    <input type="file" id="profilePicInput" accept="image/*" style="display:none" onchange="handleProfilePic(event)">
+                </div>
+
+                <!-- Ad ve Biyografi artık burada DEĞİL — Hesap > Profil ekranına taşındı (#screen-hesap). -->
+                <!-- Fotoğraf yükleme bölümü ayarlar girişinde kalmaya devam ediyor. -->
+
+                <div class="profile-divider"></div>
+
+                <div class="settings-list">
+                    
+                    <div class="settings-item" onclick="app.openAccount()">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-user"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Hesap</span>
+                            <span class="settings-item-subtitle">Profil, telefon, gizlilik</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                    <div class="settings-item" onclick="app.openThemeSettings()">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-sun"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Tema</span>
+                            <span class="settings-item-subtitle" id="current-theme-name">Okyanus · Açık</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-bell"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Bildirimler</span>
+                            <span class="settings-item-subtitle">Sessiz saatler · 22:00–07:00</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-warning"><i class="fa-regular fa-star"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Çevrimdışı Mod</span>
+                            <span class="settings-item-subtitle">Patikada veri yok mu?<br>Sorun değil.</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-item" onclick="app.openPrivacy()">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-lock" style="font-size: 1rem; font-weight:300;"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Gizlilik &amp; Güvenlik</span>
+                            <span class="settings-item-subtitle" id="privacy-subtitle">Uçtan uca şifreleme · Aktif</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-circle-question"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Yardım & Topluluk</span>
+                            <span class="settings-item-subtitle">SSS, geri bildirim</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                    <div class="settings-item mt-2" onclick="window.__sohbetoLogoutDialog && window.__sohbetoLogoutDialog()">
+                        <div class="settings-icon-wrapper icon-danger"><i class="fa-solid fa-arrow-right-from-bracket"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title" style="color: #c4624b;">Çıkış Yap</span>
+                            <span class="settings-item-subtitle">Oturumu sonlandır</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. TEMA AYARLARI -->
+        <div id="screen-tema" class="screen hidden-screen" style="z-index: 15;">
+            <div class="theme-header">
+                <i class="fa-solid fa-arrow-left" onclick="app.closeThemeSettings()"></i>
+                <div class="main-title" style="font-size: 1.2rem;">Tema Ayarları</div>
+            </div>
+
+            <div class="content-area flex flex-col items-center pt-6 pb-20">
+                <div class="circle-icon-bg"> 
+                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--primary-green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Vurgu Rengi</h3>
+                    <div class="palette-grid" id="primary-colors"></div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Arka Plan Rengi</h3>
+                    <div class="palette-grid" id="bg-colors"></div>
+                </div>
+
+                <!-- Adım 14: Profil fotoğrafı kartı — boyut + animasyon -->
+                <div class="settings-section">
+                    <h3>Profil Fotoğrafı Kartı — Boyut</h3>
+                    <div class="pick-grid" id="cardSizePicker">
+                        <button type="button" class="pick-tile" data-size="lg">
+                            <div class="pt-demo lg">A</div>
+                            <div class="pt-label">Büyük</div>
+                            <div class="pt-sub">Varsayılan</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-size="md">
+                            <div class="pt-demo md">A</div>
+                            <div class="pt-label">Orta</div>
+                            <div class="pt-sub">Dengeli</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-size="sm">
+                            <div class="pt-demo sm">A</div>
+                            <div class="pt-label">Küçük</div>
+                            <div class="pt-sub">Minimal</div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Profil Fotoğrafı Kartı — Animasyon</h3>
+                    <div class="pick-grid" id="cardAnimPicker">
+                        <button type="button" class="pick-tile" data-anim="default">
+                            <div class="pt-demo lg"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></div>
+                            <div class="pt-label">Klasik</div>
+                            <div class="pt-sub">Tıklanan noktadan</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-anim="spin">
+                            <div class="pt-demo lg"><i class="fa-solid fa-rotate"></i></div>
+                            <div class="pt-label">Dönerek</div>
+                            <div class="pt-sub">Aç/Kapat dönüşü</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-anim="flip">
+                            <div class="pt-demo lg"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                            <div class="pt-label">Sürpriz</div>
+                            <div class="pt-sub">3B kart çevirme</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. HESAP > PROFİL (Ayarlar > Hesap'tan açılır; tam ekran overlay) -->
+        <div id="screen-hesap" class="screen hidden-screen" style="z-index: 15;">
+            <div class="theme-header">
+                <i class="fa-solid fa-arrow-left" onclick="app.closeAccount()"></i>
+                <div class="main-title" style="font-size: 1.2rem;">Hesap · Profil</div>
+            </div>
+
+            <div class="content-area">
+                <div class="profile-fields" style="padding-top: 18px;">
+                    <div class="profile-field">
+                        <label><span class="lbl-emoji">📌</span> Ad</label>
+                        <input type="text" id="profileName" placeholder="Adınız" maxlength="30" autocomplete="off">
+                    </div>
+                    <div class="profile-field">
+                        <label><span class="lbl-emoji">📝</span> Biyografi</label>
+                        <textarea id="profileBio" placeholder="Kendinizi tanıtın..." maxlength="200"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. GİZLİLİK (Adım 8 — Ayarlar > Gizlilik & Güvenlik'ten açılır) -->
+        <div id="screen-gizlilik" class="screen hidden-screen" style="z-index: 15;">
+            <div class="theme-header">
+                <i class="fa-solid fa-arrow-left" onclick="app.closePrivacy()"></i>
+                <div class="main-title" style="font-size: 1.2rem;">Gizlilik &amp; Güvenlik</div>
+            </div>
+
+            <div class="content-area">
+                <div class="settings-section">
+                    <h3>Adım Görünürlüğü</h3>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-id-badge"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Adımı kişilerimde olmayanlara göster</span>
+                            <span class="settings-item-subtitle">Kapalıyken; kişilerinde kayıtlı olmayanlar seni aradığında/yazıştığında sadece numaranı görür. Açıkken, profil adın görünür.</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="privacyShowNameToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section" style="margin-top:32px;">
+                    <h3>Şifreleme</h3>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-item" style="cursor:default;">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Uçtan Uca Şifreleme</span>
+                            <span class="settings-item-subtitle">AES-256-GCM · P2P kanal · Her zaman açık</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section" style="margin-top:32px;">
+                    <h3>Verilerim</h3>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-item" onclick="app.openDataInfo()">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-database"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Saklanan veriler hakkında</span>
+                            <span class="settings-item-subtitle">Kişilerin ve sohbet geçmişin nerede tutuluyor?</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right" style="opacity:.45;"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Veri Saklama Bilgi Modali -->
+        <div id="dataInfoModal" class="hidden-screen" style="position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); display:flex; align-items:flex-end; justify-content:center;" onclick="if(event.target===this)app.closeDataInfo()">
+            <div style="width:100%; max-width:480px; background:var(--bg-2, #16181d); color:var(--text-1,#fff); border-radius:24px 24px 0 0; padding:24px 22px 28px; box-shadow:0 -20px 60px rgba(0,0,0,.5); animation:dataInfoSlide .28s cubic-bezier(.2,.9,.3,1);">
+                <div style="width:42px; height:4px; background:rgba(255,255,255,.18); border-radius:4px; margin:0 auto 18px;"></div>
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+                    <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); display:flex; align-items:center; justify-content:center;">
+                        <i class="fa-solid fa-database" style="color:#fff; font-size:18px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:1.05rem; font-weight:600;">Verilerin nerede?</div>
+                        <div style="font-size:.78rem; opacity:.6;">Hesap-bazlı, cihazında saklanır</div>
+                    </div>
+                </div>
+
+                <div style="font-size:.88rem; line-height:1.55; opacity:.88; margin-bottom:14px;">
+                    Kişilerin ve sohbet geçmişin, telefon numaran kök kabul edilerek bu cihazın tarayıcısındaki <b>kalıcı veri kasasında</b> (IndexedDB) tutulur:
+                </div>
+
+                <div style="background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:12px 14px; font-family:ui-monospace,Menlo,monospace; font-size:.78rem; line-height:1.7; margin-bottom:16px;">
+                    <div style="opacity:.55;">.gunesos/</div>
+                    <div style="opacity:.7; padding-left:14px;">sohbeto/</div>
+                    <div style="padding-left:28px;"><span id="dataInfoMyNum" style="color:#7dd3fc;">&lt;+90...&gt;</span>/</div>
+                    <div style="padding-left:42px; opacity:.85;">contacts</div>
+                    <div style="padding-left:42px; opacity:.85;">threads/&lt;+90...&gt;</div>
+                    <div style="padding-left:42px; opacity:.85;">profile · settings</div>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.25); border-radius:12px; margin-bottom:10px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:#f87171; margin-top:2px;"></i>
+                    <div style="font-size:.82rem; line-height:1.5;">
+                        <b style="color:#fca5a5;">Dikkat:</b> Tarayıcıdan <b>"site verilerini sil"</b> dersen ya da uygulamayı temizlersen <b>kişilerin ve tüm sohbet geçmişin silinir</b>. Bu işlem geri alınamaz. Çerez/sekme sıfırlansa veri durur, ama site verisi temizlenirse gider.
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:rgba(34,197,94,.06); border:1px solid rgba(34,197,94,.2); border-radius:12px; margin-bottom:18px;">
+                    <i class="fa-solid fa-lock" style="color:#4ade80; margin-top:2px;"></i>
+                    <div style="font-size:.82rem; line-height:1.5; opacity:.9;">
+                        Veriler <b>yalnızca bu cihazda</b> tutulur, sunucuya yüklenmez. Başka bir cihazda otomatik görünmez.
+                    </div>
+                </div>
+
+                <button onclick="app.closeDataInfo()" style="width:100%; padding:14px; border:none; border-radius:14px; background:linear-gradient(135deg,#3b82f6,#6366f1); color:#fff; font-size:.95rem; font-weight:600; cursor:pointer;">Anladım</button>
+            </div>
+        </div>
+        <style>@keyframes dataInfoSlide{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}</style>
+
+        <div id="bottom-nav" class="bottom-nav" style="display: none;">
+            <div class="nav-item active" id="nav-sohbetler" onclick="app.navigate('sohbetler')">
+                <i class="fa-solid fa-comment"></i>
+                <span>Sohbetler</span>
+            </div>
+            <div class="nav-item" id="nav-kisiler" onclick="app.navigate('kisiler')">
+                <i class="fa-solid fa-user" style="opacity: 0.5;"></i> 
+                <span>Kişiler</span>
+            </div>
+            <div class="nav-item" id="nav-gruplar" onclick="app.navigate('gruplar')">
+                <i class="fa-solid fa-user-group" style="opacity: 0.5;"></i>
+                <span>Gruplar</span>
+            </div>
+            <div class="nav-item" id="nav-ayarlar" onclick="app.navigate('ayarlar')">
+                <i class="fa-solid fa-gear" style="opacity: 0.5;"></i>
+                <span>Ayarlar</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Twemoji: tüm OS'lerde (özellikle Windows) emoji ve bayrakları gerçek görüntüyle render eder -->
+    <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    <script src="./gunesos-store.js"></script>
+    <!-- PeerJS: WSS sinyalleşmesinin yerini alan P2P taşıma katmanı -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" crossorigin="anonymous"></script>
+    <script src="./sohbeto-peer.js"></script>
+    <script src="./sohbeto-adapter.js"></script>
+    <script src="./sohbeto-engine.js"></script>
+    <!-- Adım 5: Telegram benzeri akışkan tab geçişleri + parmak swipe (motora dokunmaz) -->
+    <script src="./sohbeto-fluid-tabs.js"></script>
+    <!-- Adım 13: Sohbetler başlığı 3 ikon + Notlar/Aramalar/Gelen Kutusu tam-ekran -->
+    <script src="./sohbeto-extras.js"></script>
+    <!-- Adım 14: Kişi kartı boyut + animasyon tercihleri -->
+    <script src="./sohbeto-card-anim.js"></script>
+
+    <!-- A2 arayüzü iframe overlay + Çıkış/Hesabı sil yardımcıları -->
+    <div id="a2FrameOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#fff;">
+      <iframe id="a2Frame" title="Sohbeto A2"
+        style="width:100%;height:100%;border:0;display:block;"
+        allow="camera; microphone; clipboard-write; clipboard-read; autoplay"></iframe>
+    </div>
+
+    <!-- ===== Sohbet Ayarları modalı (baloncuk rengi + arka plan teması) ===== -->
+    <style>
+      #csModal { position:absolute; inset:0; z-index:120; display:flex; align-items:flex-end; justify-content:center;
+        background:rgba(15,23,42,.42); backdrop-filter:blur(2px); }
+      #csModal.hidden { display:none; }
+      #csModal .cs-sheet { width:100%; max-width:520px; background:var(--bg-white,#fff);
+        border-radius:20px 20px 0 0; padding:14px 16px calc(18px + env(safe-area-inset-bottom));
+        box-shadow:0 -8px 30px rgba(15,23,42,.18); animation:csUp .2s ease; max-height:82%; overflow-y:auto; }
+      @keyframes csUp { from{ transform:translateY(16px); opacity:0 } to{ transform:translateY(0); opacity:1 } }
+      #csModal .cs-title { font-weight:700; font-size:1rem; color:var(--text-main,#0f172a); }
+      #csModal .cs-sub { font-size:.74rem; color:var(--text-secondary,#64748b); margin-top:2px; }
+      #csModal .cs-label { font-size:.78rem; font-weight:600; color:var(--text-secondary,#64748b);
+        margin:14px 0 8px; text-transform:uppercase; letter-spacing:.04em; }
+      #csModal .cs-row { display:flex; gap:10px; flex-wrap:wrap; }
+      #csModal .cs-chip { border:2px solid rgba(15,23,42,.08); background:#fff; border-radius:14px;
+        padding:8px 10px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:.8rem;
+        color:var(--text-main,#0f172a); transition:border-color .15s, transform .12s; }
+      #csModal .cs-chip:active { transform:scale(.97); }
+      #csModal .cs-chip.sel { border-color:var(--primary-green,#16a34a); }
+      #csModal .cs-dot { width:22px; height:22px; border-radius:7px; border:1px solid rgba(15,23,42,.08); }
+      #csModal .cs-bg { width:74px; height:52px; border-radius:12px; border:2px solid rgba(15,23,42,.08);
+        cursor:pointer; position:relative; overflow:hidden; }
+      #csModal .cs-bg.sel { border-color:var(--primary-green,#16a34a); }
+      #csModal .cs-bg span { position:absolute; left:0; right:0; bottom:0; font-size:.6rem; text-align:center;
+        background:rgba(255,255,255,.78); color:#0f172a; padding:1px 0; }
+      #csModal .cs-close { margin-top:16px; width:100%; padding:11px; border:none; border-radius:14px;
+        background:var(--primary-green,#16a34a); color:#fff; font-weight:600; font-size:.9rem; cursor:pointer; }
+    </style>
+    <div id="csModal" class="hidden" onclick="if(event.target===this)csCloseSettings()">
+      <div class="cs-sheet">
+        <div class="cs-title">Sohbet ayarları</div>
+        <div class="cs-sub">Baloncuk rengi ve arka plan temasını seç</div>
+        <div class="cs-label">Baloncuk rengi</div>
+        <div class="cs-row" id="csBubbleRow"></div>
+        <div class="cs-label">Arka plan teması</div>
+        <div class="cs-row" id="csBgRow"></div>
+        <button class="cs-close" onclick="csCloseSettings()">Tamam</button>
+      </div>
+    </div>
+    <script>
+    (function(){
+      'use strict';
+      var BUBBLES = [
+        { id:'varsayilan', label:'Sohbeto varsayılan', bg:'#0f766e', fg:'#ffffff', bd:'rgba(0,0,0,.06)' },
+        { id:'klasik',  label:'Klasik yeşil',   bg:'#e7fbe1', fg:'#0f172a', bd:'rgba(10,124,74,.10)' },
+        { id:'sohbeto', label:'Sohbeto yeşili', bg:'#0a7c4a', fg:'#ffffff', bd:'rgba(0,0,0,.06)' },
+        { id:'gece',    label:'Gece mavisi',    bg:'#1e293b', fg:'#f8fafc', bd:'rgba(255,255,255,.08)' },
+        { id:'lila',    label:'Lila',           bg:'#ece5ff', fg:'#2b2154', bd:'rgba(84,60,160,.12)' },
+        { id:'kum',     label:'Kum',            bg:'#fdf1dc', fg:'#3b2f1c', bd:'rgba(120,90,40,.12)' }
+      ];
+
+      var BGS = [
+        { id:'varsayilan', label:'Varsayılan', css:'linear-gradient(180deg,#ffffff 0%,#eafaf0 280%)' },
+        { id:'doga',       label:'Doğa',       css:'linear-gradient(180deg,#eef8ec 0%,#d7ecd8 100%)' },
+        { id:'gunbatimi',  label:'Gün batımı', css:'linear-gradient(180deg,#fff3e6 0%,#ffe0e6 100%)' },
+        { id:'gece',       label:'Gece',       css:'linear-gradient(180deg,#101827 0%,#1b2437 100%)' }
+      ];
+      var KEY = 'sohbeto-chat-look';
+      function load(){
+        try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; }
+      }
+      function save(v){ try { localStorage.setItem(KEY, JSON.stringify(v)); } catch(e){} }
+      function apply(){
+        var s = load();
+        var b = BUBBLES.filter(function(x){ return x.id === s.bubble; })[0] || BUBBLES[0];
+        var g = BGS.filter(function(x){ return x.id === s.bg; })[0] || BGS[0];
+        var r = document.documentElement.style;
+        r.setProperty('--oo-own-bg', b.bg);
+        r.setProperty('--oo-own-fg', b.fg);
+        r.setProperty('--oo-own-border', b.bd);
+        r.setProperty('--oo-chat-bg', g.css);
+        document.body.classList.toggle('oo-chat-dark', g.id === 'gece');
+      }
+      function build(){
+        var s = load();
+        var br = document.getElementById('csBubbleRow');
+        var gr = document.getElementById('csBgRow');
+        if (!br || !gr) return;
+        br.innerHTML = ''; gr.innerHTML = '';
+        BUBBLES.forEach(function(b){
+          var el = document.createElement('div');
+          el.className = 'cs-chip' + ((s.bubble || 'varsayilan') === b.id ? ' sel' : '');
+          el.innerHTML = '<span class="cs-dot" style="background:' + b.bg + '"></span>' + b.label;
+          el.onclick = function(){ var v = load(); v.bubble = b.id; save(v); apply(); build(); };
+          br.appendChild(el);
+        });
+        BGS.forEach(function(g){
+          var el = document.createElement('div');
+          el.className = 'cs-bg' + ((s.bg || 'varsayilan') === g.id ? ' sel' : '');
+          el.style.background = g.css;
+          el.innerHTML = '<span>' + g.label + '</span>';
+          el.onclick = function(){ var v = load(); v.bg = g.id; save(v); apply(); build(); };
+          gr.appendChild(el);
+        });
+      }
+      window.chatOpenSettings = function(){
+        build();
+        var m = document.getElementById('csModal');
+        if (m) m.classList.remove('hidden');
+        try { if (window.ciClosePanels) window.ciClosePanels(); } catch(e){}
+      };
+      window.csCloseSettings = function(){
+        var m = document.getElementById('csModal');
+        if (m) m.classList.add('hidden');
+      };
+      window.chatMore = window.chatOpenSettings;
+      /* Mesaj kutusu yukarı doğru büyür (yatay kaydırma yok) */
+      window.ciAutoGrow = function(el){
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 132) + 'px';
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+      else apply();
+    })();
+    </script>
+
+    <script>
+    /* Klavye (visualViewport) uyumu: uygulama yüksekliğini görünür alana sabitler.
+       Böylece sohbet başlığı (kişi adı) en üstte kalır, yalnız mesajlar kayar. */
+    (function(){
+      'use strict';
+      var vv = window.visualViewport;
+      // Uygulama bir iframe içinde çalışıyorsa (GüneşOS penceresi), klavye
+      // yalnızca ÜST pencerenin görünür alanını küçültür; iframe kendi
+      // yüksekliğini korur ve tarayıcı sayfayı kaydırdığı için sohbet başlığı
+      // ekranın dışına çıkar. Bu yüzden üst pencerenin visualViewport'unu da
+      // hesaba katıp, iframe'in gerçekten görünen bölümünü kullanıyoruz.
+      function topCtx(){
+        try {
+          if (window.parent && window.parent !== window && window.frameElement) {
+            var tw = window.top;
+            // Same-origin erişim testi
+            void tw.document;
+            return { win: tw, vv: tw.visualViewport, frame: window.frameElement };
+          }
+        } catch (e) { /* cross-origin: yok say */ }
+        return null;
+      }
+      function applyH(){
+        var h = vv ? vv.height : window.innerHeight;
+        var offTop = vv ? (vv.offsetTop || 0) : 0;
+
+        var ctx = topCtx();
+        if (ctx) {
+          var tvv = ctx.vv;
+          var visTop = tvv ? (tvv.offsetTop || 0) : 0;
+          var visBottom = visTop + (tvv ? tvv.height : ctx.win.innerHeight);
+          var r = ctx.frame.getBoundingClientRect();
+          var top2 = Math.max(r.top, visTop);
+          var bottom2 = Math.min(r.bottom, visBottom);
+          var avail = bottom2 - top2;
+          if (avail > 120) {
+            h = avail;
+            offTop = Math.max(0, top2 - r.top);
+          }
+          // Klavye açılınca tarayıcı üst dokümanı kaydırabilir; geri al.
+          try {
+            if (ctx.win.pageYOffset || (ctx.win.document.documentElement || {}).scrollTop) {
+              ctx.win.scrollTo(0, 0);
+            }
+          } catch (e) {}
+        }
+
+        document.documentElement.style.setProperty('--app-h', h + 'px');
+        document.body.style.top = offTop + 'px';
+        // Tarayıcı klavye açılınca tüm sayfayı kaydırıyor; geri al ki başlık sabit kalsın.
+        if (window.pageYOffset || document.documentElement.scrollTop) {
+          try { window.scrollTo(0, 0); } catch(e){}
+        }
+        var box = document.getElementById('chatMessages');
+        if (box && document.getElementById('screen-chat') &&
+            !document.getElementById('screen-chat').classList.contains('hidden-screen')) {
+          if (typeof window.ooPinChatBottom === 'function') window.ooPinChatBottom(box);
+          else box.scrollTop = box.scrollHeight;
+        }
+      }
+      applyH();
+      if (vv) { vv.addEventListener('resize', applyH); vv.addEventListener('scroll', applyH); }
+      window.addEventListener('resize', applyH);
+      window.addEventListener('scroll', function(){ applyH(); }, { passive: true });
+      window.addEventListener('orientationchange', function(){ setTimeout(applyH, 250); });
+
+      // Üst penceredeki klavye olaylarını da dinle
+      (function bindTop(){
+        var ctx = topCtx();
+        if (!ctx) return;
+        try {
+          if (ctx.vv) {
+            ctx.vv.addEventListener('resize', applyH);
+            ctx.vv.addEventListener('scroll', applyH);
+          }
+          ctx.win.addEventListener('resize', applyH);
+          ctx.win.addEventListener('scroll', applyH, { passive: true });
+        } catch (e) {}
+      })();
+
+      function nudge(){
+        [0, 60, 120, 250, 400, 650].forEach(function(ms){ setTimeout(applyH, ms); });
+      }
+      document.addEventListener('focusin', function(e){
+        if (e.target && (e.target.id === 'chatInput' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) {
+          nudge();
+        }
+      });
+      document.addEventListener('focusout', nudge);
+
+    })();
+
+    </script>
+    <script>
+
+    (function(){
+      'use strict';
+      function showA2(){
+        var ov = document.getElementById('a2FrameOverlay');
+        var fr = document.getElementById('a2Frame');
+        if (!ov || !fr) return;
+        if (!fr.src) fr.src = './sohbetoA2.html';
+        ov.style.display = 'block';
+        // Splash/picker gizle
+        var sp = document.getElementById('screenSplash');
+        if (sp) sp.classList.add('hidden-screen');
+        var tp = document.getElementById('screen-themepicker');
+        if (tp) tp.classList.add('hidden-screen');
+      }
+      function hideA2(){
+        var ov = document.getElementById('a2FrameOverlay');
+        if (ov) ov.style.display = 'none';
+      }
+      window.__showSohbetoA2 = showA2;
+      window.__hideSohbetoA2 = hideA2;
+
+      // ---------- A2 ↔ OO köprüsü ----------
+      function a2Win(){
+        var fr = document.getElementById('a2Frame');
+        return fr && fr.contentWindow ? fr.contentWindow : null;
+      }
+      function a2Reply(action, payload){
+        var w = a2Win(); if (!w) return;
+        try { w.postMessage(Object.assign({ __sohbeto_a2_ack: true, action: action }, payload || {}), '*'); } catch(e){}
+      }
+      function a2IsLoggedIn(){
+        try {
+          if (typeof myNumber !== 'undefined' && myNumber) return true;
+        } catch(e){}
+        try {
+          if (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.virtualNo) return true;
+        } catch(e){}
+        try {
+          if (window.CONFIG && window.CONFIG.virtualNo) return true;
+        } catch(e){}
+        try {
+          var n = localStorage.getItem('sohbet_my_number_v1') ||
+                  localStorage.getItem('sohbeto.oo.profile.number') || '';
+          if (n && n.trim()) return true;
+        } catch(e){}
+        return false;
+      }
+      function a2WaitForLogin(timeoutMs, cb){
+        var start = Date.now();
+        (function poll(){
+          if (a2IsLoggedIn()) { cb(true); return; }
+          if (Date.now() - start > timeoutMs) { cb(false); return; }
+          setTimeout(poll, 250);
+        })();
+      }
+      window.addEventListener('message', function(ev){
+        var d = ev.data || {};
+        if (!d || !d.__sohbeto_a2) return;
+        var fr = document.getElementById('a2Frame');
+        if (!fr || ev.source !== fr.contentWindow) return;
+        if (d.action === 'checkAuth'){
+          if (a2IsLoggedIn()) a2Reply('verifyCode', { ok: true });
+          return;
+        }
+        if (d.action === 'sendCode'){
+          try {
+            var inp = document.getElementById('phoneInput');
+            if (inp) inp.value = d.phone || '+90 ';
+            if (window.app && typeof window.app.sendCode === 'function'){
+              Promise.resolve(window.app.sendCode(!!d.resend)).then(function(){
+                a2Reply('sendCode', { ok: true });
+              }, function(err){
+                a2Reply('sendCode', { ok: false, error: (err && err.message) || 'Hata' });
+              });
+            } else {
+              a2Reply('sendCode', { ok: false, error: 'Motor hazır değil' });
+            }
+          } catch(err){ a2Reply('sendCode', { ok: false, error: String(err) }); }
+          return;
+        }
+        if (d.action === 'verifyCode'){
+          try {
+            var ins = document.querySelectorAll('#codeInputs .code-input');
+            var code = String(d.code || '');
+            ins.forEach(function(el, i){ el.value = code[i] || ''; });
+            if (window.app && typeof window.app.verifyCode === 'function'){
+              window.app.verifyCode();
+              a2WaitForLogin(8000, function(ok){
+                a2Reply('verifyCode', ok ? { ok: true } : { ok: false, error: 'Kod yanlış veya zaman aşımı.' });
+              });
+            } else {
+              a2Reply('verifyCode', { ok: false, error: 'Motor hazır değil' });
+            }
+          } catch(err){ a2Reply('verifyCode', { ok: false, error: String(err) }); }
+          return;
+        }
+        if (d.action === 'logout'){
+          if (d.mode === 'wipe'){
+            // Tam sıfırlama: parent location.reload eder, iframe de yeniden yüklenir.
+            try {
+              var btnW = document.getElementById('sbLogoutWipe');
+              if (btnW && typeof btnW.click === 'function'){ /* modal aç değil, direkt yap */ }
+            } catch(e){}
+            // Doğrudan wipe akışını çalıştır
+            try {
+              // localStorage temizliği
+              var toRemove = [];
+              for (var i = 0; i < localStorage.length; i++){
+                var k = localStorage.key(i);
+                if (!k) continue;
+                if (k.indexOf('sohbeto') === 0 || k.indexOf('sohbeto.') !== -1 || k.indexOf('sohbeto_') !== -1 ||
+                    k.indexOf('EgaNetwork') !== -1 || k.indexOf('oo.profile') !== -1) toRemove.push(k);
+              }
+              toRemove.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+            } catch(e){}
+            try { sessionStorage.clear(); } catch(e){}
+            var delIDB = function(name){
+              return new Promise(function(res){
+                try { var r = indexedDB.deleteDatabase(name); r.onsuccess=r.onerror=r.onblocked=function(){res();}; setTimeout(res, 1500); }
+                catch(e){ res(); }
+              });
+            };
+            var names = ['EgaNetwork','GunesOS'];
+            var finish = function(){ setTimeout(function(){ location.reload(); }, 120); };
+            try {
+              if (indexedDB.databases){
+                indexedDB.databases().then(function(list){
+                  (list||[]).forEach(function(x){ if (x&&x.name && (x.name.indexOf('EgaNetwork')===0||x.name==='GunesOS') && names.indexOf(x.name)===-1) names.push(x.name); });
+                  Promise.all(names.map(delIDB)).then(finish, finish);
+                }, function(){ Promise.all(names.map(delIDB)).then(finish, finish); });
+              } else { Promise.all(names.map(delIDB)).then(finish, finish); }
+            } catch(e){ finish(); }
+          } else {
+            // Geçici çıkış: engine logout butonunu tetikle, seçili arayüze göre auth ekranına dön
+            try {
+              var btn = document.getElementById('menuLogout');
+              if (btn && typeof btn.click === 'function') btn.click();
+            } catch(e){}
+            try { hideA2(); } catch(e){}
+            try {
+              var chosen = localStorage.getItem('sohbeto.oo.interface') || 'OO';
+              if (String(chosen).toUpperCase() === 'A2') {
+                showA2();
+                a2Reply('loggedOut');
+              } else if (typeof window.__sohbetoHandleLocalLogout === 'function') {
+                window.__sohbetoHandleLocalLogout();
+              }
+            } catch(e) {
+              if (typeof window.__sohbetoHandleLocalLogout === 'function') window.__sohbetoHandleLocalLogout();
+            }
+          }
+          return;
+        }
+        if (d.action === 'backToTheme'){
+          try { if (window.__sohbetoBackToThemes) window.__sohbetoBackToThemes(); } catch(e){}
+          return;
+        }
+      });
+
+      // OO welcome → screen-phone
+      window.__sohbetoOoStart = function(){
+        var w = document.getElementById('screen-oo-welcome');
+        var p = document.getElementById('screen-phone');
+        if (w) { w.classList.add('hidden-screen'); w.classList.remove('active'); }
+        if (p) { p.classList.remove('hidden-screen'); p.classList.add('active'); }
+      };
+
+      // Her iki arayüzden tema seçiciye geri dön
+      window.__sohbetoBackToThemes = function(){
+        try { hideA2(); } catch(e){}
+        try { localStorage.removeItem('sohbeto.oo.interface'); } catch(e){}
+        try { localStorage.removeItem('sohbeto.oo.theme'); } catch(e){}
+        if (window.GunesOSStore) {
+          try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), ''); } catch(e){}
+        }
+        // Tüm ekranları gizle, themepicker'ı göster
+        try {
+          var screens = document.querySelectorAll('.screen');
+          screens.forEach(function(s){ s.classList.add('hidden-screen'); s.classList.remove('active'); });
+        } catch(e){}
+        var tp = document.getElementById('screen-themepicker');
+        if (tp) { tp.classList.remove('hidden-screen'); tp.classList.add('active'); }
+      };
+
+      // __chooseTheme'i sar: A2 seçilirse iframe aç, OO seçilirse adapter akışı çalışsın.
+      // Önemli: A2 seçildiğinde adapter'ın INTERFACE_KEY'ini de A2'ye yaz, aksi halde
+      // sonraki açılışlarda adapter themepicker'a düşer ve bootCheckA2 kaldırılınca A2'ye dönülemez.
+      var prevChoose = window.__chooseTheme;
+      window.__chooseTheme = function(theme){
+        try { localStorage.setItem('sohbeto.oo.theme', theme); } catch(e){}
+        try { localStorage.setItem('sohbeto.oo.interface', theme); } catch(e){}
+        if (window.GunesOSStore) {
+          try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), theme); } catch(e){}
+        }
+        if (theme === 'A2') { showA2(); return; }
+        if (typeof prevChoose === 'function') return prevChoose(theme);
+      };
+
+      // Not: Eskiden burada `bootCheckA2` ile localStorage'daki 'sohbeto.oo.theme' === 'A2'
+      // kontrolü yapılıp doğrudan showA2 çağrılıyordu. Bu, OO seçimini imkânsız hale
+      // getiriyordu (her açılışta A2 zorla devreye giriyordu). Artık tek otorite
+      // adapter'ın INTERFACE_KEY mantığı: openChosenInterface kendisi A2 ise iframe'i
+      // açar, OO ise enterMain/screen-phone'a düşer.
+
+      // Çıkış Yap diyaloğu
+      window.__sohbetoLogoutDialog = function(){
+        // Basit, mevcut tasarıma uyan modal
+        var existing = document.getElementById('sohbetoLogoutModal');
+        if (existing) existing.remove();
+        var wrap = document.createElement('div');
+        wrap.id = 'sohbetoLogoutModal';
+        wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,14,26,.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .2s ease;';
+        wrap.innerHTML = ''
+          + '<div style="width:100%;max-width:340px;background:#fff;border-radius:22px;padding:22px 20px;box-shadow:0 30px 60px -20px rgba(0,0,0,.4);font-family:-apple-system,system-ui,sans-serif;color:#0b3a55;">'
+          +   '<div style="font-size:18px;font-weight:800;margin-bottom:6px;">Çıkış</div>'
+          +   '<div style="font-size:13px;color:#5b7a8c;line-height:1.5;margin-bottom:16px;">Geçici çıkış oturumunu kapatır, profilin saklı kalır. Hesabı sil tüm yerel verileri (tema, profil, sohbetler) temizler ve seni baştan başlatır.</div>'
+          +   '<button id="sbLogoutTemp" style="width:100%;height:44px;border-radius:12px;border:0;margin-bottom:10px;background:linear-gradient(135deg,#7bd1e8,#4fb6d6);color:#fff;font-weight:700;cursor:pointer;">Geçici Çıkış</button>'
+          +   '<button id="sbLogoutWipe" style="width:100%;height:44px;border-radius:12px;border:0;margin-bottom:10px;background:#c4624b;color:#fff;font-weight:700;cursor:pointer;">Hesabı Sil (sıfırla)</button>'
+          +   '<button id="sbLogoutCancel" style="width:100%;height:40px;border-radius:12px;border:1px solid rgba(11,58,85,.15);background:#fff;color:#0b3a55;font-weight:600;cursor:pointer;">İptal</button>'
+          + '</div>';
+        document.body.appendChild(wrap);
+        wrap.addEventListener('click', function(e){ if (e.target === wrap) wrap.remove(); });
+        document.getElementById('sbLogoutCancel').onclick = function(){ wrap.remove(); };
+        document.getElementById('sbLogoutTemp').onclick = function(){
+          wrap.remove();
+          var btn = document.getElementById('menuLogout');
+          if (btn) { try { btn.click(); } catch(e){} }
+          if (typeof window.__sohbetoHandleLocalLogout === 'function') {
+            setTimeout(window.__sohbetoHandleLocalLogout, 20);
+          }
+        };
+        document.getElementById('sbLogoutWipe').onclick = function(){
+          wrap.remove();
+          try {
+            // Sohbeto ile ilgili tüm localStorage anahtarlarını temizle
+            var toRemove = [];
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i);
+              if (!k) continue;
+              if (k.indexOf('sohbeto') === 0 || k.indexOf('sohbeto.') !== -1 || k.indexOf('sohbeto_') !== -1 ||
+                  k.indexOf('EgaNetwork') !== -1 || k.indexOf('oo.profile') !== -1) {
+                toRemove.push(k);
+              }
+            }
+            toRemove.forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+          } catch(e){}
+          try { sessionStorage.clear(); } catch(e){}
+          // IndexedDB veritabanlarını sil (kimlik + sohbet + tema)
+          var deleteIDB = function(name){
+            return new Promise(function(res){
+              try {
+                var req = indexedDB.deleteDatabase(name);
+                req.onsuccess = function(){ res(); };
+                req.onerror   = function(){ res(); };
+                req.onblocked = function(){ res(); };
+                setTimeout(res, 1500);
+              } catch(e){ res(); }
+            });
+          };
+          var done = function(){ setTimeout(function(){ location.reload(); }, 120); };
+          var idbNames = ['EgaNetwork', 'GunesOS'];
+          try {
+            for (var i = 0; i < localStorage.length; i++) {
+              var lk = localStorage.key(i);
+              if (lk && lk.indexOf('EgaNetwork_') === 0) idbNames.push(lk);
+            }
+          } catch(e){}
+          // engine'in tab-bazlı eski db'lerini de süpür
+          try {
+            if (indexedDB.databases) {
+              indexedDB.databases().then(function(list){
+                (list || []).forEach(function(d){
+                  if (d && d.name && (d.name.indexOf('EgaNetwork') === 0 || d.name === 'GunesOS')) {
+                    if (idbNames.indexOf(d.name) === -1) idbNames.push(d.name);
+                  }
+                });
+                Promise.all(idbNames.map(deleteIDB)).then(done, done);
+              }, function(){ Promise.all(idbNames.map(deleteIDB)).then(done, done); });
+            } else {
+              Promise.all(idbNames.map(deleteIDB)).then(done, done);
+            }
+          } catch(e){ done(); }
+        };
+      };
+    })();
+    </script>
+</body>
+</html>
