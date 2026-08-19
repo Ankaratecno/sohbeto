@@ -257,3 +257,136 @@ Açıklama yapıldı, kod değişikliği yok:
 - VAPID_SUBJECT = mailto:eposta — push servislerinin iletişim adresi.
 - Test: yayınlanmış site (GitHub Pages) → konsol → enablePush → user id al →
   sendPush ile kendine bildirim gönder.
+
+================================================================================
+[19.08.2026 03:38 Ankara] KULLANICI
+================================================================================
+deploy edemedim ki test edebileyim git pageste çalışacak bu test aşamasında lütfen
+soruna bak fotoğraftan yada adrese gdip bak lütfen
+
+================================================================================
+[19.08.2026 03:41 Ankara] LOVABLE
+================================================================================
+GitHub adresi ve başarısız Actions çalıştırması incelendi. Depo herkese açık,
+main dalı doğru ve workflow dosyası doğru; fakat GitHub API sonucu `has_pages:
+false` ve Pages API sonucu `404 Not Found`. Yani hata uygulama kodundan değil,
+depo için GitHub Pages henüz etkinleştirilmediğinden oluşuyor.
+
+Çözüm: GitHub deposunda Settings → Pages → Build and deployment → Source
+bölümünden **GitHub Actions** seçilmeli. Ardından Actions sayfasındaki başarısız
+çalıştırma açılıp **Re-run all jobs** seçilmeli. Bu ayar yapıldıktan sonra workflow
+`dist` klasörünü `https://ankaratecno.github.io/sohbeto/` adresine yayınlayacak.
+
+--- 2026-08-19 ---
+K: Bildirim izni çalıştı; users kaydı nasıl olacak? Şu an rastgele sanal no ile kayıt oluyor, user_id düşmesi için çıkış yapıp gerçek no ile mi kayıt olmalıyım? (sadece cevap)
+L: Push için gerçek no ile kayıt gerekmiyor. enablePush() çağrıldığında signInAnonymously() ile auth.users içinde gerçek bir satır oluşuyor; push_subscriptions.user_id bu UID. Test için: konsolda (await window.sohbetoEnablePush()) sonra
+   const {data} = await window.supabase?.auth.getUser() ya da Supabase panel > Authentication > Users listesindeki en son anonim kullanıcının UID'si.
+   Sonra: await window.sohbetoSendPush({user_id:"UID", title:"Test", body:"Merhaba", kind:"message"})
+   Uygulamanın kendi sanal telefon numarası (profiles.phone) ayrı bir şey; push kimliğiyle ilgisi yok. İleride gerçek telefon/OTP girişine geçince aynı UID mantığı devam eder, sadece anonim yerine kalıcı hesap olur.
+
+================================================================================
+[19.08.2026 04:13 Ankara] KULLANICI
+================================================================================
+Konsolda sohbetoSendPush testi `Failed to send a request to the Edge Function`
+ve CORS preflight hatası verdi; ayrıca ikon preload uyarısı görüldü.
+
+================================================================================
+[19.08.2026 04:14 Ankara] LOVABLE
+================================================================================
+Canlı endpoint OPTIONS isteğiyle kontrol edildi. Sunucu HTTP 404 ve
+`Requested function was not found` döndürüyor. Tarayıcı bunu CORS hatası gibi
+gösterse de asıl neden `send-push` Edge Function'ının projeye deploy edilmemiş
+olmasıdır. İkon preload satırı yalnızca zararsız bir performans uyarısıdır.
+
+================================================================================
+[19.08.2026 04:15 Ankara] KULLANICI
+================================================================================
+"supabase/functions/send-push/index.ts içeriğini yapıştırıp Deploy et ve varsa
+Verify JWT seçeneğini kapat; ardından UID’yi gerçek kullanıcı kimliğiyle
+değiştirip testi tekrarla" adımını anlamadım. Sadece yeni dosya yani şu an
+güncellediğin send-push/index.ts dosyasını mı GitHub'da deploy edeceğim?
+
+================================================================================
+[19.08.2026 04:15 Ankara] LOVABLE
+================================================================================
+Hayır, GitHub’a değil; `send-push` dosyası doğrudan **Supabase Edge Function**
+olarak deploy edilir. GitHub Actions sadece ön yüzü (PWA) yayınlar; arka uç
+fonksiyonlar Supabase panelinden yönetilir.
+
+Adımlar (Supabase paneli):
+1. Proje paneline gir → **Edge Functions** (sol menü).
+2. **Create new function** / **Deploy a new function** / **New function**.
+3. Name kısmına tam olarak `send-push` yaz.
+4. Kod alanına `supabase/functions/send-push/index.ts` içindeki tüm kodu
+   yapıştır.
+5. **Deploy** butonuna bas.
+
+NOT: "Verify JWT" ayarı Lovable tarafından varsayılan olarak kapalıdır
+(verify_jwt=false); kodun içinde zaten JWT doğrulaması yapıldığı için bu
+seçeneği elle değiştirmene gerek yok.
+
+Deploy başarılı olduktan sonra:
+- Tarayıcıda https://ankaratecno.github.io/sohbeto/ açıkken konsola:
+  `await window.sohbetoEnablePush()` (true dönmeli, izin ver).
+- Kendi UID'ni al: Supabase panel → Authentication → Users → en son anonim
+  kullanıcının id'sini kopyala.
+- Test: `await window.sohbetoSendPush({user_id:"UID", title:"Test",
+  body:"Merhaba", kind:"message"})`
+
+================================================================================
+[19.08.2026 04:20 Ankara] KULLANICI
+================================================================================
+Supabase Edge Functions "Create new edge function" ekranında dosya farklı
+ göründü; "super-worker" adı ve içinde "Hello" örneği vardı. GitHub'dakinden
+farklı olduğunu düşündüm.
+
+================================================================================
+[19.08.2026 04:20 Ankara] LOVABLE
+================================================================================
+Ekrandaki farklılık normal: Supabase yeni fonksiyon açıldığında varsayılan
+"Hello" şablonu ile "super-worker" gibi bir örnek isim gösterir. Bunun
+GitHub'daki repo ile ilgisi yok; Edge Function'lar Supabase panelinden deploy
+edilir, GitHub Actions'dan değil.
+
+Yapılacaklar:
+1. **Function name** kutusundaki "super-worker" yazısını sil, yerine tam olarak
+   `send-push` yaz.
+2. Kod editöründeki tüm varsayılan şablon kodunu (1–26 satırları) sil.
+3. `supabase/functions/send-push/index.ts` içindeki kendi kodumuzu olduğu gibi
+   kopyala ve boş editöre yapıştır.
+4. **Deploy function** butonuna bas.
+
+Deploy başarılı olunca URL şu şekilde çalışır:
+`https://vtqfkrxakvltyurjcwqe.supabase.co/functions/v1/send-push`
+
+Ardından test adımlarını tekrarla: enablePush → UID kopyala → sohbetoSendPush.
+
+## 2026-08-19 — Test başarılı (true)
+Kullanıcı: "true döndü, artık her gelen mesaj/arama otomatik push olarak mı gelecek?"
+Cevap: Hayır. Altyapı hazır ama otomatik değil. sendPush şu an manuel çağrılıyor.
+Otomatik olması için:
+1) Mesaj gönderildiğinde alıcının user_id'si ile sendPush çağrılmalı (uygulama kodunda mesaj gönderme fonksiyonuna eklenecek), veya
+2) Daha sağlamı: messages tablosuna DB trigger + pg_net ile send-push edge function çağrısı (gönderen offline/kapalıyken de çalışır).
+3) Arama için: arama başlatılırken kind:"call" ile sendPush (Cevapla/Reddet aksiyonları SW'de hazır).
+Ayrıca her kullanıcının push_subscriptions kaydı olmalı (uygulamaya girince enablePush çağrılmalı).
+
+## 2026-08-19 — Otomatik push (PWA kapalı/kilitliyken)
+Sohbeto mesajlaşması P2P (PeerJS) olduğu için mesajlar DB'ye yazılmıyor → DB trigger uygulanamaz.
+Bu yüzden "uygulama içi çağrı" yöntemi seçildi ve transport katmanına gömüldü:
+- push_subscriptions tablosuna `phone` kolonu eklendi (init.sql sonunda).
+- push.ts: setPushPhone(), notifyPhone() eklendi; abonelik kaydına telefon yazılıyor.
+- send-push edge function artık phone/phones ile de hedefliyor.
+- sohbeto-peer.js: MSG### ve CALL_RING gönderiminde otomatik pushNotify() (mesaj için 15sn spam koruması).
+Kullanıcının yapacağı: init.sql'in yeni bloğunu RUN + send-push fonksiyonunu yeniden deploy.
+
+---
+[2026-08-19] SORUN: İki tarafta da bildirim izni açık ama push gelmiyor.
+NEDEN: Uygulama motoru iframe (public/apps/sohbetoOO.html) içinde çalışıyor.
+window.sohbetoNotifyPhone / window.sohbetoSetPushPhone ise üst pencerede (React app)
+tanımlı. iframe içindeki sohbeto-peer.js bu fonksiyonları hiç bulamıyordu →
+ne numara kaydı (push_subscriptions.phone) yapılıyordu ne de push gönderiliyordu.
+ÇÖZÜM:
+- sohbeto-peer.js: pushFn() yardımcısı eklendi (window → window.parent → window.top).
+- push.ts setPushPhone(): numara aynı olsa da aboneliği tazeliyor (phone NULL kalmasın).
+DOĞRULAMA: Yayınlanmış sitede giriş yaptıktan sonra Supabase > push_subscriptions
+tablosunda her cihaz için phone sütunu dolu olmalı. Boşsa o cihaza push gitmez.

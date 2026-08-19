@@ -350,3 +350,12 @@ create policy "media own write" on storage.objects for insert to authenticated
 -- 2) Edge Function secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
 -- 3) Deploy: supabase functions deploy send-push
 -- ============================================================================
+
+-- ============================================================================
+-- EK: PUSH HEDEFLEME (telefon numarası ile)
+-- Sohbeto mesajlaşması P2P (PeerJS) olduğu için mesaj DB'ye yazılmıyor.
+-- Bu yüzden push hedefi olarak kullanıcının sanal numarası saklanır.
+-- Bu bloğu SQL Editor'de tekrar RUN etmek güvenlidir.
+-- ============================================================================
+alter table public.push_subscriptions add column if not exists phone text;
+create index if not exists push_subs_phone_idx on public.push_subscriptions (phone);

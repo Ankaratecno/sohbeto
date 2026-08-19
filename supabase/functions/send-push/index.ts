@@ -9,6 +9,8 @@ import { z } from "npm:zod@3.23.8";
 const BodySchema = z.object({
   user_id: z.string().uuid().optional(),
   user_ids: z.array(z.string().uuid()).max(100).optional(),
+  phone: z.string().min(3).max(24).optional(),
+  phones: z.array(z.string().min(3).max(24)).max(100).optional(),
   title: z.string().min(1).max(120),
   body: z.string().min(1).max(500),
   kind: z.enum(["message", "call"]).default("message"),
@@ -43,15 +45,26 @@ Deno.serve(async (req) => {
 
     const parsed = BodySchema.safeParse(await req.json());
     if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
-    const { user_id, user_ids, title, body, kind, url, data } = parsed.data;
+    const { user_id, user_ids, phone, phones, title, body, kind, url, data } = parsed.data;
 
-    const targets = user_ids?.length ? user_ids : user_id ? [user_id] : [];
-    if (!targets.length) return json({ error: "user_id veya user_ids gerekli" }, 400);
+    const norm = (p: string) => {
+      const d = p.replace(/[^0-9]/g, "");
+      return d ? `+${d}` : "";
+    };
+    const userTargets = user_ids?.length ? user_ids : user_id ? [user_id] : [];
+    const phoneTargets = (phones?.length ? phones : phone ? [phone] : []).map(norm).filter(Boolean);
+    if (!userTargets.length && !phoneTargets.length)
+      return json({ error: "user_id/user_ids veya phone/phones gerekli" }, 400);
 
-    const { data: subs, error: subErr } = await admin
-      .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth")
-      .in("user_id", targets);
+    let query = admin.from("push_subscriptions").select("id, endpoint, p256dh, auth");
+    query = userTargets.length && phoneTargets.length
+      ? query.or(
+          `user_id.in.(${userTargets.join(",")}),phone.in.(${phoneTargets.map((p) => `"${p}"`).join(",")})`,
+        )
+      : userTargets.length
+        ? query.in("user_id", userTargets)
+        : query.in("phone", phoneTargets);
+    const { data: subs, error: subErr } = await query;
     if (subErr) return json({ error: subErr.message }, 500);
     if (!subs?.length) return json({ sent: 0, failed: 0, note: "abonelik yok" });
 

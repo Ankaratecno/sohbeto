@@ -23,6 +23,25 @@ function deviceId(): string {
   return id;
 }
 
+/** Uygulamanın sanal numarası (push hedefi). */
+function normalizePhone(v: unknown): string {
+  const d = String(v ?? "").replace(/[^0-9]/g, "");
+  return d ? `+${d}` : "";
+}
+
+function storedPhone(): string {
+  return localStorage.getItem("sohbeto_push_phone") || "";
+}
+
+/** Uygulama giriş yaptığında kendi numarasını kaydeder ve aboneliği tazeler. */
+export async function setPushPhone(phone: string): Promise<void> {
+  const p = normalizePhone(phone);
+  if (!p) return;
+  localStorage.setItem("sohbeto_push_phone", p);
+  // Abonelik satırındaki phone alanı boş kalmış olabilir → her girişte tazele.
+  if ("Notification" in window && Notification.permission === "granted") await enablePush();
+}
+
 /** Oturum yoksa anonim oturum açar, kullanıcı id'sini döner. */
 export async function ensureSupabaseUser(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
@@ -63,6 +82,7 @@ export async function enablePush(): Promise<boolean> {
     {
       user_id: userId,
       device_id: deviceId(),
+      phone: storedPhone() || null,
       endpoint: json.endpoint,
       p256dh: json.keys.p256dh,
       auth: json.keys.auth,
@@ -94,7 +114,8 @@ export async function disablePush(): Promise<void> {
 
 /** Bir kullanıcıya bildirim gönderir (send-push edge function). */
 export async function sendPush(payload: {
-  user_id: string;
+  user_id?: string;
+  phone?: string;
   title: string;
   body: string;
   kind?: "message" | "call";
@@ -106,6 +127,19 @@ export async function sendPush(payload: {
   return !error;
 }
 
+/** Numaraya bildirim gönderir (P2P mesaj/arama tetikleyicisi). */
+export async function notifyPhone(
+  phone: string,
+  title: string,
+  body: string,
+  kind: "message" | "call" = "message",
+): Promise<boolean> {
+  const p = normalizePhone(phone);
+  if (!p) return false;
+  await ensureSupabaseUser();
+  return sendPush({ phone: p, title, body, kind });
+}
+
 /** İzin zaten verilmişse sessizce aboneliği tazeler; ayrıca iframe için global açar. */
 export function initPush(): void {
   if (typeof window === "undefined") return;
@@ -113,6 +147,8 @@ export function initPush(): void {
   w["sohbetoEnablePush"] = enablePush;
   w["sohbetoDisablePush"] = disablePush;
   w["sohbetoSendPush"] = sendPush;
+  w["sohbetoSetPushPhone"] = setPushPhone;
+  w["sohbetoNotifyPhone"] = notifyPhone;
   if ("Notification" in window && Notification.permission === "granted") {
     void enablePush();
   }

@@ -38,6 +38,14 @@
     }
     function emitLog(msg, color) { try { if (typeof window.log === 'function') window.log(msg, color); } catch (e) {} }
 
+    /** Push köprüsü: fonksiyonlar üst pencerede (React app) tanımlı; iframe içinden erişim. */
+    function pushFn(name) {
+        try { if (typeof window[name] === 'function') return window[name]; } catch (e) {}
+        try { if (window.parent && typeof window.parent[name] === 'function') return window.parent[name]; } catch (e) {}
+        try { if (window.top && typeof window.top[name] === 'function') return window.top[name]; } catch (e) {}
+        return null;
+    }
+
     function setReady(v) {
         if (ready === v) return;
         ready = v;
@@ -111,6 +119,31 @@
         return JSON.stringify({ s: myId, v: myNumber, t: target || 'HERKES', x: text });
     }
 
+    // ---------- push bildirimi (karşı taraf kapalı/kilitliyken) ----------
+    var lastPush = new Map(); // connId -> ts (spam engeli)
+    function pushNotify(connId, text) {
+        try {
+            var notify = pushFn('sohbetoNotifyPhone');
+            if (!notify) return;
+            var toNumber = numberFromId(connId);
+            if (!toNumber) return;
+            var isCall = text.indexOf('CALL_RING') === 0;
+            var isMsg = text.indexOf('MSG###') === 0;
+            if (!isCall && !isMsg) return;
+            var now = Date.now();
+            var key = connId + (isCall ? ':call' : ':msg');
+            if (!isCall && now - (lastPush.get(key) || 0) < 15000) return;
+            lastPush.set(key, now);
+            var from = myNumber || 'Sohbeto';
+            notify(
+                toNumber,
+                isCall ? 'Gelen arama' : 'Yeni mesaj',
+                isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi',
+                isCall ? 'call' : 'message'
+            );
+        } catch (e) {}
+    }
+
     function sendTo(connId, text, target) {
         var payload = envelope(text, target || connId);
         var conn = conns.get(connId);
@@ -135,6 +168,10 @@
             handlers = opts.handlers || {};
             myNumber = opts.number || '';
             myId = opts.connectionId || idForNumber(myNumber);
+            try {
+                var setPhone = pushFn('sohbetoSetPushPhone');
+                if (myNumber && setPhone) setPhone(myNumber);
+            } catch (e) {}
             if (!myId) { emitLog('[PEER] Sanal numara yok, bağlantı kurulamadı', '#ef4444'); return null; }
             if (peer && !peer.destroyed && peer.id === myId) {
                 if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} }
@@ -205,7 +242,10 @@
         send: function (text, targetConnId) {
             if (!peer || !myId) return false;
             var target = targetConnId || 'HERKES';
-            if (target !== 'HERKES') return sendTo(target, text, target);
+            if (target !== 'HERKES') {
+                pushNotify(target, text);
+                return sendTo(target, text, target);
+            }
 
             // Yayın: PeerJS'te broadcast yok → açık tüm bağlantılara yaz.
             var delivered = false;
