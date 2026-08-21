@@ -7,7 +7,10 @@ import { registerServiceWorker } from "@/pwa/serviceWorkerRegistration";
 import { initPush } from "@/pwa/push";
 import "./styles.css";
 
-void registerServiceWorker().then(() => initPush());
+// iframe yüklenmeden önce köprü fonksiyonlarını hazırla. Service worker kaydı
+// daha uzun sürerse sanal numaranın push aboneliğine yazılması kaçmasın.
+initPush();
+void registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
