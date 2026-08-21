@@ -152,4 +152,3 @@ export function initPush(): void {
     void enablePush();
   }
 }
-
