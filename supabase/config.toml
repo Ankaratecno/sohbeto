@@ -1,0 +1,7 @@
+project_id = "vtqfkrxakvltyurjcwqe"
+
+[functions.send-push]
+verify_jwt = false
+
+[functions.push-diag]
+verify_jwt = false
