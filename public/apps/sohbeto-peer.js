@@ -110,7 +110,7 @@
         var now = Date.now();
         queues.set(connId, []);
         q.forEach(function (item) {
-            if (now - item.ts > 30000) return;
+            if (now - item.ts > 10 * 60 * 1000) return;
             try { conn.send(item.text); } catch (e) {}
         });
     }
@@ -119,22 +119,40 @@
         return JSON.stringify({ s: myId, v: myNumber, t: target || 'HERKES', x: text });
     }
 
-    // ---------- push bildirimi (karşı taraf kapalı/kilitliyken) ----------
-    var lastPush = new Map(); // connId -> ts (spam engeli)
-    function pushNotify(connId, text) {
+    // ---------- push bildirimi (karşı taraf ÇEVRİMDIŞI iken) ----------
+    var lastPush = new Map(); // key -> ts (spam engeli)
+    /**
+     * kind: 'message' | 'call' (motor tarafından açıkça verilir).
+     * Şifreli SEC### paketlerinin içeriği burada okunamadığı için tür dışarıdan gelir.
+     * Bildirim SADECE hedefe açık bir veri kanalı yokken (yani kişi çevrimdışıyken) gider.
+     */
+    function pushNotify(connId, text, kind) {
         try {
+            var k = kind;
+            if (!k) {
+                if (text.indexOf('CALL_RING') === 0) k = 'call';
+                else if (text.indexOf('MSG###') === 0) k = 'message';
+            }
+            if (k !== 'call' && k !== 'message') return;
+
+            // Kişi çevrimiçi ve kanal açıksa uygulama içi teslim yeterli.
+            var conn = conns.get(connId);
+            if (conn && conn.open) return;
+
             var notify = pushFn('sohbetoNotifyPhone');
             if (!notify) return;
             var toNumber = numberFromId(connId);
             if (!toNumber) return;
-            var isCall = text.indexOf('CALL_RING') === 0;
-            var isMsg = text.indexOf('MSG###') === 0;
-            if (!isCall && !isMsg) return;
+
             var now = Date.now();
-            var key = connId + (isCall ? ':call' : ':msg');
-            if (!isCall && now - (lastPush.get(key) || 0) < 15000) return;
+            var isCall = k === 'call';
+            var key = connId + ':' + k;
+            var gap = isCall ? 10000 : 15000;
+            if (now - (lastPush.get(key) || 0) < gap) return;
             lastPush.set(key, now);
+
             var from = myNumber || 'Sohbeto';
+            emitLog('[PUSH] Çevrimdışı kişiye bildirim → ' + toNumber, '#fbbf24');
             notify(
                 toNumber,
                 isCall ? 'Gelen arama' : 'Yeni mesaj',
@@ -207,7 +225,7 @@
                 if (type === 'peer-unavailable') {
                     var m = /Could not connect to peer (\S+)/.exec(String(err && err.message || ''));
                     var pid = m ? m[1] : null;
-                    if (pid) { offline.set(pid, Date.now()); conns.delete(pid); queues.delete(pid); }
+                    if (pid) { offline.set(pid, Date.now()); conns.delete(pid); }
                     return;
                 }
                 if (type === 'unavailable-id') {
@@ -239,11 +257,11 @@
         connectToNumber: function (number) { return ensure(idForNumber(number)); },
 
         /** Motorun wsSend() imzasıyla birebir uyumlu gönderim. */
-        send: function (text, targetConnId) {
+        send: function (text, targetConnId, pushKind) {
             if (!peer || !myId) return false;
             var target = targetConnId || 'HERKES';
             if (target !== 'HERKES') {
-                pushNotify(target, text);
+                pushNotify(target, text, pushKind);
                 return sendTo(target, text, target);
             }
 

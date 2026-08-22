@@ -498,3 +498,47 @@ YANIT: Değişen dosyalar ve yapılacaklar net şekilde özetlendi:
    `supabase functions deploy push-diag` çalıştırmak. Testte yayınlanan PWA'da
    `await window.sohbetoPushDiag()` ile client/server/pair uyumu kontrol edilmeli.
 
+
+
+=== 2026-08-22 (Lovable oturumu) ===
+Kullanıcı: "merhaba lovable bu zip dosyasını olduğu gibi oluştur başka kod ekleme yapma lütfen sonra push ile alakalı sorunları giderip geliştirmeye devam edeceğiz seninle ayrıca tüm konuşmalarımızıda sohbeto txt dosyasına yazmaya devam et lütfen"
+Lovable: sohbeto-main_1.zip içeriği projeye olduğu gibi kuruldu (kod değişikliği yapılmadı). TanStack Start şablon dosyaları (src/routes, router.tsx, server.ts, start.ts) kaldırıldı, Vite SPA yapısı (index.html + src/main.tsx) geçerli. bun install çalıştırıldı, dev server 8080 portunda sorunsuz açılıyor. Sıradaki adım: push (bildirim) sorunlarının giderilmesi.
+
+=== 2026-08-22 (Lovable oturumu — çevrimdışı push düzeltmesi) ===
+Kullanıcı: "sende kontrol edersin push ile alakalı herşey doğru gibi fakat sohbeto içinde herhangi birisi çevrimdışı olduğunda o yolda push tetikleyicisi çalışmıyor gibi aynı şey mesaj gönderimi içinde geçerli benim teşhis o sencede öylemi eğer öyleyse artık çevrimdışı kişiye push göndermek istiyorum ben lütfen analiz edip lütfen çevrimdışı psuh yolunu düzelt"
+
+TEŞHİS (doğrulandı, kullanıcının teşhisi doğru):
+1) Özel mesajlar sendSecureP2PWhenReady() ile AES ile mühürlenip "SEC###..." olarak
+   gönderiliyordu. sohbeto-peer.js içindeki pushNotify() ise sadece "MSG###" veya
+   "CALL_RING" ile başlayan metinlerde çalışıyordu → şifreli mesajlarda push HİÇ
+   tetiklenmiyordu.
+2) Alıcı çevrimdışıyken wsSend() -> SohbetoPeer.send() hiç çağrılmadan da kalabiliyordu
+   (SohbetoPeer.isReady() false ise wsSend anında false dönüyordu) → yine push yok.
+3) sendSecureP2PWhenReady 24 deneme (~6 sn) sonunda pes ediyor, hiçbir bildirim
+   üretmiyordu.
+4) Peer kuyruğundaki mesajlar 30 sn sonra siliniyordu; 'peer-unavailable' hatasında
+   queues.delete() ile de siliniyordu → kişi sonradan online olsa bile mesaj kaybı.
+5) pushNotify her gönderimde çalışıyordu (kişi çevrimiçi olsa bile) → gereksiz bildirim.
+
+YAPILAN DÜZELTMELER:
+- sohbeto-engine.js: wsSend(text, targetConnId, pushKind) imzası. Taşıma hazır değilse
+  bile pushToPeer() ile yedek bildirim yolu devrede.
+- sohbeto-engine.js: yeni pushToPeer(connId, kind) yardımcısı — üst pencerede (React)
+  tanımlı sohbetoNotifyPhone köprüsünü bulur, connId'den numara türetip push atar.
+- sendSecureP2PWhenReady(..., attempts, pushKind): şifreli mesajlarda bildirim türü
+  açıkça iletiliyor; tüm denemeler başarısız olursa (alıcı çevrimdışı) push gönderiliyor.
+- sendWhenP2PReady(..., attempts, pushKind): aynı mantık sinyal paketleri için.
+- sendCallSignal(): CALL_RING / CALL_RING_VIDEO artık pushKind='call' ile gidiyor.
+- sendCurrentMessage() ve flushOutboundQueue(): pushKind='message'.
+- onPeerOpen: kişi çevrimiçi olunca flushOutboundQueue() tetikleniyor → bekleyen
+  mesajlar hemen teslim ediliyor.
+- sohbeto-peer.js pushNotify(connId, text, kind): tür artık dışarıdan gelebiliyor;
+  bildirim SADECE hedefe açık kanal yokken (kişi çevrimdışıyken) gönderiliyor;
+  spam guard mesaj 15 sn / arama 10 sn.
+- sohbeto-peer.js send(text, target, pushKind) ile pushKind aktarımı.
+- Kuyruk ömrü 30 sn → 10 dakika; 'peer-unavailable' hatasında kuyruk artık silinmiyor.
+
+NOT: Bildirimin telefona düşmesi için alıcının push aboneliği (push_subscriptions'ta
+numarasıyla eşleşen satır) ve send-push edge function'ın deploy edilmiş olması gerekir.
+Test: alıcı uygulamayı tamamen kapatsın, gönderen mesaj atsın; konsolda
+"[PUSH] Çevrimdışı kişiye bildirim →" logu görülmeli ve send-push sent>0 dönmeli.

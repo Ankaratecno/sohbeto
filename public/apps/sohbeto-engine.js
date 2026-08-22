@@ -504,21 +504,26 @@ function sendDataChannelText(targetConnId, text) {
     if (peer?.dc?.readyState !== 'open') return false;
     try { peer.dc.send(text); return true; } catch(e) { return false; }
 }
-function sendWhenP2PReady(targetConnId, text, label, attempts = 24) {
+function sendWhenP2PReady(targetConnId, text, label, attempts = 24, pushKind) {
     if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
     if (sendDataChannelText(targetConnId, text)) { if (label) log(`[P2P →] ${label}`, '#22c55e'); return true; }
     // PeerJS DataConnection zaten uçtan uca P2P; iç RTCPeerConnection kanalı
     // hazır değilse sinyal/profil paketleri doğrudan PeerJS üzerinden gider.
     try { if (window.SohbetoPeer) SohbetoPeer.connectTo(targetConnId); } catch (e) {}
-    if (wsSend(text, targetConnId)) { if (label) log(`[PEER →] ${label}`, '#22c55e'); return true; }
+    if (wsSend(text, targetConnId, pushKind)) { if (label) log(`[PEER →] ${label}`, '#22c55e'); return true; }
     try { initP2P(targetConnId); } catch(e) {}
     let left = attempts;
     const timer = setInterval(() => {
-        if (sendDataChannelText(targetConnId, text) || wsSend(text, targetConnId)) { clearInterval(timer); if (label) log(`[P2P →] ${label}`, '#22c55e'); }
-        else if (--left <= 0) { clearInterval(timer); if (label) log(`[BEKLEME] ${label} gönderilemedi`, '#fbbf24'); }
+        if (sendDataChannelText(targetConnId, text) || wsSend(text, targetConnId, pushKind)) { clearInterval(timer); if (label) log(`[P2P →] ${label}`, '#22c55e'); }
+        else if (--left <= 0) {
+            clearInterval(timer);
+            if (label) log(`[BEKLEME] ${label} gönderilemedi`, '#fbbf24');
+            if (pushKind) pushToPeer(targetConnId, pushKind);
+        }
     }, 250);
     return false;
 }
+
 
 function sendProfileUpdate(targetConnId) {
     if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
@@ -637,7 +642,7 @@ async function secureDecode(encoded, peerConnId) {
     }
 }
 
-async function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, attempts = 24) {
+async function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, attempts = 24, pushKind) {
     if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
     let busy = false;
     const trySend = async () => {
@@ -653,7 +658,7 @@ async function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, atte
             }
             // İç veri kanalı yoksa PeerJS DataConnection üzerinden (yine P2P + AES).
             try { if (window.SohbetoPeer) SohbetoPeer.connectTo(targetConnId); } catch (e) {}
-            if (wsSend(sealed, targetConnId)) {
+            if (wsSend(sealed, targetConnId, pushKind)) {
                 if (label) log(`[PEER →] ${label}`, '#22c55e');
                 if (onSent) onSent(true);
                 return true;
@@ -667,19 +672,58 @@ async function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, atte
     let left = attempts;
     const timer = setInterval(async () => {
         if (await trySend()) clearInterval(timer);
-        else if (--left <= 0) { clearInterval(timer); if (label) log(`[BEKLEME] ${label} gönderilemedi`, '#fbbf24'); if (onSent) onSent(false); }
+        else if (--left <= 0) {
+            clearInterval(timer);
+            if (label) log(`[BEKLEME] ${label} gönderilemedi`, '#fbbf24');
+            // Hiç ulaşılamadı → alıcı çevrimdışı. Son çare olarak push gönder.
+            if (pushKind) pushToPeer(targetConnId, pushKind);
+            if (onSent) onSent(false);
+        }
     }, 250);
     return false;
 }
 
 
+
 // ==================== TRANSPORT (PeerJS) ====================
 // Eski WSS paket üreticisi (createMsgPacket) kaldırıldı. Taşıma artık
 // doğrudan PeerJS DataConnection üzerinden; protokol metinleri aynı.
-function wsSend(text, targetConnId) {
-    if (!window.SohbetoPeer || !SohbetoPeer.isReady()) return false;
-    try { return SohbetoPeer.send(text, targetConnId || "HERKES"); } catch (e) { return false; }
+// pushKind: 'message' | 'call' → karşı taraf ÇEVRİMDIŞI ise web push tetiklenir.
+// (Şifreli SEC### paketlerinin içeriği taşıma katmanında okunamadığı için
+//  bildirim türü buradan açıkça iletilir.)
+function wsSend(text, targetConnId, pushKind) {
+    if (!window.SohbetoPeer || !SohbetoPeer.isReady()) {
+        // Kendi taşıma katmanımız hazır değilse bile karşı tarafa haber verilebilir.
+        if (pushKind) pushToPeer(targetConnId, pushKind);
+        return false;
+    }
+    try { return SohbetoPeer.send(text, targetConnId || "HERKES", pushKind); } catch (e) { return false; }
 }
+
+/** Çevrimdışı alıcıya doğrudan push gönderir (taşıma katmanı devre dışıyken yedek yol). */
+function pushToPeer(connId, kind) {
+    try {
+        if (!connId || connId === 'HERKES' || connId === CONFIG.connectionId) return false;
+        var notify = null;
+        try { if (typeof window.sohbetoNotifyPhone === 'function') notify = window.sohbetoNotifyPhone; } catch (e) {}
+        try { if (!notify && window.parent && typeof window.parent.sohbetoNotifyPhone === 'function') notify = window.parent.sohbetoNotifyPhone; } catch (e) {}
+        try { if (!notify && window.top && typeof window.top.sohbetoNotifyPhone === 'function') notify = window.top.sohbetoNotifyPhone; } catch (e) {}
+        if (!notify) return false;
+        var toNumber = (window.SohbetoPeer && SohbetoPeer.numberFromId(connId)) || '';
+        if (!toNumber) return false;
+        var from = CONFIG.virtualNo || 'Sohbeto';
+        var isCall = kind === 'call';
+        notify(
+            toNumber,
+            isCall ? 'Gelen arama' : 'Yeni mesaj',
+            isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi',
+            isCall ? 'call' : 'message'
+        );
+        return true;
+    } catch (e) { return false; }
+}
+window.pushToPeer = pushToPeer;
+
 
 // ==================== LOG ====================
 function log(m, c = "#38bdf8") {
@@ -982,7 +1026,8 @@ async function handleP2PMsg(senderConnId, data) {
 // ==================== CALL SIGNALING (P2P Öncelikli) ====================
 function sendCallSignal(targetConnId, text) {
     // Arama sinyalleri de profil gibi WSS'ye gitmez; gerekirse önce P2P açılır.
-    return sendWhenP2PReady(targetConnId, text, text);
+    // Arama sinyali: karşı taraf çevrimdışıysa push ile 'Gelen arama' bildirimi gider.
+    return sendWhenP2PReady(targetConnId, text, text, 24, (text === 'CALL_RING' || text === 'CALL_RING_VIDEO') ? 'call' : undefined);
 }
 
 function notifyParentCallState(type, payload) {
@@ -1134,6 +1179,8 @@ function connectChat(onReady) {
                     updateUI();
                 }
                 try { sendProfileUpdate(connId); } catch (e) {}
+                // Kişi çevrimiçi oldu → bekleyen mesajlar hemen teslim edilsin.
+                try { setTimeout(flushOutboundQueue, 300); } catch (e) {}
             },
             onPeerClose: () => { updateUI(); },
             onData: (sConnId, sVirtualNo, tConnId, text) => { handleTransportMessage(sConnId, sVirtualNo, tConnId, text); }
@@ -1928,7 +1975,7 @@ async function sendCurrentMessage() {
         sendSecureP2PWhenReady(target, payload, 'Mesaj', (sent) => {
             const queued = state.outboundQueue.get(msgId);
             if (queued && sent) { queued.attempts = (queued.attempts || 0) + 1; saveOutbox(); }
-        });
+        }, 24, 'message');
     } else {
         // Genel sohbet kaldırıldı ama geriye uyumluluk için açık kanal davranışı korunur.
         if (!wsChat || wsChat.readyState !== 1) { state.outboundQueue.set(msgId, { msgId, targetConnId: target, text, ts: Date.now(), attempts: 0 }); saveOutbox(); renderOwnMsg(target, text, msgId, false); log(`Mesaj kuyrukta`, "#f59e0b"); }
@@ -1943,7 +1990,7 @@ async function flushOutboundQueue() {
             const payload = `MSG###${m.msgId}###${m.text}`;
             sendSecureP2PWhenReady(m.targetConnId, payload, 'Kuyruktaki mesaj', (sent) => {
                 if (sent) { m.attempts = (m.attempts || 0) + 1; saveOutbox(); }
-            });
+            }, 24, 'message');
         } else {
             if (!wsChat || wsChat.readyState !== 1) continue;
             wsSend(`MSG###${m.msgId}###${m.text}`, m.targetConnId);
