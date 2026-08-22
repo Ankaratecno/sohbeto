@@ -8,7 +8,7 @@
  * scope ile uyumlu bir path'ten servis edilmelidir.
  * Örn: /sohbeto/sw.js  → register('/sohbeto/sw.js', { scope: '/sohbeto/' })
  */
-const VERSION = "v1.0.5";
+const VERSION = "v1.0.4";
 const PRECACHE = `sohbeto-precache-${VERSION}`;
 const RUNTIME_HTML = `sohbeto-html-${VERSION}`;
 const RUNTIME_ASSETS = `sohbeto-assets-${VERSION}`;
@@ -71,80 +71,29 @@ self.addEventListener("push", (event) => {
   }
   const isCall = payload.kind === "call";
   const title = payload.title || "Sohbeto";
-  // Sağdaki büyük ikon: gönderenin profil fotoğrafı (varsa), yoksa uygulama simgesi.
-  // Sol üstteki küçük simge (badge): tek renk uygulama simgemiz.
-  const largeIcon = payload.icon || `${SCOPE}icons/icon-192.png`;
-  // Gönderen başına ayrı etiket: farklı kişiler birbirinin bildirimini ezmesin,
-  // aynı kişinin mesajları ise tek kartta sayaçla birikir.
-  const sender = String(payload.data?.from || payload.data?.phone || payload.title || "genel");
-  const tag = payload.tag || (isCall ? "sohbeto-call" : `sohbeto-msg-${sender}`);
-
-  event.waitUntil(
-    (async () => {
-      let count = 1;
-      let body = payload.body || "";
-      if (!isCall) {
-        try {
-          const shown = await self.registration.getNotifications({ tag });
-          const prev = shown.length ? shown[shown.length - 1].data?.count || 1 : 0;
-          count = prev + 1;
-        } catch (e) {
-          /* noop */
-        }
-        if (count > 1) body = `${body} (${count} yeni mesaj)`;
-      }
-
-      const options = {
-        body,
-        icon: largeIcon,
-        badge: `${SCOPE}icons/badge-96.png`,
-        ...(payload.image ? { image: payload.image } : {}),
-        tag,
-        renotify: true,
-        silent: false,
-        requireInteraction: isCall,
-        // Sohbeto imzası: mesaj = kısa "ta-tap", arama = uzun ısrarlı nabız
-        vibrate: isCall ? [0, 400, 200, 400, 200, 400, 200, 400] : [0, 40, 70, 90],
-        timestamp: Date.now(),
-        data: { url: payload.url || SCOPE, count, ...(payload.data || {}) },
-        actions: isCall
-          ? [
-              { action: "accept", title: "Cevapla" },
-              { action: "decline", title: "Reddet" },
-            ]
-          : [{ action: "open", title: "Aç" }],
-      };
-      await self.registration.showNotification(title, options);
-
-      // Uygulama simgesi üzerindeki sayı baloncuğu (destekleyen cihazlarda).
-      try {
-        if (!isCall && self.navigator?.setAppBadge) {
-          const all = await self.registration.getNotifications();
-          const total = all.reduce((n, x) => n + (x.data?.count || 1), 0);
-          await self.navigator.setAppBadge(total);
-        }
-      } catch (e) {
-        /* noop */
-      }
-    })(),
-  );
+  const options = {
+    body: payload.body || "",
+    icon: `${SCOPE}icons/icon-192.png`,
+    badge: `${SCOPE}icons/icon-96.png`,
+    tag: payload.tag || (isCall ? "sohbeto-call" : "sohbeto-message"),
+    renotify: true,
+    requireInteraction: isCall,
+    vibrate: isCall ? [200, 100, 200, 100, 200] : [120, 60, 120],
+    data: { url: payload.url || SCOPE, ...(payload.data || {}) },
+    actions: isCall
+      ? [
+          { action: "accept", title: "Cevapla" },
+          { action: "decline", title: "Reddet" },
+        ]
+      : [{ action: "open", title: "Aç" }],
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  try {
-    if (self.navigator?.clearAppBadge) void self.navigator.clearAppBadge();
-  } catch (e) {
-    /* noop */
-  }
   const data = event.notification.data || {};
-  // Soğuk açılışta (uygulama kapalıyken) gönderen bilgisi adres satırıyla taşınır,
-  // böylece uygulama açılır açılmaz doğrudan o kişinin sohbeti/araması açılır.
-  const target = new URL(data.url || SCOPE, self.location.origin);
-  if (data.from) target.searchParams.set("from", data.from);
-  if (data.kind) target.searchParams.set("kind", data.kind);
-  target.searchParams.set("act", event.action || "open");
-  const targetUrl = target.href;
+  const targetUrl = new URL(data.url || SCOPE, self.location.origin).href;
   if (event.action === "decline") return;
   event.waitUntil(
     (async () => {

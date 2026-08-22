@@ -154,8 +154,6 @@ export async function sendPush(payload: {
   body: string;
   kind?: "message" | "call";
   url?: string;
-  icon?: string;
-  image?: string;
   data?: Record<string, unknown>;
 }): Promise<boolean> {
   const { data, error } = await supabase.functions.invoke<PushResult>("send-push", {
@@ -189,21 +187,12 @@ async function userIdsForPhone(phone: string): Promise<string[]> {
   return [];
 }
 
-/**
- * Bildirime tıklanınca açılacak adres.
- * Değiştirmek için: url-degisikligi.txt dosyasına bak.
- */
-export const APP_URL = "https://ankaratecno.github.io/sohbeto/";
-
 /** Numaraya bildirim gönderir (P2P mesaj/arama tetikleyicisi). */
 export async function notifyPhone(
   phone: string,
   title: string,
   body: string,
   kind: "message" | "call" = "message",
-  url?: string,
-  icon?: string,
-  data?: Record<string, unknown>,
 ): Promise<boolean> {
   const p = normalizePhone(phone);
   if (!p) return false;
@@ -213,19 +202,8 @@ export async function notifyPhone(
   if (!user_ids.length) {
     console.warn("[Sohbeto] Bu numaraya kayıtlı push aboneliği bulunamadı:", p);
   }
-  return sendPush({
-    phone: p,
-    ...(user_ids.length ? { user_ids } : {}),
-    title,
-    body,
-    kind,
-    url: url || APP_URL,
-    ...(icon && /^https?:\/\//.test(icon) ? { icon } : {}),
-    // data.from → bildirime tıklanınca doğrudan o kişinin sohbeti/araması açılır.
-    data: { from: normalizePhone(String(data?.["from"] ?? "")) || undefined, kind, ...(data || {}) },
-  });
+  return sendPush({ phone: p, ...(user_ids.length ? { user_ids } : {}), title, body, kind });
 }
-
 
 
 /** VAPID uyumunu kontrol eder: sunucudaki public key + çiftin geçerliliği. */

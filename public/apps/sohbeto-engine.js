@@ -701,7 +701,7 @@ function wsSend(text, targetConnId, pushKind) {
 }
 
 /** Çevrimdışı alıcıya doğrudan push gönderir (taşıma katmanı devre dışıyken yedek yol). */
-function pushToPeer(connId, kind, opts) {
+function pushToPeer(connId, kind) {
     try {
         if (!connId || connId === 'HERKES' || connId === CONFIG.connectionId) return false;
         var notify = null;
@@ -713,18 +713,11 @@ function pushToPeer(connId, kind, opts) {
         if (!toNumber) return false;
         var from = CONFIG.virtualNo || 'Sohbeto';
         var isCall = kind === 'call';
-        var o = opts || {};
-        // Profil fotoğrafı yalnızca http(s) adresiyse bildirime konabilir
-        // (data: URL'ler push paketine sığmaz, 4 KB sınırı var).
-        var photo = '';
-        try { if (state && typeof state.profileImage === 'string' && /^https?:\/\//.test(state.profileImage)) photo = state.profileImage; } catch (e) {}
         notify(
             toNumber,
-            o.title || (isCall ? 'Gelen arama' : 'Yeni mesaj'),
-            o.body || (isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi'),
-            isCall ? 'call' : 'message',
-            undefined,
-            photo || undefined
+            isCall ? 'Gelen arama' : 'Yeni mesaj',
+            isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi',
+            isCall ? 'call' : 'message'
         );
         return true;
     } catch (e) { return false; }
@@ -2390,11 +2383,7 @@ async function sendVoiceMessage(targetConnId, base64Audio, durSec, mime) {
     const peerReady = !!(window.SohbetoPeer && SohbetoPeer.isReady());
     if (!dcReady && !peerReady) {
         try { initP2P(targetConnId); } catch(e) {}
-        pushToPeer(targetConnId, 'message', {
-            title: 'Yeni ses kaydı',
-            body: (CONFIG.virtualNo || 'Sohbeto') + ' sana ses kaydı gönderiyor'
-        });
-        log('[P2P] Sesli mesaj için kanal hazır değil; karşı tarafa bildirim gönderildi.', '#fbbf24');
+        log('[P2P] Sesli mesaj için kanal hazır değil; kısa süre sonra tekrar deneyin.', '#fbbf24');
         return false;
     }
     const put = (pkt) => sendDataChannelText(targetConnId, pkt) || wsSend(pkt, targetConnId);
@@ -2634,11 +2623,7 @@ async function sendMediaMessage(targetConnId, dataUrl, kind, mime, fileName) {
     const peerReady = !!(window.SohbetoPeer && SohbetoPeer.isReady());
     if (!dcReady && !peerReady) {
         try { initP2P(targetConnId); } catch (e) {}
-        pushToPeer(targetConnId, 'message', {
-            title: kind === 'image' ? 'Yeni fotoğraf' : 'Yeni dosya',
-            body: (CONFIG.virtualNo || 'Sohbeto') + (kind === 'image' ? ' sana fotoğraf gönderiyor' : ' sana dosya gönderiyor')
-        });
-        log('[P2P] Medya için kanal hazır değil; karşı tarafa bildirim gönderildi.', '#fbbf24');
+        log('[P2P] Medya için kanal hazır değil; kısa süre sonra tekrar deneyin.', '#fbbf24');
         return false;
     }
     const put = (pkt) => sendDataChannelText(targetConnId, pkt) || wsSend(pkt, targetConnId);
@@ -2694,14 +2679,7 @@ async function sendMediaMessage(targetConnId, dataUrl, kind, mime, fileName) {
     // %100 + yeşil tik: alıcıdan MSG_ACK gelince (completeMediaUpload)
     _mediaUploads.set(mid, {
         wrap: prog, el: ownEl,
-        timer: setTimeout(() => {
-            // Karşı taraf onaylamadı → muhtemelen çevrimdışı; bildirim gönder.
-            pushToPeer(targetConnId, 'message', {
-                title: kind === 'image' ? 'Yeni fotoğraf' : 'Yeni dosya',
-                body: (CONFIG.virtualNo || 'Sohbeto') + (kind === 'image' ? ' sana fotoğraf gönderdi' : ' sana dosya gönderdi')
-            });
-            completeMediaUpload(mid);
-        }, 20000)
+        timer: setTimeout(() => completeMediaUpload(mid), 45000)
     });
 
     log(`[P2P →] ${mediaPreviewText(kind, fileName)} gönderildi`, '#22c55e');
