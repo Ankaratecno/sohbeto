@@ -8,7 +8,7 @@
  * scope ile uyumlu bir path'ten servis edilmelidir.
  * Örn: /sohbeto/sw.js  → register('/sohbeto/sw.js', { scope: '/sohbeto/' })
  */
-const VERSION = "v1.0.4";
+const VERSION = "v1.0.6";
 const PRECACHE = `sohbeto-precache-${VERSION}`;
 const RUNTIME_HTML = `sohbeto-html-${VERSION}`;
 const RUNTIME_ASSETS = `sohbeto-assets-${VERSION}`;
@@ -61,6 +61,53 @@ self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
 });
 
+// -------------------------------------------- REHBER ADI (IndexedDB okuma)
+// Gönderen numarası bildirimde ham "+90..." olarak görünmesin: alıcının kendi
+// rehberinde bu numara kayıtlıysa bildirimde kişinin adı yazılır.
+function normalizeNumber(n) {
+  let s = String(n || "")
+    .trim()
+    .replace(/[\s\-()]/g, "");
+  if (!s) return "";
+  s = s.replace(/^00/, "+").replace(/[^+\d]/g, "");
+  let digits = s.replace(/^\+/, "");
+  if (digits.startsWith("0") && digits.length === 11) digits = "90" + digits.substring(1);
+  else if (digits.length === 10 && digits.startsWith("5")) digits = "90" + digits;
+  else if (digits.startsWith("0090")) digits = digits.substring(2);
+  return "+" + digits;
+}
+
+function contactNameFor(number) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => {
+      if (!done) {
+        done = true;
+        resolve(v || "");
+      }
+    };
+    setTimeout(() => finish(""), 1500);
+    try {
+      const open = indexedDB.open("EgaNetwork");
+      open.onerror = () => finish("");
+      open.onsuccess = () => {
+        const db = open.result;
+        try {
+          if (!db.objectStoreNames.contains("contacts")) return finish("");
+          const tx = db.transaction("contacts", "readonly");
+          const req = tx.objectStore("contacts").get(number);
+          req.onsuccess = () => finish(req.result?.name || "");
+          req.onerror = () => finish("");
+        } catch (e) {
+          finish("");
+        }
+      };
+    } catch (e) {
+      finish("");
+    }
+  });
+}
+
 // ------------------------------------------------------------------ WEB PUSH
 self.addEventListener("push", (event) => {
   let payload = {};
@@ -70,30 +117,103 @@ self.addEventListener("push", (event) => {
     payload = { title: "Sohbeto", body: event.data ? event.data.text() : "" };
   }
   const isCall = payload.kind === "call";
-  const title = payload.title || "Sohbeto";
-  const options = {
-    body: payload.body || "",
-    icon: `${SCOPE}icons/icon-192.png`,
-    badge: `${SCOPE}icons/icon-96.png`,
-    tag: payload.tag || (isCall ? "sohbeto-call" : "sohbeto-message"),
-    renotify: true,
-    requireInteraction: isCall,
-    vibrate: isCall ? [200, 100, 200, 100, 200] : [120, 60, 120],
-    data: { url: payload.url || SCOPE, ...(payload.data || {}) },
-    actions: isCall
-      ? [
-          { action: "accept", title: "Cevapla" },
-          { action: "decline", title: "Reddet" },
-        ]
-      : [{ action: "open", title: "Aç" }],
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+  let title = payload.title || "Sohbeto";
+  // Sağdaki büyük ikon: gönderenin profil fotoğrafı (varsa), yoksa uygulama simgesi.
+  // Sol üstteki küçük simge (badge): tek renk uygulama simgemiz.
+  const largeIcon = payload.icon || `${SCOPE}icons/icon-192.png`;
+  // Gönderen başına ayrı etiket: farklı kişiler birbirinin bildirimini ezmesin,
+  // aynı kişinin mesajları ise tek kartta sayaçla birikir.
+  const sender = String(payload.data?.from || payload.data?.phone || payload.title || "genel");
+  const tag = payload.tag || (isCall ? "sohbeto-call" : `sohbeto-msg-${sender}`);
+
+  event.waitUntil(
+    (async () => {
+      let count = 1;
+      let body = payload.body || "";
+
+      // Gövde/başlıkta geçen ham numarayı rehberdeki adla değiştir.
+      try {
+        const fromRaw = payload.data?.from || payload.data?.phone || "";
+        const from = normalizeNumber(fromRaw);
+        if (from && from !== "+") {
+          const name = await contactNameFor(from);
+          if (name) {
+            const variants = [from, from.replace(/^\+/, ""), String(fromRaw)];
+            for (const v of variants) {
+              if (!v) continue;
+              const rx = new RegExp(v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
+              body = body.replace(rx, name);
+              title = title.replace(rx, name);
+            }
+          }
+        }
+      } catch (e) {
+        /* noop */
+      }
+
+      if (!isCall) {
+        try {
+          const shown = await self.registration.getNotifications({ tag });
+          const prev = shown.length ? shown[shown.length - 1].data?.count || 1 : 0;
+          count = prev + 1;
+        } catch (e) {
+          /* noop */
+        }
+        if (count > 1) body = `${body} (${count} yeni mesaj)`;
+      }
+
+
+      const options = {
+        body,
+        icon: largeIcon,
+        badge: `${SCOPE}icons/badge-96.png`,
+        ...(payload.image ? { image: payload.image } : {}),
+        tag,
+        renotify: true,
+        silent: false,
+        requireInteraction: isCall,
+        // Sohbeto imzası: mesaj = kısa "ta-tap", arama = uzun ısrarlı nabız
+        vibrate: isCall ? [0, 400, 200, 400, 200, 400, 200, 400] : [0, 40, 70, 90],
+        timestamp: Date.now(),
+        data: { url: payload.url || SCOPE, count, ...(payload.data || {}) },
+        actions: isCall
+          ? [
+              { action: "accept", title: "Cevapla" },
+              { action: "decline", title: "Reddet" },
+            ]
+          : [{ action: "open", title: "Aç" }],
+      };
+      await self.registration.showNotification(title, options);
+
+      // Uygulama simgesi üzerindeki sayı baloncuğu (destekleyen cihazlarda).
+      try {
+        if (!isCall && self.navigator?.setAppBadge) {
+          const all = await self.registration.getNotifications();
+          const total = all.reduce((n, x) => n + (x.data?.count || 1), 0);
+          await self.navigator.setAppBadge(total);
+        }
+      } catch (e) {
+        /* noop */
+      }
+    })(),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  try {
+    if (self.navigator?.clearAppBadge) void self.navigator.clearAppBadge();
+  } catch (e) {
+    /* noop */
+  }
   const data = event.notification.data || {};
-  const targetUrl = new URL(data.url || SCOPE, self.location.origin).href;
+  // Soğuk açılışta (uygulama kapalıyken) gönderen bilgisi adres satırıyla taşınır,
+  // böylece uygulama açılır açılmaz doğrudan o kişinin sohbeti/araması açılır.
+  const target = new URL(data.url || SCOPE, self.location.origin);
+  if (data.from) target.searchParams.set("from", data.from);
+  if (data.kind) target.searchParams.set("kind", data.kind);
+  target.searchParams.set("act", event.action || "open");
+  const targetUrl = target.href;
   if (event.action === "decline") return;
   event.waitUntil(
     (async () => {

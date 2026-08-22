@@ -2496,5 +2496,78 @@
       };
     })();
     </script>
+
+    <!-- Bildirim derin bağlantısı: kabuktan (React) gelen tıklama hedefi.
+         Mesaj → o kişinin sohbeti açılır. Arama → gelen arama varsa hemen
+         cevaplanır, yoksa kişiye geri arama/sohbet açılır. -->
+    <script>
+    (function(){
+      function ready(){
+        try {
+          if (typeof window.openContactByNumber !== 'function') return false;
+          var n = (window.state && window.state.myNumber) ||
+                  localStorage.getItem('sohbeto.oo.profile.number') || '';
+          return !!(n && String(n).trim());
+        } catch(e){ return false; }
+      }
+      function waitReady(cb, timeoutMs){
+        var start = Date.now();
+        (function poll(){
+          if (ready()) { cb(true); return; }
+          if (Date.now() - start > (timeoutMs || 20000)) { cb(false); return; }
+          setTimeout(poll, 200);
+        })();
+      }
+      function handle(d){
+        var from = String(d.from || '').trim();
+        var isCall = d.kind === 'call';
+        waitReady(function(ok){
+          if (!ok) return;
+          try {
+            if (isCall) {
+              // Gelen arama ekranı hâlâ çalıyorsa doğrudan cevapla.
+              var inc = window.state && window.state.incomingCallFrom;
+              if (inc && d.act !== 'decline') {
+                if (typeof window.acceptCall === 'function') { window.acceptCall(); return; }
+              }
+              if (d.act === 'decline') {
+                if (inc && typeof window.rejectCall === 'function') { window.rejectCall(); return; }
+              }
+              // Arama bitmişse: arayan kişiye dön (sohbet + geri arama imkânı).
+              if (from) window.openContactByNumber(from);
+              // Kısa bir süre bekle, bağlantı kurulunca sesli aramayı başlat.
+              if (from && d.act !== 'decline') {
+                setTimeout(function(){
+                  try {
+                    var c = typeof window.getContactByNumber === 'function'
+                      ? window.getContactByNumber(window.normalizeNumber ? window.normalizeNumber(from) : from)
+                      : null;
+                    if (c && c.connId && typeof window.startAudioCall === 'function') {
+                      window.startAudioCall(c.connId, false);
+                    }
+                  } catch(e){}
+                }, 1200);
+              }
+              return;
+            }
+            if (from) window.openContactByNumber(from);
+          } catch(e){}
+        }, 25000);
+      }
+      window.addEventListener('message', function(ev){
+        var d = ev && ev.data;
+        if (!d || typeof d !== 'object' || d.type !== 'sohbeto:push-click') return;
+        handle(d);
+      });
+      // Kabuk mesajı iframe yüklenmeden önce gelmiş olabilir: adresteki
+      // parametreleri de kontrol et.
+      try {
+        var u = new URL(window.location.href);
+        var f = u.searchParams.get('from');
+        var k = u.searchParams.get('kind');
+        if (f || k) handle({ from: f, kind: k, act: u.searchParams.get('act') || 'open' });
+      } catch(e){}
+    })();
+    </script>
 </body>
 </html>

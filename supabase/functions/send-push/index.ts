@@ -15,6 +15,8 @@ const BodySchema = z.object({
   body: z.string().min(1).max(500),
   kind: z.enum(["message", "call"]).default("message"),
   url: z.string().max(500).optional(),
+  icon: z.string().max(500).optional(),
+  image: z.string().max(500).optional(),
   data: z.record(z.unknown()).optional(),
 });
 
@@ -45,7 +47,7 @@ Deno.serve(async (req) => {
 
     const parsed = BodySchema.safeParse(await req.json());
     if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
-    const { user_id, user_ids, phone, phones, title, body, kind, url, data } = parsed.data;
+    const { user_id, user_ids, phone, phones, title, body, kind, url, icon, image, data } = parsed.data;
 
     const norm = (p: string) => {
       const d = p.replace(/[^0-9]/g, "");
@@ -75,6 +77,8 @@ Deno.serve(async (req) => {
       body,
       kind,
       url: url ?? "/",
+      ...(icon ? { icon } : {}),
+      ...(image ? { image } : {}),
       data: data ?? {},
       ts: Date.now(),
     });
@@ -87,7 +91,7 @@ Deno.serve(async (req) => {
           await webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
             payload,
-            { TTL: kind === "call" ? 60 : 3600, urgency: kind === "call" ? "high" : "normal" },
+            { TTL: kind === "call" ? 60 : 3600, urgency: "high" },
           );
           sent++;
         } catch (e) {

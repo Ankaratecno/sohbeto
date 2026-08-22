@@ -701,7 +701,7 @@ function wsSend(text, targetConnId, pushKind) {
 }
 
 /** Çevrimdışı alıcıya doğrudan push gönderir (taşıma katmanı devre dışıyken yedek yol). */
-function pushToPeer(connId, kind) {
+function pushToPeer(connId, kind, opts) {
     try {
         if (!connId || connId === 'HERKES' || connId === CONFIG.connectionId) return false;
         var notify = null;
@@ -713,11 +713,19 @@ function pushToPeer(connId, kind) {
         if (!toNumber) return false;
         var from = CONFIG.virtualNo || 'Sohbeto';
         var isCall = kind === 'call';
+        var o = opts || {};
+        // Profil fotoğrafı yalnızca http(s) adresiyse bildirime konabilir
+        // (data: URL'ler push paketine sığmaz, 4 KB sınırı var).
+        var photo = '';
+        try { if (state && typeof state.profileImage === 'string' && /^https?:\/\//.test(state.profileImage)) photo = state.profileImage; } catch (e) {}
         notify(
             toNumber,
-            isCall ? 'Gelen arama' : 'Yeni mesaj',
-            isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi',
-            isCall ? 'call' : 'message'
+            o.title || (isCall ? 'Gelen arama' : 'Yeni mesaj'),
+            o.body || (isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi'),
+            isCall ? 'call' : 'message',
+            undefined,
+            photo || undefined,
+            { from: from }
         );
         return true;
     } catch (e) { return false; }
@@ -739,8 +747,35 @@ function log(m, c = "#38bdf8") {
 // ==================== LOCALSTORAGE ====================
 const LS_OUTBOX = tabScopedKey('sohbet_outbox_v5');
 function saveOutbox() { try { localStorage.setItem(LS_OUTBOX, JSON.stringify(Array.from(state.outboundQueue.values()))); } catch (e) { } }
-function loadOutbox() { try { const a = JSON.parse(localStorage.getItem(LS_OUTBOX) || '[]'); a.forEach(m => state.outboundQueue.set(m.msgId, m)); } catch (e) { } }
+function loadOutbox() {
+    try {
+        const a = JSON.parse(localStorage.getItem(LS_OUTBOX) || '[]');
+        // Kuyrukta sonsuza kadar bekleyen mesajlar her girişte yeniden gönderiliyordu.
+        // 24 saatten eski veya 3 denemeyi aşmış kayıtlar artık atılır.
+        const now = Date.now();
+        a.filter(m => m && (now - (m.ts || 0) < 24 * 3600 * 1000) && (m.attempts || 0) < 3)
+            .forEach(m => state.outboundQueue.set(m.msgId, m));
+        saveOutbox();
+    } catch (e) { }
+}
+// ---- Görülen mesaj kimlikleri (tekrar gösterimi engeller) ----
+const LS_SEEN_MSGS = tabScopedKey('sohbet_seen_msgids_v1');
+let _seenMsgIds = null;
+function seenMsgIdSeen(mid) {
+    try {
+        if (!_seenMsgIds) {
+            const arr = JSON.parse(localStorage.getItem(LS_SEEN_MSGS) || '[]');
+            _seenMsgIds = Array.isArray(arr) ? arr : [];
+        }
+        if (_seenMsgIds.includes(mid)) return true;
+        _seenMsgIds.push(mid);
+        if (_seenMsgIds.length > 800) _seenMsgIds = _seenMsgIds.slice(-800);
+        localStorage.setItem(LS_SEEN_MSGS, JSON.stringify(_seenMsgIds));
+        return false;
+    } catch (e) { return false; }
+}
 function newMsgId() { return 'M_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8); }
+
 
 // ==================== NOTIFICATION ====================
 function showNotif(html, duration) {
@@ -963,6 +998,18 @@ function addLocalMediaTracks(connId) {
     return changed;
 }
 
+/** Belirli bir peer'a giden ses track'lerini aç/kapat (arama kabul edilmeden ses akmasın). */
+function setPeerAudioSendEnabled(connId, enabled) {
+    const pc = peers[connId]?.pc;
+    if (!pc) return;
+    try {
+        pc.getSenders().forEach(s => {
+            if (s.track && s.track.kind === 'audio') s.track.enabled = !!enabled;
+        });
+    } catch (e) {}
+}
+
+
 async function renegotiatePeer(connId) {
     const pc = peers[connId]?.pc;
     if (!pc || pc.signalingState !== 'stable') return;
@@ -1004,7 +1051,9 @@ async function handleP2PMsg(senderConnId, data) {
     if (data.startsWith("MSG###")) {
         const [, mid, ...rest] = data.split("###"); const text = rest.join("###");
         handleTypingSignal(senderConnId, false);
-        renderIncomingMsg(senderConnId, CONFIG.connectionId, text, true, mid);
+        // Aynı msgId ikinci kez gelirse tekrar gösterilmez (kuyruk tekrarları).
+        if (!(mid && seenMsgIdSeen(mid))) renderIncomingMsg(senderConnId, CONFIG.connectionId, text, true, mid);
+
         const peer = peers[senderConnId];
         if (peer?.dc?.readyState === 'open') {
             peer.dc.send(`MSG_ACK###${mid}###DELIVERED`);
@@ -1064,7 +1113,9 @@ function handleCallSignal(senderConnId, text, viaP2P) {
             // Süre tam olarak karşı taraf açtığı anda başlar.
             startCallTimer(acceptedAt);
             const changed = addLocalMediaTracks(senderConnId);
+            setPeerAudioSendEnabled(senderConnId, true);
             if (changed) renegotiatePeer(senderConnId);
+
             if (document.getElementById('videoContainer').classList.contains('active')) {
                 log(`📹 [${via}] Görüntülü arama bağlandı`, "#22c55e");
             }
@@ -1105,6 +1156,10 @@ async function handleSignaling(senderConnId, type, data) {
         configurePeerConnection(senderConnId, pc);
         pc.ondatachannel = (e) => attachDataChannel(senderConnId, e.channel, 'in');
         addLocalMediaTracks(senderConnId);
+        // Kabul edilmemiş bir arama varken (ya da hiç arama yokken) mikrofonumuz
+        // karşı tarafa akmasın: sadece acceptCall/startCall sonrası açılır.
+        if (activeCallConnId !== senderConnId) setPeerAudioSendEnabled(senderConnId, false);
+
         await pc.setRemoteDescription(new RTCSessionDescription(json));
         const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
         sendSignaling(senderConnId, "ANSWER", JSON.stringify(answer));
@@ -2383,7 +2438,11 @@ async function sendVoiceMessage(targetConnId, base64Audio, durSec, mime) {
     const peerReady = !!(window.SohbetoPeer && SohbetoPeer.isReady());
     if (!dcReady && !peerReady) {
         try { initP2P(targetConnId); } catch(e) {}
-        log('[P2P] Sesli mesaj için kanal hazır değil; kısa süre sonra tekrar deneyin.', '#fbbf24');
+        pushToPeer(targetConnId, 'message', {
+            title: 'Yeni ses kaydı',
+            body: (CONFIG.virtualNo || 'Sohbeto') + ' sana ses kaydı gönderiyor'
+        });
+        log('[P2P] Sesli mesaj için kanal hazır değil; karşı tarafa bildirim gönderildi.', '#fbbf24');
         return false;
     }
     const put = (pkt) => sendDataChannelText(targetConnId, pkt) || wsSend(pkt, targetConnId);
@@ -2446,15 +2505,20 @@ function mediaPreviewText(kind, fileName) {
 // koymak, her açılışta tarayıcıyı o devasa string'i parse etmeye zorlar ve
 // balonlar "geç açılır". blob: URL'de veri bir kez belleğe alınır, render anında.
 const _blobUrlCache = new Map();
+// "video/webm;codecs=vp8,opus" gibi parametreli MIME'lar data:URL içinde virgül
+// barındırdığı için URL'i bozuyor ve video oynatılamıyordu → sadece temel tür.
+function baseMime(mime) { return String(mime || '').split(';')[0].trim() || 'application/octet-stream'; }
+window.baseMime = baseMime;
 function mediaSrc(dataUrl) {
     if (!dataUrl || typeof dataUrl !== 'string') return dataUrl || '';
     if (!dataUrl.startsWith('data:')) return dataUrl;
     const hit = _blobUrlCache.get(dataUrl);
     if (hit) return hit;
     try {
-        const comma = dataUrl.indexOf(',');
+        const b64i = dataUrl.indexOf('base64,');
+        const comma = b64i >= 0 ? b64i + 6 : dataUrl.indexOf(',');
         const meta = dataUrl.slice(5, comma);
-        const mime = meta.split(';')[0] || 'application/octet-stream';
+        const mime = baseMime(meta.split(';')[0]);
         const bin = atob(dataUrl.slice(comma + 1));
         const len = bin.length;
         const buf = new Uint8Array(len);
@@ -2466,6 +2530,7 @@ function mediaSrc(dataUrl) {
 }
 window.mediaSrc = mediaSrc;
 
+
 function buildMediaMsgEl(opts) {
     const { kind, dataUrl, mime, fileName, isOwn, displaySender, timeStr, msgId, status } = opts;
     const div = document.createElement('div');
@@ -2475,7 +2540,7 @@ function buildMediaMsgEl(opts) {
     const src = dataUrl ? mediaSrc(dataUrl) : '';
     let body;
     if (kind === 'image' && dataUrl) body = `<div class="oo-media-wrap"><img class="msg-media-img" src="${src}" alt="Fotoğraf" loading="lazy" decoding="async" onclick="openMediaViewer(this.src,'image')"></div>`;
-    else if (kind === 'video' && dataUrl) body = `<div class="oo-media-wrap oo-video-wrap" onclick="openMediaViewer(this.querySelector('video').src,'video')"><video class="msg-media-video" preload="metadata" muted playsinline src="${src}#t=0.1"></video><span class="oo-play-badge"><i class="fa-solid fa-play"></i></span></div>`;
+    else if (kind === 'video' && dataUrl) body = `<div class="oo-media-wrap oo-video-wrap" onclick="openMediaViewer(this.dataset.src,'video')" data-src="${src}"><video class="msg-media-video" preload="metadata" muted playsinline src="${src}"></video><span class="oo-play-badge"><i class="fa-solid fa-play"></i></span></div>`;
     else if (kind === 'voice') body = voicePlayerHtml(src || dataUrl, opts.dur || 0);
     else if (dataUrl) body = `<a class="msg-media-file" href="${src}" download="${escapeHtml(fileName || 'dosya')}"><span class="oo-file-ic"><i class="fa-solid fa-file-lines"></i></span><span class="oo-file-name">${escapeHtml(fileName || 'Dosya')}</span></a>`;
     else body = `<div class="msg-text" style="opacity:.6">${escapeHtml(mediaPreviewText(kind, fileName))}</div>`;
@@ -2591,7 +2656,7 @@ function handleMediaPacket(senderConnId, data) {
     if (data.startsWith('MEDIA_PART###')) {
         const parts = data.split('###');
         const mid = parts[1], idx = parseInt(parts[2],10), total = parseInt(parts[3],10);
-        const kind = parts[4] || 'file', mime = parts[5] || 'application/octet-stream';
+        const kind = parts[4] || 'file', mime = baseMime(parts[5] || 'application/octet-stream');
         let fileName = ''; try { fileName = parts[6] ? decodeURIComponent(atob(parts[6])) : ''; } catch (e) {}
         const chunk = parts.slice(7).join('###');
         const key = senderConnId + ':' + mid;
@@ -2617,13 +2682,17 @@ async function sendMediaMessage(targetConnId, dataUrl, kind, mime, fileName) {
     if (!dataUrl) return false;
     const comma = dataUrl.indexOf(',');
     const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-    const m = mime || (dataUrl.slice(5, comma > 0 ? dataUrl.indexOf(';') : 5) || 'application/octet-stream');
+    const m = baseMime(mime || dataUrl.slice(5, comma > 0 ? comma : 5));
     const peer = peers[targetConnId];
     const dcReady = !!(peer && peer.dc && peer.dc.readyState === 'open');
     const peerReady = !!(window.SohbetoPeer && SohbetoPeer.isReady());
     if (!dcReady && !peerReady) {
         try { initP2P(targetConnId); } catch (e) {}
-        log('[P2P] Medya için kanal hazır değil; kısa süre sonra tekrar deneyin.', '#fbbf24');
+        pushToPeer(targetConnId, 'message', {
+            title: kind === 'image' ? 'Yeni fotoğraf' : (kind === 'video' ? 'Yeni video' : 'Yeni dosya'),
+            body: (CONFIG.virtualNo || 'Sohbeto') + ' sana ' + (kind === 'image' ? 'fotoğraf' : kind === 'video' ? 'video' : 'dosya') + ' gönderiyor'
+        });
+        log('[P2P] Medya için kanal hazır değil; karşı tarafa bildirim gönderildi.', '#fbbf24');
         return false;
     }
     const put = (pkt) => sendDataChannelText(targetConnId, pkt) || wsSend(pkt, targetConnId);
@@ -2679,7 +2748,14 @@ async function sendMediaMessage(targetConnId, dataUrl, kind, mime, fileName) {
     // %100 + yeşil tik: alıcıdan MSG_ACK gelince (completeMediaUpload)
     _mediaUploads.set(mid, {
         wrap: prog, el: ownEl,
-        timer: setTimeout(() => completeMediaUpload(mid), 45000)
+        timer: setTimeout(() => {
+            // Karşı taraf onaylamadı → muhtemelen çevrimdışı; bildirim gönder.
+            pushToPeer(targetConnId, 'message', {
+                title: kind === 'image' ? 'Yeni fotoğraf' : 'Yeni dosya',
+                body: (CONFIG.virtualNo || 'Sohbeto') + (kind === 'image' ? ' sana fotoğraf gönderdi' : ' sana dosya gönderdi')
+            });
+            completeMediaUpload(mid);
+        }, 20000)
     });
 
     log(`[P2P →] ${mediaPreviewText(kind, fileName)} gönderildi`, '#22c55e');
@@ -2803,10 +2879,12 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
 
     if (!isIncoming) {
         // Zil sinyalini offer'dan ÖNCE gönder ki karşı taraf hazırlansın.
-        document.getElementById('activeCallStatus').innerText = 'Çalıyor...';
+        // Sıra önemli: önce saat/durum sıfırlanır (bayat "Bağlandı" silinir), sonra "Çalıyor...".
         resetCallClock();
+        document.getElementById('activeCallStatus').innerText = 'Çalıyor...';
         sendCallSignal(connId, "CALL_RING");
     }
+
 
     // Now init P2P - localAudioStream is available so tracks will be added
     await initP2P(connId);
@@ -2814,8 +2892,10 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
     if (isIncoming) {
         // Incoming call accepted - start timer immediately since both sides are ready
         document.getElementById('activeCallStatus').innerText = 'Bağlandı';
+        setPeerAudioSendEnabled(connId, true);
         startCallTimer(connectedAt || Date.now());
     }
+
 }
 
 function startCallTimer(startedAt) {
@@ -2905,7 +2985,11 @@ function resetCallClock() {
     try { window.__SOHBETO_CALL_CONNECTED_AT = null; } catch (e) {}
     const d = document.getElementById('activeCallDuration'); if (d) d.innerText = '00:00';
     const vd = document.getElementById('videoCallDuration'); if (vd) vd.innerText = '00:00';
+    // ÖNEMLİ: "Bağlandı" yazısı bir sonraki aramaya taşınmasın. Köprüler bu metni
+    // izlediği için bayat "Bağlandı" ikinci aramada süreyi/mikrofonu erken açıyordu.
+    const s = document.getElementById('activeCallStatus'); if (s) s.innerText = '';
 }
+
 
 function endActiveCall(skipSend) {
     resetCallClock();
@@ -3002,9 +3086,11 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
             // Incoming/switching from audio - start timer immediately
             const acStatus3 = document.getElementById('activeCallStatus');
             if (acStatus3) acStatus3.innerText = 'Bağlandı';
+            setPeerAudioSendEnabled(connId, true);
             startCallTimer(connectedAt || Date.now());
             log("Görüntülü arama kabul edildi", "#22c55e");
         }
+
     } catch (e) {
         log("Kamera/mikrofon izni yok: " + e.message, "#ef4444");
     }
