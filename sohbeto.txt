@@ -421,3 +421,80 @@ değişiklikleri henüz yayınlanmamıştı. Ayrıca iframe motoru her açılı�
 service worker kayıtlarını kaldırıp tüm cache'leri siliyordu. Bu davranış web push
 aboneliğini bozabileceği için kaldırıldı. Güncel main.tsx, push.ts,
 sohbeto-engine.js ve init.sql GitHub'a gönderilmeli; init.sql tekrar RUN edilmeli.
+
+---
+[22.08.2026 16:35 Ankara] KULLANICI
+sohbeto-main.zip dosyasını gönderdi; projenin olduğu gibi yeniden oluşturulmasını
+istedi. Web push tarafında sorun olduğunu belirtti, bunun sonra çözülmesini istedi.
+Ayrıca tüm konuşma geçmişinin sohbeto.txt dosyasına yazılmaya devam etmesini istedi.
+
+[22.08.2026 16:35 Ankara] LOVABLE
+Zip içeriği projeye birebir kuruldu: index.html, src (main.tsx, Sohbeto.tsx,
+SohbetoIcon.tsx, pwa/ push.ts, serviceWorkerRegistration.ts, InstallSheet.tsx,
+PermissionsOnboarding.tsx, lib/supabase.ts, ui bileşenleri), public (apps motoru,
+ikonlar, manifest.json, sw.js, offline.html), supabase/init.sql,
+supabase/functions/send-push, .github/workflows/deploy.yml, vite.config.ts
+(production base /sohbeto/). Şablona ait TanStack Start dosyaları (src/routes,
+router.tsx, server.ts, start.ts, routeTree.gen.ts) kaldırıldı; proje yeniden saf
+Vite SPA olarak çalışıyor. Bağımlılıklar kuruldu, dev sunucu 8080'de sorunsuz
+açıldı, konsol hatası yok ve arayüz seçim ekranı (So — Genel / A2 — Akvaryum)
+doğru render ediliyor. Web push konusu bir sonraki adımda ele alınacak.
+
+=== 22.08.2026 — Web push: VAPID + telefon hedefleme ===
+Kullanıcı: "kodla, VAPID uyuşmazlığı nedir?"
+Yapılanlar:
+- init.sql'e eklendi: public.push_user_ids_by_phone(text) (security definer,
+  push_subscriptions.phone + profiles.phone üzerinden numara → user_id) ve
+  public.set_my_phone(text) (kendi numarasını profile yazar).
+- src/pwa/push.ts: setPushPhone artık set_my_phone RPC'sini de çağırıyor;
+  notifyPhone numarayı user_ids'e çevirip hem phone hem user_ids gönderiyor
+  (yayında olan ESKİ send-push sürümü de çalışsın diye); sendPush artık
+  sent/failed sonucunu konsola yazıyor ve hatayı yutmuyor.
+Kullanıcının yapması gerekenler: init.sql'i tekrar RUN etmek; Supabase
+Secrets'taki VAPID_PUBLIC_KEY, src/lib/supabase.ts'teki VAPID_PUBLIC_KEY ile
+BİREBİR aynı olmalı ve VAPID_PRIVATE_KEY o public key'in çifti olmalı.
+
+## 2026-08-22 — VAPID uyuşmazlığı teşhisi
+Kullanıcı: "BPaXczn1... keyinde sorun var gibi, supabase'de hashlenmiş görünüyor" + sadece SQL run edildi.
+Cevap: Supabase Secrets değerleri hashlenmez, sadece UI'da gizlenir. Sorun hash değil, çift uyumu.
+İstemci public key formatı doğrulandı: 87 karakter, 65 byte, 0x04 ile başlıyor (geçerli P-256 uncompressed) → key formatı SAĞLAM.
+Eklendi: supabase/functions/push-diag/index.ts — VAPID_PUBLIC_KEY/PRIVATE_KEY çiftinin geçerliliğini
+(webpush.getVapidHeaders ile) ve istemci key'i ile eşleşmesini döner; private key asla dönmez.
+Eklendi: src/pwa/push.ts → pushDiag() + window.sohbetoPushDiag; mevcut aboneliğin
+applicationServerKey'ini de base64url olarak çıkarıp karşılaştırır.
+Hatırlatma: send-push hâlâ eski sürüm (phone desteklemiyor) — fonksiyonların deploy edilmesi gerekiyor.
+
+--- 2026-08-22 ---
+Kullanıcı Supabase Secrets ekran görüntüsü paylaştı: VAPID_PUBLIC_KEY değeri
+"4d750c399a4983db8c0e234e001d18b0258b470f2a4dc500eefbd..." → HEX formatında ve
+istemcideki base64url anahtar (BPaXczn... = 04f69773...) ile TAMAMEN farklı bir
+anahtar. Yani "hash" değil, yanlış format + yanlış çift → push servisi 403.
+Çözüm: yeni VAPID çifti üretildi (base64url), public key src/lib/supabase.ts'e
+yazıldı; enablePush() artık eski public key ile alınmış aboneliği tespit edip
+siliyor ve yeniden abone oluyor.
+
+--- 2026-08-22 14:14 UTC ---
+KULLANICI: "secrets'e base64url yapıştırdım, sistem hexledi, hex karşılığı"
+DOĞRULAMA: Panelde görünen 4d750c399a4983db8c0e234e001d18b0258b470f...
+= SHA256("BPaXczn1pM216lfDoETu-...LxDO4"). Yani Supabase Secrets paneli
+değeri BOZMUYOR, sadece SHA-256 özetini gösteriyor. VAPID_PUBLIC_KEY
+Supabase'de DOĞRU kayıtlı. Önceki "yanlış format/yanlış çift" teşhisi HATALIYDI.
+YAPILAN: src/lib/supabase.ts içindeki VAPID_PUBLIC_KEY orijinal
+BPaXczn1... değerine geri alındı. Yeni çift üretilmesine gerek yok,
+cihazlardaki mevcut abonelikler geçerli kalıyor.
+
+--- 2026-08-22 17:18 UTC ---
+KULLANICI: "Şimdi ne yapmam gerekiyor? Son kez keyler aynı evet. Şu anki kodları
+GitHub'a push mu edeceğim yoksa SQL dosyasını mı run edeceğim? Hangi dosyalar değişti?"
+YANIT: Değişen dosyalar ve yapılacaklar net şekilde özetlendi:
+1) Değişen dosyalar: src/lib/supabase.ts (public key orijinaline döndü),
+   src/pwa/push.ts (numara → user_id çözümleme, auto re-subscribe, pushDiag),
+   supabase/init.sql (push_subscriptions.phone, upsert_push_subscription,
+   push_user_ids_by_phone, set_my_phone fonksiyonları),
+   supabase/functions/send-push/index.ts (phone/phones destekli),
+   supabase/functions/push-diag/index.ts (yeni teşhis fonksiyonu).
+2) Yapılacaklar: a) GitHub'a push etmek, b) Supabase SQL Editor'da init.sql'i
+   baştan sona RUN etmek, c) Terminalde `supabase functions deploy send-push` ve
+   `supabase functions deploy push-diag` çalıştırmak. Testte yayınlanan PWA'da
+   `await window.sohbetoPushDiag()` ile client/server/pair uyumu kontrol edilmeli.
+

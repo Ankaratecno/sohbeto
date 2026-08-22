@@ -2,7 +2,12 @@
  * Web Push aboneliği: tarayıcı → Supabase (push_subscriptions).
  * Kimlik: anonim Supabase oturumu (auth.users satırı oluşur, RLS çalışır).
  */
-import { supabase, VAPID_PUBLIC_KEY } from "@/lib/supabase";
+import {
+  supabase,
+  VAPID_PUBLIC_KEY,
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY,
+} from "@/lib/supabase";
 
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -38,9 +43,14 @@ export async function setPushPhone(phone: string): Promise<void> {
   const p = normalizePhone(phone);
   if (!p) return;
   localStorage.setItem("sohbeto_push_phone", p);
+  // Numarayı profile de yaz (telefon → user_id çözümlemesi için).
+  await ensureSupabaseUser();
+  const { error } = await supabase.rpc("set_my_phone", { p_phone: p });
+  if (error) console.warn("[Sohbeto] Profil numarası yazılamadı:", error.message);
   // Abonelik satırındaki phone alanı boş kalmış olabilir → her girişte tazele.
   if ("Notification" in window && Notification.permission === "granted") await enablePush();
 }
+
 
 /** Oturum yoksa anonim oturum açar, kullanıcı id'sini döner. */
 export async function ensureSupabaseUser(): Promise<string | null> {
@@ -68,6 +78,28 @@ export async function enablePush(): Promise<boolean> {
   if (!userId) return false;
 
   const reg = await navigator.serviceWorker.ready;
+
+  // Mevcut abonelik ESKİ bir VAPID public key ile alınmışsa sunucudaki private
+  // key ile eşleşmez → push servisi 403 döner. Bu durumda aboneliği yenile.
+  const existing = await reg.pushManager.getSubscription();
+  if (existing) {
+    const raw = existing.options?.applicationServerKey as ArrayBuffer | undefined;
+    let key: string | null = null;
+    if (raw) {
+      let bin = "";
+      new Uint8Array(raw).forEach((b) => (bin += String.fromCharCode(b)));
+      key = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+    if (key !== VAPID_PUBLIC_KEY) {
+      try {
+        await supabase.from("push_subscriptions").delete().eq("endpoint", existing.endpoint);
+      } catch {
+        /* noop */
+      }
+      await existing.unsubscribe();
+    }
+  }
+
   const sub =
     (await reg.pushManager.getSubscription()) ??
     (await reg.pushManager.subscribe({
@@ -111,9 +143,12 @@ export async function disablePush(): Promise<void> {
   }
 }
 
+type PushResult = { sent?: number; failed?: number; note?: string; error?: unknown };
+
 /** Bir kullanıcıya bildirim gönderir (send-push edge function). */
 export async function sendPush(payload: {
   user_id?: string;
+  user_ids?: string[];
   phone?: string;
   title: string;
   body: string;
@@ -121,9 +156,35 @@ export async function sendPush(payload: {
   url?: string;
   data?: Record<string, unknown>;
 }): Promise<boolean> {
-  const { error } = await supabase.functions.invoke("send-push", { body: payload });
-  if (error) console.warn("[Sohbeto] send-push hatası:", error.message);
-  return !error;
+  const { data, error } = await supabase.functions.invoke<PushResult>("send-push", {
+    body: payload,
+  });
+  if (error) {
+    console.error("[Sohbeto] send-push hatası:", error.message, payload);
+    return false;
+  }
+  if (data?.error) {
+    console.error("[Sohbeto] send-push reddetti:", data.error, payload);
+    return false;
+  }
+  console.info("[Sohbeto] send-push:", data);
+  return (data?.sent ?? 0) > 0;
+}
+
+/** Numaraya ait push kullanıcı id'lerini bulur (eski fonksiyon sürümü için). */
+async function userIdsForPhone(phone: string): Promise<string[]> {
+  const { data, error } = await supabase.rpc("push_user_ids_by_phone", { p_phone: phone });
+  if (error) {
+    console.warn("[Sohbeto] Numara çözümlenemedi:", error.message);
+    return [];
+  }
+  const rows = (data ?? []) as unknown;
+  if (Array.isArray(rows)) {
+    return rows
+      .map((r) => (typeof r === "string" ? r : (r as { user_id?: string })?.user_id))
+      .filter((v): v is string => typeof v === "string");
+  }
+  return [];
 }
 
 /** Numaraya bildirim gönderir (P2P mesaj/arama tetikleyicisi). */
@@ -136,7 +197,48 @@ export async function notifyPhone(
   const p = normalizePhone(phone);
   if (!p) return false;
   await ensureSupabaseUser();
-  return sendPush({ phone: p, title, body, kind });
+  // Hem phone (yeni fonksiyon) hem user_ids (eski fonksiyon) gönderilir.
+  const user_ids = await userIdsForPhone(p);
+  if (!user_ids.length) {
+    console.warn("[Sohbeto] Bu numaraya kayıtlı push aboneliği bulunamadı:", p);
+  }
+  return sendPush({ phone: p, ...(user_ids.length ? { user_ids } : {}), title, body, kind });
+}
+
+
+/** VAPID uyumunu kontrol eder: sunucudaki public key + çiftin geçerliliği. */
+export async function pushDiag(): Promise<unknown> {
+  const url = `${SUPABASE_URL}/functions/v1/push-diag?client=${encodeURIComponent(VAPID_PUBLIC_KEY)}`;
+  const { data: s } = await supabase.auth.getSession();
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      ...(s.session ? { Authorization: `Bearer ${s.session.access_token}` } : {}),
+    },
+  });
+  const out = await res.json().catch(() => ({ error: "cevap okunamadı" }));
+  // Ek olarak tarayıcıdaki mevcut aboneliğin hangi key ile alındığını göster.
+  let subKey: string | null = null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    const raw = sub?.options?.applicationServerKey as ArrayBuffer | undefined;
+    if (raw) {
+      const bytes = new Uint8Array(raw);
+      let bin = "";
+      bytes.forEach((b) => (bin += String.fromCharCode(b)));
+      subKey = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+  } catch {
+    /* noop */
+  }
+  const report = {
+    ...out,
+    subscription_key: subKey,
+    subscription_matches_client: subKey ? subKey === VAPID_PUBLIC_KEY : null,
+  };
+  console.info("[Sohbeto] push-diag:", report);
+  return report;
 }
 
 /** İzin zaten verilmişse sessizce aboneliği tazeler; ayrıca iframe için global açar. */
@@ -148,6 +250,7 @@ export function initPush(): void {
   w["sohbetoSendPush"] = sendPush;
   w["sohbetoSetPushPhone"] = setPushPhone;
   w["sohbetoNotifyPhone"] = notifyPhone;
+  w["sohbetoPushDiag"] = pushDiag;
   if ("Notification" in window && Notification.permission === "granted") {
     void enablePush();
   }

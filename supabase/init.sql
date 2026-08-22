@@ -404,3 +404,55 @@ $$;
 revoke all on function public.upsert_push_subscription(text, text, text, text, text, text, text) from public;
 grant execute on function public.upsert_push_subscription(text, text, text, text, text, text, text) to authenticated;
 create index if not exists push_subs_phone_idx on public.push_subscriptions (phone);
+
+-- ============================================================================
+-- EK (22.08.2026): TELEFON → KULLANICI ID ÇÖZÜMLEME
+-- Neden: yayında olan send-push sürümü yalnızca user_id/user_ids hedefliyor.
+-- İstemci artık numarayı bu güvenli fonksiyonla user_id'ye çevirip gönderiyor;
+-- böylece fonksiyon güncellenmemiş olsa da bildirim düşer.
+-- Bu bloğu SQL Editor'de tekrar RUN etmek güvenlidir.
+-- ============================================================================
+create or replace function public.push_user_ids_by_phone(p_phone text)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select distinct s.user_id
+  from public.push_subscriptions s
+  where s.phone = case
+    when nullif(regexp_replace(coalesce(p_phone,''), '[^0-9]', '', 'g'), '') is null then null
+    else '+' || regexp_replace(p_phone, '[^0-9]', '', 'g')
+  end
+  union
+  select p.id from public.profiles p
+  where p.phone is not null
+    and regexp_replace(p.phone, '[^0-9]', '', 'g')
+        = regexp_replace(coalesce(p_phone,''), '[^0-9]', '', 'g')
+    and coalesce(p_phone,'') <> ''
+$$;
+revoke all on function public.push_user_ids_by_phone(text) from public;
+grant execute on function public.push_user_ids_by_phone(text) to authenticated;
+
+-- Kendi numarasını profiline de yazsın (ileride hedefleme/kişi arama için).
+create or replace function public.set_my_phone(p_phone text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_phone text;
+begin
+  if auth.uid() is null then raise exception 'Oturum gerekli'; end if;
+  v_phone := nullif(regexp_replace(coalesce(p_phone,''), '[^0-9]', '', 'g'), '');
+  if v_phone is null then return; end if;
+  v_phone := '+' || v_phone;
+  -- Numara başka bir kullanıcıda ise (unique) çakışmayı sessizce geç.
+  begin
+    insert into public.profiles (id, phone) values (auth.uid(), v_phone)
+    on conflict (id) do update set phone = v_phone;
+  exception when unique_violation then null; end;
+end $$;
+revoke all on function public.set_my_phone(text) from public;
+grant execute on function public.set_my_phone(text) to authenticated;
