@@ -682,21 +682,79 @@ Yapılanlar:
 - Video balonundaki #t=0.1 kaldırıldı, tam ekran açma data-src üzerinden.
 - Çevrimdışı bildirim metni video için "Yeni video" oldu.
 
-sağol umarım tüm konuşma geçmişini sohbeto txt dosyasına kaydediyorsundur gelelim diğer sorunlara örneğin bir kişiyi arıyorum arama normal gibi fakat ikinci kez aradığımda daha karşı taraf cevaplamadan bağlantı sağlanıyor ve ses akışı oluyor gibi bu çok kötü bir kullanıcı deneyimi galiba bu arayan için gibi duruyor bilmiyorum belkide aradığımızın kişinin seside geliyordur ben test yaptığım için cihazlar yan yana fakat karşı taraf ta arıyor ekranı açık bizde ise yani arayanda süre akışı başlıyor 00:01 00:02 diye artarak devam ediyor normalde aranıyor veya çalıyor demesi gerekirdi bu süre olayı karşı taraf açtığında stabilite bir şekilde ilerlemeli iki taraf içinde çevrimiçi çalıyor karşı tarafta arıyor eğer karşı taraf kapalı ise çevrimdışı ise aranıyor denmeli
+=== 23 Ağustos — Proje zip'ten yeniden kuruldu ===
+Kullanıcı: zip dosyasını olduğu gibi oluştur, hiçbir kod ekleme; sonra geliştirmeye devam.
+Yapıldı: sohbeto07.zip içeriği projeye birebir kopyalandı (TanStack Start şablon dosyaları
+kaldırıldı: src/routes, router.tsx, server.ts, start.ts, routeTree.gen.ts). Bağımlılıklar
+kuruldu, dev sunucu 8080'de çalışıyor. Kod değişikliği yapılmadı.
 
-Today at 12:27 AM
-Düzeltme fonksiyonları eklendi
+=== Soru: iki maddede kodlama gerekiyor mu? ===
+1) Adapter mikrofon açma kontrolü: GEREKİYOR. muteOutgoingTracksUntilAccepted içindeki
+   poll (~1958) hâlâ `st === 'Bağlandı'` metnine bakıyor; isCallAccepted() tanımlı (~1922)
+   ama kullanılmıyor. Aynı şekilde bridgeEngineCallToOO içindeki (~2270) `st === 'Bağlandı'`
+   kontrolü de metne bakıyor; bayat metin yüzünden ikinci aramada karşı taraf açmadan
+   süre başlayıp mikrofon açılabiliyor. İkisi de isCallAccepted() ile değiştirilmeli.
+2) Durum yazıları: GEREKMİYOR (kontrol edildi). Çevrimiçi akış startCallFromCard'da
+   "Çalıyor…" (1811/1856), çevrimdışı akış ringOfflinePeer'da "Aranıyor…" (2022) yazıyor;
+   kişi çevrimiçi olunca "Çalıyor…"a geçiyor (2059). Bayat "Bağlandı" metni de arama
+   başında "Çalıyor…"a çekiliyor (1936). Ek düzenleme gerekmiyor.
 
-Aramalarda "cevaplanmadan bağlanma" sorununun kaynağını buldum: önceki aramadan kalan "Bağlandı" yazısı ekranda kalıyordu; ikinci aramada köprüler bunu görüp süreyi başlatıyor ve mikrofonu erken açıyordu.
+================================================================
+2026-08-22 — BİLDİRİMDEN DOĞRUDAN SOHBET/ARAMA EKRANI (yalnız cevap)
+================================================================
+KULLANICI: Çevrimdışıyken web push geliyor ama bildirime basınca uygulama en
+baştan açılıyor; arayanla bağlantı geç kuruluyor. İstenen: bildirime basınca
+doğrudan o kişinin sohbet penceresi, aramada ise yeşil "Cevapla/Reddet" ekranı.
+Mümkün mü, stabil mi?
 
-Yaptıklarım:
+CEVAP (özet):
+- EVET mümkün ve PWA'da stabil yapılabilir. Sorun "web sitesine gitmek" değil,
+  soğuk açılışın (cold start) ve hedef ekrana yönlendirmenin yönetilmemesi.
+- Zaten var olan altyapı: sw.js notificationclick → açık pencere varsa
+  postMessage(SOHBETO_PUSH_CLICK) + focus, yoksa openWindow(url?from&kind&act).
+- Yapılması gerekenler (öneri listesi):
+  1) DEEP-LINK ROUTER: açılışta URL'deki from/kind/act okunup ilgili ekran
+     açılmalı (mesaj → o kişinin sohbeti, arama → gelen arama ekranı). Aynı
+     mantık SOHBETO_PUSH_CLICK mesajı için de tek fonksiyonda toplanmalı.
+  2) PENDING INTENT: uygulama hazır olmadan gelen intent kuyruğa alınıp
+     motor hazır olunca (peer/engine ready event) uygulanmalı; böylece
+     "erken tıklama" kaybolmaz.
+  3) manifest.json → "launch_handler": {"client_mode":"focus-existing"} ve
+     link_capturing; böylece yeni sekme yerine açık uygulama öne gelir.
+  4) ARAMA İÇİN "ÖN EKRAN": arama intent'i gelince WebRTC beklenmeden hemen
+     yeşil Cevapla/Reddet ekranı gösterilmeli (UI önce, bağlantı arkada).
+     Cevapla'ya basılınca CALL_ACCEPT gönderilir; böylece algılanan gecikme yok.
+  5) BAĞLANTIYI ERKEN ISITMA: uygulama açılır açılmaz signaling/peer bağlantısı
+     ve ICE toplama başlatılmalı (arayan taraf da çağrı teklifini yeniden
+     yayınlamalı — ring süresince tekrar eden offer).
+  6) ARAMA TTL: 30-45 sn sonra düşen aramalar için bildirimde/ekranda
+     "Cevapsız arama" durumu.
+  7) push payload'ında data.from + kind + (varsa) chat id zaten var; mesaj
+     bildiriminde son mesaj metni de taşınırsa sohbet anında dolu açılır.
+- Sınır: iOS Safari PWA'da arka planda WebRTC tutulamaz, soğuk açılış
+  kaçınılmaz; ama 4+5 ile gecikme kullanıcıya "anında" hissettirilebilir.
+  Gerçek "telefon gibi" çalan ekran ancak native (Capacitor + CallKit) ile olur.
 
-Arama bitince durum yazısı ve süre tamamen sıfırlanıyor, böylece bir sonraki aramaya taşınmıyor.
-Süre artık yalnızca karşı taraf gerçekten kabul ettiği anda (kabul zaman damgası doğrulanarak) başlıyor.
-Karşı taraf açmadan önce mikrofon sesi hiçbir yöne akmıyor; ses sadece kabul anında açılıyor (sesli ve görüntülü aramada).
 
-Kalanlar (kredi bittiği için tamamlanamadı):
+=== Sat Aug 22 22:29:55 UTC 2026 ===
+1+2+3 uygulandi: launch_handler focus-existing, SW pending-intent kuyrugu (60sn TTL, tekrar gonderim, handled-ack ile temizleme), kabukta yeniden deneme, iframe tarafinda tekrar-koruma ve handled bildirimi.
 
-Adapter'daki mikrofon açma kontrolü hâlâ sadece metne bakıyor; isCallAccepted() ile değiştirilmesi gerekiyor (satır ~1958) ve aynı şekilde ekran köprüsündeki st === 'Bağlandı' kontrolü (satır ~2270).
-Durum yazılarının netleştirilmesi: çevrimiçi karşı tarafta "Çalıyor…", çevrimdışıda "Aranıyor…" (büyük kısmı zaten var, son kontrol yapılmadı).
-Bu turun sohbeto.txt dosyasına kaydı yapılmadı.
+=== Sat Aug 22 22:35:17 UTC 2026 ===
+4+5 uygulandi: bildirimden gelen aramada Cevapla/Reddet ekrani baglanti beklemeden acilir (erken kabul kuyrukta bekler, gercek zil gelince otomatik cevaplanir, 45sn TTL); arayan taraf calma boyunca zil sinyalini 2.5sn arayla tekrarlar (push tekrari yok, 45sn sonra durur), karsi tarafta tekrar eden zil ekrani sifirlamaz/bip calmaz.
+
+=== 23 Ağustos 2026 ===
+KULLANICI: umarım mevcut akışı bozmadın arama kısmı için ayrıca motor hazır olana kadar 25 saniye bekleyerek nedir amaç anında ulaşmak değilmi 25 saniye neyi bekleyeceğiz anlamadım ben testi en son yaparım şu 6 ve 7 de kodla lütfen
+
+LOVABLE: 25 saniye bir bekleme değil, sadece "en fazla bu kadar dene" sınırı. Uygulama açılırken motor (kendi numaran + kişi listesi) hazır olmadan sohbet/arama açılamıyor; kod 200 ms'de bir kontrol edip hazır olur olmaz (genelde 1-2 sn) hemen açıyor. 25 sn sadece üst sınır. Arama tarafında ayrıca yeşil Cevapla/Reddet ekranı motoru hiç beklemeden anında çiziliyor.
+
+Kodlananlar:
+- ADIM 6: Bildirimdeki mesaj metni tıklama niyetiyle birlikte taşınıyor (sw.js intent.text + ?txt=), kabuk (Sohbeto.tsx) iframe'e iletiyor, sohbet açılınca mesaj henüz senkronlanmadıysa kısa bir önizleme baloncuğu gösteriliyor.
+- ADIM 7: Çevrimiçi aramalarda 45 sn cevapsız arama TTL'i. Arayan tarafta ekran "Cevapsız arama" yazıp kapanıyor; aranan tarafta çalan ekran kapanıyor, CALL_REJECT gidiyor ve arama "Cevapsız" olarak arama listesine kaydediliyor. Cevap/ret/kapatma yollarında sayaç iptal ediliyor.
+
+KULLANICI: konum gönderirken sadece koordinat gönderiyoruz, haritamız yok; açık ve ücretsiz en iyi haritayı kullan, GitHub'da açık kaynak kütüphane varsa depo mu yoksa kendi kodumuza mı alalım?
+
+LOVABLE: Leaflet (github.com/Leaflet/Leaflet, BSD-2 lisans, ücretsiz, API anahtarı yok) + OpenStreetMap karoları seçildi. CDN yerine dosyalar projeye gömüldü (public/vendor/leaflet/*) — PWA çevrimdışıyken arayüz patlamaz, harici bağımlılık yok.
+Eklenenler:
+- public/apps/sohbeto-map.js (yeni modül; motor dosyalarına dokunulmadı), sohbetoOO.html'e script olarak bağlandı.
+- chatPickLocation artık tam ekran harita açıyor: mevcut konuma gidiyor, haritaya dokunarak/pini sürükleyerek konum seçiliyor, "Bu konumu gönder" ile gönderiliyor. Mesaj biçimi eskisiyle aynı: "📍 Konum: lat, lng" (geriye dönük uyumlu).
+- Gelen/giden konum mesajları sohbette küçük harita önizlemesine dönüşüyor; tıklayınca tam ekran harita + "Yol tarifi" (OpenStreetMap) açılıyor.

@@ -57,9 +57,75 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// -------------------------------------------- BEKLEYEN NIYET (pending intent)
+// Bildirime tıklanınca hedef (kim / mesaj mı arama mı) burada saklanır. Uygulama
+// soğuk açılışta ya da mesajı kaçırdığında SW'den bunu isteyip uygular.
+const INTENT_URL = `${SCOPE}__sohbeto_pending_intent`;
+const INTENT_TTL_MS = 60000;
+
+async function savePendingIntent(intent) {
+  try {
+    const cache = await caches.open(PRECACHE);
+    const body = JSON.stringify({ ...intent, ts: Date.now() });
+    await cache.put(INTENT_URL, new Response(body, { headers: { "Content-Type": "application/json" } }));
+  } catch (e) {
+    /* noop */
+  }
+}
+
+async function readPendingIntent() {
+  try {
+    const cache = await caches.open(PRECACHE);
+    const res = await cache.match(INTENT_URL);
+    if (!res) return null;
+    const data = await res.json();
+    if (!data || !data.ts || Date.now() - data.ts > INTENT_TTL_MS) {
+      await cache.delete(INTENT_URL);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function clearPendingIntent() {
+  try {
+    const cache = await caches.open(PRECACHE);
+    await cache.delete(INTENT_URL);
+  } catch (e) {
+    /* noop */
+  }
+}
+
 self.addEventListener("message", (event) => {
-  if (event.data === "SKIP_WAITING") self.skipWaiting();
+  if (event.data === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
+  const msg = event.data;
+  if (!msg || typeof msg !== "object") return;
+  if (msg.type === "SOHBETO_GET_PENDING_INTENT") {
+    event.waitUntil(
+      (async () => {
+        const intent = await readPendingIntent();
+        if (!intent) return;
+        const target = event.source || null;
+        const payload = { type: "SOHBETO_PUSH_CLICK", action: intent.act || "open", data: intent };
+        if (target) target.postMessage(payload);
+        else {
+          const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+          list.forEach((c) => c.postMessage(payload));
+        }
+      })(),
+    );
+    return;
+  }
+  if (msg.type === "SOHBETO_CLEAR_PENDING_INTENT") {
+    event.waitUntil(clearPendingIntent());
+  }
 });
+
 
 // -------------------------------------------- REHBER ADI (IndexedDB okuma)
 // Gönderen numarası bildirimde ham "+90..." olarak görünmesin: alıcının kendi
@@ -213,20 +279,32 @@ self.addEventListener("notificationclick", (event) => {
   if (data.from) target.searchParams.set("from", data.from);
   if (data.kind) target.searchParams.set("kind", data.kind);
   target.searchParams.set("act", event.action || "open");
+  const act = event.action || "open";
+  // ADIM 6: bildirimdeki mesaj metnini de taşı (sohbet açılınca boş ekran olmasın).
+  const previewText = String(data.text || event.notification.body || "").slice(0, 300);
+  if (previewText && data.kind !== "call") target.searchParams.set("txt", previewText.slice(0, 120));
+  const intent = { from: data.from || "", kind: data.kind || "", act, text: previewText, ts: Date.now() };
   const targetUrl = target.href;
-  if (event.action === "decline") return;
+  if (act === "decline") return;
   event.waitUntil(
     (async () => {
+      // Niyeti sakla: uygulama geç açılsa ya da mesajı kaçırsa bile uygulanır.
+      await savePendingIntent(intent);
       const clientList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of clientList) {
         if (client.url.startsWith(new URL(SCOPE, self.location.origin).href)) {
-          client.postMessage({ type: "SOHBETO_PUSH_CLICK", action: event.action || "open", data });
+          const payload = { type: "SOHBETO_PUSH_CLICK", action: act, data: intent };
+          client.postMessage(payload);
+          // Sayfa henüz dinleyici kurmadıysa kaybolmasın: kısa tekrarlar.
+          setTimeout(() => { try { client.postMessage(payload); } catch (e) { /* noop */ } }, 600);
+          setTimeout(() => { try { client.postMessage(payload); } catch (e) { /* noop */ } }, 1800);
           return client.focus();
         }
       }
       return self.clients.openWindow(targetUrl);
     })(),
   );
+
 });
 
 const isImage = (req) =>
