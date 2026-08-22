@@ -3271,21 +3271,6 @@ document.getElementById('otpResendBtn').onclick = () => {
 
 async function init() {
     loadSohbetoTheme();
-    // Unregister any service workers to prevent caching issues
-    if ('serviceWorker' in navigator) {
-        try {
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            registrations.forEach(reg => reg.unregister());
-        } catch (e) {}
-    }
-    // Clear caches
-    if ('caches' in window) {
-        try {
-            const names = await caches.keys();
-            names.forEach(name => caches.delete(name));
-        } catch (e) {}
-    }
-
     const identity = await loadIdentity(); loadOutbox(); initAvatarGrid(); updateProfilePics();
     await loadContactsToState();
     await loadConversationsToState();

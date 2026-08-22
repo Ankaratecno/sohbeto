@@ -390,3 +390,34 @@ ne numara kaydı (push_subscriptions.phone) yapılıyordu ne de push gönderiliy
 - push.ts setPushPhone(): numara aynı olsa da aboneliği tazeliyor (phone NULL kalmasın).
 DOĞRULAMA: Yayınlanmış sitede giriş yaptıktan sonra Supabase > push_subscriptions
 tablosunda her cihaz için phone sütunu dolu olmalı. Boşsa o cihaza push gitmez.
+
+---
+[2026-08-21] SORUN: push_subscriptions kayıtları 19.08.2026 tarihinde kalmış;
+yeni girişlerde last_seen/phone güncellenmiyor ve eski NULL satırlar duruyor.
+NEDEN 1: initPush(), service worker kaydı tamamlandıktan sonra çalışıyordu. iframe
+daha önce açılırsa sohbetoSetPushPhone fonksiyonunu bulamıyor ve numara kaydı kaçıyordu.
+NEDEN 2: Tarayıcıda anonim oturum değiştiğinde push endpoint eski auth kullanıcısına
+ait kalabiliyor. Yeni auth.uid ile doğrudan upsert, RLS yüzünden eski satırı
+güncelleyemiyordu.
+ÇÖZÜM:
+- main.tsx: push köprüsü iframe render edilmeden önce, hemen kuruluyor.
+- push.ts + init.sql: güvenli upsert_push_subscription DB fonksiyonu mevcut endpoint'i
+aktif auth.uid'ye devredip phone ve last_seen alanlarını her girişte güncelliyor.
+- Eski NULL satırlar geçmiş/terk edilmiş aboneliklerdir; kendiliğinden dolmaz. Aktif
+cihaz yeniden giriş yaptığında yalnızca o cihazın endpoint satırı güncellenir.
+
+---
+[22.08.2026 15:51 Ankara] KULLANICI
+Güncel GitHub deposunu ve Supabase ekran görüntülerini incelememi istedi. PC'de
++90507507507 ile giriş yaptığı cihazda bildirim için çerez silme veya hesabı silip
+yeniden kaydolma gerekip gerekmediğini sordu.
+
+[22.08.2026 15:51 Ankara] LOVABLE
+Ekran görüntülerinde aktif PC aboneliğinin push_subscriptions tablosunda tek satır
+olarak bulunduğu, phone alanının +90507507507 ve last_seen değerinin 22.08.2026
+12:23:41+00 olduğu doğrulandı. Çerez silmek veya hesabı silmek gerekmiyor.
+GitHub main dalında ise main.tsx ve push.ts hâlâ eski sürümdeydi; güvenli RPC
+değişiklikleri henüz yayınlanmamıştı. Ayrıca iframe motoru her açılışta origin'deki
+service worker kayıtlarını kaldırıp tüm cache'leri siliyordu. Bu davranış web push
+aboneliğini bozabileceği için kaldırıldı. Güncel main.tsx, push.ts,
+sohbeto-engine.js ve init.sql GitHub'a gönderilmeli; init.sql tekrar RUN edilmeli.

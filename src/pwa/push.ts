@@ -78,20 +78,19 @@ export async function enablePush(): Promise<boolean> {
   const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
   if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
 
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      user_id: userId,
-      device_id: deviceId(),
-      phone: storedPhone() || null,
-      endpoint: json.endpoint,
-      p256dh: json.keys.p256dh,
-      auth: json.keys.auth,
-      platform: navigator.platform || null,
-      user_agent: navigator.userAgent,
-      last_seen: new Date().toISOString(),
-    },
-    { onConflict: "endpoint" },
-  );
+  const subscription = {
+    p_device_id: deviceId(),
+    p_phone: storedPhone() || null,
+    p_endpoint: json.endpoint,
+    p_p256dh: json.keys.p256dh,
+    p_auth: json.keys.auth,
+    p_platform: navigator.platform || null,
+    p_user_agent: navigator.userAgent,
+  };
+
+  // Güvenli DB fonksiyonu eski anonim kullanıcıya ait aynı endpoint'i mevcut
+  // kullanıcıya devreder. Normal tablo upsert'i bu durumda RLS'ye takılır.
+  const { error } = await supabase.rpc("upsert_push_subscription", subscription);
   if (error) {
     console.warn("[Sohbeto] Push aboneliği kaydedilemedi:", error.message);
     return false;

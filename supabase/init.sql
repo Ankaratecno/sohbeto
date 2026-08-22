@@ -358,4 +358,49 @@ create policy "media own write" on storage.objects for insert to authenticated
 -- Bu bloğu SQL Editor'de tekrar RUN etmek güvenlidir.
 -- ============================================================================
 alter table public.push_subscriptions add column if not exists phone text;
+
+-- Tarayıcı verileri/anonim oturum yenilense bile mevcut push endpoint'ini
+-- güvenli biçimde o an giriş yapmış kullanıcıya bağlar. Doğrudan upsert,
+-- eski satır başka bir auth.uid()'ye ait olduğunda RLS nedeniyle güncelleyemez.
+create or replace function public.upsert_push_subscription(
+  p_device_id text,
+  p_phone text,
+  p_endpoint text,
+  p_p256dh text,
+  p_auth text,
+  p_platform text,
+  p_user_agent text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Oturum gerekli';
+  end if;
+  if p_endpoint is null or p_endpoint = '' or p_p256dh is null or p_auth is null then
+    raise exception 'Geçersiz push aboneliği';
+  end if;
+
+  insert into public.push_subscriptions (
+    user_id, device_id, phone, endpoint, p256dh, auth, platform, user_agent, last_seen
+  ) values (
+    auth.uid(), p_device_id, nullif(p_phone, ''), p_endpoint, p_p256dh, p_auth,
+    p_platform, p_user_agent, now()
+  )
+  on conflict (endpoint) do update set
+    user_id = auth.uid(),
+    device_id = excluded.device_id,
+    phone = excluded.phone,
+    p256dh = excluded.p256dh,
+    auth = excluded.auth,
+    platform = excluded.platform,
+    user_agent = excluded.user_agent,
+    last_seen = now();
+end;
+$$;
+revoke all on function public.upsert_push_subscription(text, text, text, text, text, text, text) from public;
+grant execute on function public.upsert_push_subscription(text, text, text, text, text, text, text) to authenticated;
 create index if not exists push_subs_phone_idx on public.push_subscriptions (phone);
