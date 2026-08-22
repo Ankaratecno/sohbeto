@@ -542,3 +542,71 @@ NOT: Bildirimin telefona düşmesi için alıcının push aboneliği (push_subsc
 numarasıyla eşleşen satır) ve send-push edge function'ın deploy edilmiş olması gerekir.
 Test: alıcı uygulamayı tamamen kapatsın, gönderen mesaj atsın; konsolda
 "[PUSH] Çevrimdışı kişiye bildirim →" logu görülmeli ve send-push sent>0 dönmeli.
+2026-08-22 16:32:09 UTC
+
+Kullanıcı: mesajlar için bildirim geliyor bu süper gerçekten fakat https://ankaratecno.github.io adresinden geliyor tıklayınca 404 benim adres bu https://ankaratecno.github.io/sohbeto/ olması gerekiyor o ayar nerde ben manuel değiştireyim sonuna sohbeto eklerim ben acil hangisi sadece cevap hangi dosyada tam nerede
+
+AI: Sorun iki yerde: 1) public/apps/sohbeto-engine.js satır 716-721'deki notify(...) çağrısında URL parametresi yok. 2) src/pwa/push.ts satır 191-205'teki notifyPhone fonksiyonu URL kabul etmiyor, bu yüzden send-push edge function'a url: '/' gidiyor. public/sw.js satır 96'da data.url || SCOPE oldugu icin data.url '/' oldugunda https://ankaratecno.github.io/ aciliyor. Manuel duzeltmek icin src/pwa/push.ts'deki notifyPhone'a url parametresi eklenip public/apps/sohbeto-engine.js'deki notify(...) cagrilarina 'https://ankaratecno.github.io/sohbeto/' veya dinamik olarak window.location.origin + '/sohbeto/' verilmeli.
+
+--- 2026-08-22 ---
+KULLANICI: Bildirim adresi https://ankaratecno.github.io/sohbeto/ olsun; ileride site değişirse url-degisikligi.txt yaz. Ayrıca aramada çevrimiçi/çevrimdışı haber verme şimdi mi? Bildirim metinlerini biz yazabiliyor muyuz?
+LOVABLE:
+- src/pwa/push.ts: APP_URL sabiti eklendi ("https://ankaratecno.github.io/sohbeto/"),
+  notifyPhone artık 5. parametre olarak url alıyor ve varsayılan APP_URL'i send-push'a iletiyor.
+  Böylece bildirime tıklayınca kök domain (404) yerine /sohbeto/ açılıyor.
+- url-degisikligi.txt oluşturuldu: adres değişince nereyi düzenleyeceği + bildirim metinlerinin yeri.
+- Cevap: bildirim başlığı/gövdesi tamamen bize ait, sohbeto-peer.js pushNotify ve
+  sohbeto-engine.js pushToPeer içindeki notify(...) çağrılarından istenen metin yazılabilir
+  (ör. "Ahmet arıyor", "Yeni mesajın var"). Telefonda görünen ad = manifest.json "name".
+- Arama için çevrimdışı/çevrimiçi bildirimi: önce bu URL düzeltmesi yayına alınıp test edilecek,
+  sonra arama akışı yapılacak.
+
+=== 22.08.2026 — Bildirim simgesi, ses/dosya push'u ===
+KULLANICI: Kırmızı kare (beyaz alan) uygulama simgemiz olsun, sağa profil fotoğrafı gelsin.
+Ses kaydı %98'de takılıyor, push gitmiyor; dosya/foto için de bildirim olsun. Titreşim deseni ve renkler?
+YAPILANLAR:
+- public/icons/badge-96.png eklendi (tek renk sohbet balonu) → sw.js badge alanı artık bu simge.
+- sw.js: icon alanı payload.icon (gönderenin profil fotoğrafı) ile geliyor, yoksa icon-192.png; image alanı da destekleniyor.
+- send-push edge function: icon/image alanları payload'a eklendi.
+- src/pwa/push.ts: notifyPhone(..., url, icon) — sadece http(s) adresli fotoğraflar gönderilir (4 KB push sınırı).
+- sohbeto-engine.js pushToPeer(connId, kind, opts): özel başlık/gövde + profil fotoğrafı.
+- Sesli mesaj kanal yoksa: "X sana ses kaydı gönderiyor" push'u.
+- Medya kanal yoksa: "X sana fotoğraf/dosya gönderiyor" push'u.
+- Medya %98'de ACK gelmezse 20 sn sonra "X sana fotoğraf/dosya gönderdi" push'u + bar tamamlanır.
+
+--- 22.08.2026 ---
+SORU: profil fotosu https değil, 4KB sınırı, titreşim deseni, bildirim çubuğu rengi.
+CEVAP/DEĞİŞİKLİK:
+- 4KB sınırı push payload'ı içindir (başlık+gövde+url+icon hepsi birlikte). Base64 foto
+  (data:) küçültülse bile ~4KB'ı aşar ve zaten Chrome data: URL'yi bildirim ikonu olarak
+  çoğu cihazda göstermez. Çözüm: avatar https bir adreste durmalı (Cloud storage) ve push'ta
+  sadece o link gönderilmeli. peer.js üzerinden gelen local/dataURL foto işe yaramaz.
+- Titreşim imzası (public/sw.js): mesaj [0,40,70,90] (kısa ta-tap), arama
+  [0,400,200,400,200,400,200,400] (uzun ısrarlı nabız).
+- Tema rengi: şu an #0e1621 (koyu lacivert-gri). Öneriler: #0e1621 (mevcut, sade),
+  #25d366 (WhatsApp yeşili), #229ED9 (Telegram mavisi), #8b5cf6 (mor).
+
+--- 22 Ağustos 2026 ---
+Kullanıcı: Sohbeto'nun iki rengi (hafif mavi + mor) olsun; bildirim yukarıdan aşağı kaymıyor; "Taner mesaj gönderdi" sayısı çoksa baloncuk eklenebilir mi?
+Yapılanlar:
+- Tema rengi #0e1621 -> #7C5CFF (mavi-mor) : index.html meta theme-color ve public/manifest.json theme_color.
+- public/sw.js v1.0.5: bildirim etiketi gönderen başına ayrıldı (sohbeto-msg-<gönderen>), renotify+silent:false+timestamp ile
+  Android'de heads-up (yukarıdan aşağı kayan) bildirim tetiklenir.
+- Aynı kişiden gelen mesajlar sayaçla birikir: gövdeye "(3 yeni mesaj)" eklenir; uygulama simgesinde navigator.setAppBadge ile
+  sayı baloncuğu gösterilir, bildirime tıklanınca clearAppBadge ile sıfırlanır.
+
+
+Aramayı yeni akışa geçirdim; kısa durum ve sorularının cevapları:
+
+Yapılanlar
+
+Çevrimdışı kişiyi arayınca artık "çevrimiçi olunca haber vereceğiz" yok: arama ekranı açık kalıyor, "Aranıyor…" yazıyor, karşı tarafa "Gelen arama" push'u gidiyor ve 45 saniye boyunca kişi uygulamayı açar açmaz gerçek arama otomatik başlıyor. Süre dolarsa "cevap vermedi" deyip cevapsız arama olarak kaydediyor.
+Bildirime gönderen bilgisi (from) eklendi; uygulama kapalıyken açılan adrese de gönderen numarası ve "arama/mesaj" bilgisi taşınıyor.
+Kalanlar (kredi bittiği için tamamlanamadı)
+
+Bildirime tıklanınca uygulamanın doğrudan o kişinin sohbetini/arama ekranını açması: servis çalışanından gelen tıklama mesajının uygulama içine iletilmesi ve açılış adresindeki from parametresinin işlenmesi henüz bağlanmadı.
+Sorularının cevapları
+
+Bildirime tıklayınca: uygulama zaten açıksa baştan açılmaz, öne gelir; yukarıdaki eksik bağlantı tamamlanınca doğrudan o kişinin sohbeti açılır. Kapalıysa uygulama açılır ve adresten gelen gönderen bilgisiyle yine o sohbete gider.
+Bildirimden hızlı cevap: Android'de web push için "yanıtla" metin kutusu desteklenmiyor (o özellik yalnızca native uygulamalarda var). Yapılabilecek en iyisi "Aç" butonu ile doğrudan o sohbete girmek.
+Aramada "Cevapla": buton uygulamayı açar; arayan taraf hâlâ çalıyorsa gelen arama ekranı tam olarak gelir ve ses/görüntü akışı başlar. Arayan vazgeçmişse cevapsız arama olarak görünür.

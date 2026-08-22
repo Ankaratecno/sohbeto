@@ -1,0 +1,36 @@
+SOHBETO — BİLDİRİM ADRESİNİ (URL) DEĞİŞTİRME KILAVUZU
+=====================================================
+
+Bildirime tıklanınca açılan adres tek bir yerde tanımlıdır.
+
+1) DOSYA: src/pwa/push.ts
+   SATIR: "export const APP_URL = ..." ile başlayan satır.
+
+   Şu an:
+     export const APP_URL = "https://ankaratecno.github.io/sohbeto/";
+
+   Yeni siteye geçince sadece tırnak içini değiştir, örnek:
+     export const APP_URL = "https://sohbeto.com/";
+
+   NOT: Adresin SONUNDA / (slash) olmalı.
+
+2) SİTE KÖKÜ DEĞİŞİRSE (örn. /sohbeto/ yerine / olacaksa) 3 yer daha:
+   a) vite.config.ts  → base: "/sohbeto/"   →  base: "/"
+   b) public/manifest.json → "scope" ve "start_url" alanları
+   c) README.md (sadece açıklama, zorunlu değil)
+
+3) Değişiklik sonrası:
+   - main dalına push et, GitHub Actions yayını yeniler.
+   - Telefonda uygulamayı kapat/aç (service worker yeni sürümü alsın).
+   - Gerekirse uygulamayı kaldırıp yeniden kur.
+
+BİLDİRİM METİNLERİ (başlık/gövde) NEREDE?
+-----------------------------------------
+- Çevrimdışı kişiye giden mesaj/arama bildirimi:
+    public/apps/sohbeto-peer.js  → pushNotify içindeki notify(...) çağrısı
+    public/apps/sohbeto-engine.js → pushToPeer() içindeki notify(...) çağrısı
+  Sıra: notify(numara, BAŞLIK, GÖVDE, tür, url)
+  Örn: 'Gelen arama' / 'Ali seni arıyor'  → istediğin metni yazabilirsin.
+
+- Bildirim ikonu, titreşim, butonlar ("Cevapla" / "Reddet" / "Aç"):
+    public/sw.js → push olayı içindeki options nesnesi.

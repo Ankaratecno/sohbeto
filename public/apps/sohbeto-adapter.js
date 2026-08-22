@@ -1793,9 +1793,8 @@
         connId = await lookupAndWait(c.number, 3500, { forceFresh: true });
         if (!connId) {
           if (c.connId) markConnOffline(c.connId, 'fresh-lookup-timeout-before-call');
-          closeOOCallScreen();
-          enqueueOfflineCall(c, kind);
-          showCallToast('📵 ' + (c.name || c.number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
+          // Çevrimdışı → ekranı kapatma: "Aranıyor…" + push ile çaldır.
+          await ringOfflinePeer(c, kind);
           return;
         }
       }
@@ -1832,8 +1831,7 @@
         var freshForCall = await lookupAndWait(number, 3500, { forceFresh: true });
         if (!freshForCall) {
           markConnOffline(connId, 'active-chat-fresh-lookup-timeout');
-          enqueueOfflineCall({ name: name, number: number, connId: connId }, kind);
-          showCallToast('📵 ' + (name || number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
+          await ringOfflinePeer({ name: name, number: number, connId: connId }, kind);
           return;
         }
         connId = freshForCall;
@@ -1842,8 +1840,7 @@
         markConnOffline(connId, 'active-chat-stale-before-call');
         var refreshed = number ? (findLiveConnIdByNumber(number) || await lookupAndWait(number, 3500)) : null;
         if (!refreshed) {
-          enqueueOfflineCall({ name: name, number: number, connId: connId }, kind);
-          showCallToast('📵 ' + (name || number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
+          await ringOfflinePeer({ name: name, number: number, connId: connId }, kind);
           return;
         }
         connId = refreshed;
@@ -1976,6 +1973,70 @@
       setTimeout(function () { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; }, 3500);
       setTimeout(function () { try { t.remove(); } catch (e) {} }, 4200);
     }
+    /** sohbetoNotifyPhone köprüsünü bulur (iframe içinden parent/top'a da bakar). */
+    function findNotifyBridge() {
+      var fn = null;
+      try { if (typeof window.sohbetoNotifyPhone === 'function') fn = window.sohbetoNotifyPhone; } catch (e) {}
+      try { if (!fn && window.parent && typeof window.parent.sohbetoNotifyPhone === 'function') fn = window.parent.sohbetoNotifyPhone; } catch (e) {}
+      try { if (!fn && window.top && typeof window.top.sohbetoNotifyPhone === 'function') fn = window.top.sohbetoNotifyPhone; } catch (e) {}
+      return fn;
+    }
+
+    /**
+     * Çevrimdışı kişiyi ARAMA akışı: ekran açık kalır, "Aranıyor…" yazar,
+     * karşı tarafa arama push'u gider. Kişi uygulamayı açarsa (LOOKUP cevabı gelirse)
+     * gerçek arama otomatik başlar. RING_TIMEOUT sonunda cevapsız arama olarak kapanır.
+     */
+    var RING_TIMEOUT_MS = 45000;
+    async function ringOfflinePeer(c, kind) {
+      var scr = document.getElementById('screen-ooCall');
+      if (!scr || scr.classList.contains('hidden-screen')) openOOCallScreen(c, kind);
+      var st = document.getElementById('oocStatus');
+      if (st) st.textContent = 'Aranıyor…';
+      try { startRingbackTone(); } catch (e) {}
+
+      // Karşı tarafa "Gelen arama" push'u gönder.
+      var notify = findNotifyBridge();
+      var myName = '';
+      try { myName = (window.CONFIG && (CONFIG.userName || CONFIG.virtualNo)) || ''; } catch (e) {}
+      if (notify && c.number) {
+        try {
+          notify(
+            c.number,
+            'Gelen arama',
+            (myName || 'Biri') + (kind === 'video' ? ' seni görüntülü arıyor' : ' seni arıyor'),
+            'call'
+          );
+        } catch (e) {}
+      }
+
+      // Kişi çevrimiçi olana kadar periyodik LOOKUP.
+      var startedAt = Date.now();
+      var connId = null;
+      while (Date.now() - startedAt < RING_TIMEOUT_MS) {
+        var cancelled = !document.getElementById('screen-ooCall') ||
+          document.getElementById('screen-ooCall').classList.contains('hidden-screen');
+        if (cancelled) return;
+        connId = findLiveConnIdByNumber(c.number) || await lookupAndWait(c.number, 3000, { forceFresh: true });
+        if (connId) break;
+      }
+
+      if (!connId) {
+        try { closeOOCallScreen(); } catch (e) {}
+        enqueueOfflineCall(c, kind);
+        showCallToast('📵 ' + (c.name || c.number || 'Kişi') + ' cevap vermedi.');
+        return;
+      }
+
+      var st2 = document.getElementById('oocStatus');
+      if (st2) st2.textContent = 'Çalıyor…';
+      try { muteOutgoingTracksUntilAccepted(connId); } catch (e) {}
+      try {
+        if (kind === 'video' && typeof window.startVideoCall === 'function') window.startVideoCall(connId, false);
+        else if (typeof window.startAudioCall === 'function') window.startAudioCall(connId, false);
+      } catch (e) { console.error('[adapter] arama başlatılamadı:', e); }
+    }
+
     // Periyodik kontrol: kuyruktaki kişi online olduysa bildirim mesajı yolla
     setInterval(function () {
       var q = loadOfflineCallQueue();
