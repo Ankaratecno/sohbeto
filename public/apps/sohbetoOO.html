@@ -1990,8 +1990,6 @@
     <script src="./sohbeto-extras.js"></script>
     <!-- Adım 14: Kişi kartı boyut + animasyon tercihleri -->
     <script src="./sohbeto-card-anim.js"></script>
-    <!-- Konum/harita: Leaflet + OpenStreetMap (projeye gömülü, anahtar gerekmez) -->
-    <script src="./sohbeto-map.js"></script>
 
     <!-- A2 arayüzü iframe overlay + Çıkış/Hesabı sil yardımcıları -->
     <div id="a2FrameOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#fff;">
@@ -2520,65 +2518,20 @@
           setTimeout(poll, 200);
         })();
       }
-      var lastKey = '';
-      var lastAt = 0;
-      var busy = false;
-      function done(){
-        try { parent.postMessage({ type: 'sohbeto:push-click-handled' }, '*'); } catch(e){}
-      }
-      // Bildirimden gelen mesaj metni henüz senkronlanmadıysa kısa bir önizleme
-      // baloncuğu göster; gerçek mesaj gelirse kendiliğinden kaybolur.
-      function showPreview(text){
-        try {
-          var t = String(text || '').trim();
-          if (!t) return;
-          window.__SOHBETO_PUSH_PREVIEW = { text: t, ts: Date.now() };
-          setTimeout(function(){
-            try {
-              var box = document.getElementById('chat-messages') || document.querySelector('.messages') || document.body;
-              if (box && box.textContent && box.textContent.indexOf(t.slice(0, 24)) !== -1) return;
-              var el = document.createElement('div');
-              el.textContent = t;
-              el.style.cssText = 'position:fixed;left:50%;top:12%;transform:translateX(-50%);max-width:82%;background:rgba(20,24,33,.95);color:#fff;padding:11px 16px;border-radius:14px;font:500 14px system-ui,sans-serif;z-index:99999;box-shadow:0 10px 30px rgba(0,0,0,.4);text-align:center;';
-              document.body.appendChild(el);
-              setTimeout(function(){ el.style.transition='opacity .4s'; el.style.opacity='0'; }, 4000);
-              setTimeout(function(){ try { el.remove(); } catch(e){} }, 4600);
-            } catch(e){}
-          }, 1200);
-        } catch(e){}
-      }
       function handle(d){
         var from = String(d.from || '').trim();
         var isCall = d.kind === 'call';
-        // Aynı niyet birden fazla kez gelirse (tekrar denemeler) bir kez uygula.
-        // ADIM 4: bağlantı beklemeden gelen arama ekranını hemen göster.
-        if (isCall && d.act !== 'decline') {
-          (function prep(tries){
-            try {
-              if (typeof window.__sohbetoPrepareIncoming === 'function') {
-                window.__sohbetoPrepareIncoming(from, d.kind === 'video' ? 'video' : 'audio');
-                return;
-              }
-            } catch(e){}
-            if (tries > 0) setTimeout(function(){ prep(tries - 1); }, 300);
-          })(50);
-        }
-        var key = from + '|' + (d.kind || '') + '|' + (d.act || '');
-        var now = Date.now();
-        if (busy) return;
-        if (key === lastKey && now - lastAt < 15000) { done(); return; }
-        lastKey = key; lastAt = now; busy = true;
         waitReady(function(ok){
-          if (!ok) { busy = false; lastKey = ''; return; }
+          if (!ok) return;
           try {
             if (isCall) {
               // Gelen arama ekranı hâlâ çalıyorsa doğrudan cevapla.
               var inc = window.state && window.state.incomingCallFrom;
               if (inc && d.act !== 'decline') {
-                if (typeof window.acceptCall === 'function') { window.acceptCall(); busy = false; done(); return; }
+                if (typeof window.acceptCall === 'function') { window.acceptCall(); return; }
               }
               if (d.act === 'decline') {
-                if (inc && typeof window.rejectCall === 'function') { window.rejectCall(); busy = false; done(); return; }
+                if (inc && typeof window.rejectCall === 'function') { window.rejectCall(); return; }
               }
               // Arama bitmişse: arayan kişiye dön (sohbet + geri arama imkânı).
               if (from) window.openContactByNumber(from);
@@ -2595,14 +2548,10 @@
                   } catch(e){}
                 }, 1200);
               }
-              busy = false; done();
               return;
             }
             if (from) window.openContactByNumber(from);
-            // ADIM 6: bildirimdeki mesaj metni sohbet açılır açılmaz görünsün.
-            if (d.text) showPreview(d.text);
-            busy = false; done();
-          } catch(e){ busy = false; }
+          } catch(e){}
         }, 25000);
       }
       window.addEventListener('message', function(ev){
@@ -2616,7 +2565,7 @@
         var u = new URL(window.location.href);
         var f = u.searchParams.get('from');
         var k = u.searchParams.get('kind');
-        if (f || k) handle({ from: f, kind: k, act: u.searchParams.get('act') || 'open', text: u.searchParams.get('txt') || '' });
+        if (f || k) handle({ from: f, kind: k, act: u.searchParams.get('act') || 'open' });
       } catch(e){}
     })();
     </script>
