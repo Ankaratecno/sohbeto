@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
@@ -518,11 +519,11 @@
         .profile-pic-select:hover { transform: scale(1.04); }
         .profile-pic-select .pic-circle {
             width: 100%; height: 100%; border-radius: 50%;
-            background: linear-gradient(135deg, #22d3ee, #6366f1, #a855f7);
-            border: 3px solid var(--light-green-bg);
+            background: var(--primary-green, #0a7c4a);
+            border: 3px solid var(--bg-white, #fff);
             display: flex; align-items: center; justify-content: center;
             font-size: 38px; color: #fff; overflow: hidden;
-            box-shadow: 0 8px 22px -8px rgba(99,102,241,.45);
+            box-shadow: 0 8px 22px -10px rgba(15,23,42,.35);
         }
         .profile-pic-select .pic-circle img {
             width: 100%; height: 100%; object-fit: cover;
@@ -530,7 +531,7 @@
         .profile-pic-select .pic-badge {
             position: absolute; bottom: 2px; right: 2px;
             width: 30px; height: 30px; border-radius: 50%;
-            background: var(--primary-green);
+            background: #33404d;
             color: #fff; display: flex; align-items: center; justify-content: center;
             font-size: 13px;
             border: 3px solid var(--bg-white);
@@ -1318,6 +1319,8 @@
             border-color: var(--primary-green) !important;
         }
     </style>
+    <!-- Ana ekran arayüzü: sohbet penceresi estetiği (motora dokunmaz) -->
+    <link rel="stylesheet" href="./sohbeto-shell-ui.css">
 </head>
 <body>
 
@@ -1700,28 +1703,33 @@
         </div>
 
         <!-- Kişi Ekle Sheet -->
-        <div id="addContactSheet" class="screen hidden-screen" style="z-index:30;background:rgba(0,0,0,0.4);justify-content:flex-end;">
-            <div style="background:var(--bg-white);width:100%;border-radius:24px 24px 0 0;padding:24px;box-shadow:0 -10px 30px rgba(0,0,0,.15);animation:slideUpSheet .25s ease;">
-                <div style="width:40px;height:4px;background:#e5e7eb;border-radius:2px;margin:0 auto 16px"></div>
-                <h3 style="font-size:1.3rem;font-weight:700;margin-bottom:18px">Yeni Kişi</h3>
-                <div style="display:flex;flex-direction:column;gap:14px">
-                    <div>
-                        <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:6px">📌 Ad Soyad</label>
-                        <input id="newContactName" type="text" placeholder="Örn. Ayşe Yılmaz" maxlength="40"
-                            style="width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;font-size:.95rem;font-family:inherit">
+        <div id="addContactSheet" class="screen hidden-screen sb-topsheet" style="z-index:30;">
+            <div class="sb-topsheet-panel">
+                <div class="sb-topsheet-head">
+                    <h3>Yeni Kişi</h3>
+                    <button type="button" class="sb-topsheet-x" onclick="closeAddContact()" aria-label="Kapat"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="sb-field-list">
+                    <div class="sb-field">
+                        <label for="newContactName">Ad Soyad</label>
+                        <input id="newContactName" type="text" placeholder="Örn. Ayşe Yılmaz" maxlength="40">
                     </div>
-                    <div>
-                        <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:6px">📞 Telefon</label>
-                        <input id="newContactPhone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" maxlength="20"
-                            style="width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;font-size:.95rem;font-family:inherit">
+                    <div class="sb-field">
+                        <label for="newContactPhone">Telefon</label>
+                        <input id="newContactPhone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" maxlength="20">
+                    </div>
+                    <div class="sb-field">
+                        <label for="newContactEmail">E-posta <span class="sb-opt">(isteğe bağlı)</span></label>
+                        <input id="newContactEmail" type="email" inputmode="email" placeholder="ornek@eposta.com" maxlength="60">
                     </div>
                 </div>
-                <div style="display:flex;gap:10px;margin-top:22px">
-                    <button onclick="closeAddContact()" style="flex:1;padding:14px;border-radius:12px;border:1px solid #e5e7eb;background:transparent;font-weight:600;color:var(--text-main)">Vazgeç</button>
-                    <button class="btn-solid" style="flex:1;padding:14px" onclick="saveContact()">Kaydet</button>
+                <div class="sb-sheet-actions">
+                    <button type="button" class="sb-btn-ghost" onclick="closeAddContact()">Vazgeç</button>
+                    <button type="button" class="sb-btn-primary" onclick="saveContact()">Kaydet</button>
                 </div>
             </div>
         </div>
+
 
         <!-- KİŞİ KARTI OVERLAY -->
         <div id="contactCardOverlay" onclick="closeContactCard(event)">
@@ -1873,22 +1881,8 @@
 
             <div class="content-area">
 
-                <!-- ===== Profil Bloğu (yeni eklenen) ===== -->
-                <div class="profile-block">
-                    <div class="profile-pic-select" onclick="document.getElementById('profilePicInput').click()">
-                        <div class="pic-circle" id="profilePicCircle">
-                            <i class="fa-regular fa-user"></i>
-                        </div>
-                        <div class="pic-badge"><i class="fa-solid fa-camera"></i></div>
-                    </div>
-                    <div class="profile-hint">Değiştirmek için tıklayın</div>
-                    <input type="file" id="profilePicInput" accept="image/*" style="display:none" onchange="handleProfilePic(event)">
-                </div>
+                <!-- Profil fotoğrafı bloğu Hesap > Profil ekranına taşındı (#screen-hesap). -->
 
-                <!-- Ad ve Biyografi artık burada DEĞİL — Hesap > Profil ekranına taşındı (#screen-hesap). -->
-                <!-- Fotoğraf yükleme bölümü ayarlar girişinde kalmaya devam ediyor. -->
-
-                <div class="profile-divider"></div>
 
                 <div class="settings-list">
                     
@@ -1910,33 +1904,42 @@
                         <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
                     </div>
 
-                    <div class="settings-item">
+                    <div class="settings-item" style="flex-wrap:wrap;">
                         <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-bell"></i></div>
                         <div class="settings-text">
                             <span class="settings-item-title">Bildirimler</span>
-                            <span class="settings-item-subtitle">Sessiz saatler · 22:00–07:00</span>
+                            <span class="settings-item-subtitle" id="quietHoursSubtitle">Sessiz saatler · 22:00–07:00</span>
                         </div>
                         <div class="settings-action">
                             <label class="toggle-switch">
-                                <input type="checkbox" checked>
+                                <input type="checkbox" id="quietHoursToggle" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div id="quietHoursRow" style="flex-basis:100%; display:flex; align-items:center; gap:10px; margin-top:10px;">
+                            <label style="font-size:.8rem; color:var(--app-text-2,#6b7280);">Başlangıç</label>
+                            <input type="time" id="quietStart" value="22:00"
+                                style="flex:1; min-width:0; padding:8px 10px; border-radius:12px; border:1px solid var(--app-card-border,rgba(15,23,42,.08)); background:var(--app-field,rgba(15,23,42,.045)); color:var(--app-text-1,#111); font-family:inherit;">
+                            <label style="font-size:.8rem; color:var(--app-text-2,#6b7280);">Bitiş</label>
+                            <input type="time" id="quietEnd" value="07:00"
+                                style="flex:1; min-width:0; padding:8px 10px; border-radius:12px; border:1px solid var(--app-card-border,rgba(15,23,42,.08)); background:var(--app-field,rgba(15,23,42,.045)); color:var(--app-text-1,#111); font-family:inherit;">
+                        </div>
+                    </div>
+
+                    <div class="settings-item" id="pushNotifItem">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Anlık Bildirimler</span>
+                            <span class="settings-item-subtitle" id="pushNotifSubtitle">Kapalı — yeni mesajlar için izin ver</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="pushNotifToggle">
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
                     </div>
 
-                    <div class="settings-item">
-                        <div class="settings-icon-wrapper icon-warning"><i class="fa-regular fa-star"></i></div>
-                        <div class="settings-text">
-                            <span class="settings-item-title">Çevrimdışı Mod</span>
-                            <span class="settings-item-subtitle">Patikada veri yok mu?<br>Sorun değil.</span>
-                        </div>
-                        <div class="settings-action">
-                            <label class="toggle-switch">
-                                <input type="checkbox">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
 
                     <div class="settings-item" onclick="app.openPrivacy()">
                         <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-lock" style="font-size: 1rem; font-weight:300;"></i></div>
@@ -1959,7 +1962,7 @@
                     <div class="settings-item mt-2" onclick="window.__sohbetoLogoutDialog && window.__sohbetoLogoutDialog()">
                         <div class="settings-icon-wrapper icon-danger"><i class="fa-solid fa-arrow-right-from-bracket"></i></div>
                         <div class="settings-text">
-                            <span class="settings-item-title" style="color: #c4624b;">Çıkış Yap</span>
+                            <span class="settings-item-title" style="color: var(--app-text-1, #111);">Çıkış Yap</span>
                             <span class="settings-item-subtitle">Oturumu sonlandır</span>
                         </div>
                         <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
@@ -2047,31 +2050,83 @@
             </div>
 
             <div class="content-area">
+                <!-- Profil fotoğrafı (Ayarlar'dan buraya taşındı) -->
+                <div class="profile-block" style="padding-top:14px;">
+                    <div class="profile-pic-select" onclick="document.getElementById('profilePicInput').click()">
+                        <div class="pic-circle" id="profilePicCircle">
+                            <i class="fa-regular fa-user"></i>
+                        </div>
+                        <div class="pic-badge"><i class="fa-solid fa-camera"></i></div>
+                    </div>
+                    <div class="profile-hint">Değiştirmek için tıklayın</div>
+                    <input type="file" id="profilePicInput" accept="image/*" style="display:none" onchange="handleProfilePic(event)">
+                </div>
+
                 <div class="profile-fields" style="padding-top: 18px;">
                     <div class="profile-field">
-                        <label><span class="lbl-emoji">📌</span> Ad</label>
+                        <label>Ad</label>
                         <input type="text" id="profileName" placeholder="Adınız" maxlength="30" autocomplete="off">
                     </div>
                     <div class="profile-field">
-                        <label><span class="lbl-emoji">📝</span> Biyografi</label>
+                        <label>Biyografi</label>
                         <textarea id="profileBio" placeholder="Kendinizi tanıtın..." maxlength="200"></textarea>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- 8. GİZLİLİK (Adım 8 — Ayarlar > Gizlilik & Güvenlik'ten açılır) -->
-        <div id="screen-gizlilik" class="screen hidden-screen" style="z-index: 15;">
-            <div class="theme-header">
-                <i class="fa-solid fa-arrow-left" onclick="app.closePrivacy()"></i>
-                <div class="main-title" style="font-size: 1.2rem;">Gizlilik &amp; Güvenlik</div>
-            </div>
-
-            <div class="content-area">
-                <div class="settings-section">
-                    <h3>Adım Görünürlüğü</h3>
+                <!-- Kullanıcı adı -->
+                <div class="settings-section" style="margin-top:22px;"><h3>Kullanıcı Adı</h3></div>
+                <div class="profile-fields">
+                    <div class="profile-field">
+                        <label><span class="lbl-emoji">@</span> Kullanıcı adı oluştur</label>
+                        <input type="text" id="accUsername" placeholder="kullaniciadi" maxlength="20" autocomplete="off" spellcheck="false">
+                        <div id="accUsernameHint" style="font-size:.78rem; color:var(--app-text-3,#9aa3b2); margin-top:6px;">3–20 karakter · harf, rakam, alt çizgi</div>
+                    </div>
                 </div>
+
+                <!-- Telefon -->
+                <div class="settings-section" style="margin-top:22px;"><h3>Telefon</h3></div>
                 <div class="settings-list">
+                    <div class="settings-item" style="cursor:default;">
+                        <div class="settings-text">
+                            <span class="settings-item-title">Telefon numarası</span>
+                            <span class="settings-item-subtitle" id="accPhoneNumber">—</span>
+                        </div>
+                    </div>
+                    <div class="settings-item" style="cursor:default;">
+                        <div class="settings-text">
+                            <span class="settings-item-title">Kayıt tarihi</span>
+                            <span class="settings-item-subtitle" id="accCreatedAt">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gizlilik -->
+                <div class="settings-section" style="margin-top:22px;"><h3>Gizlilik</h3></div>
+                <div class="settings-list" style="padding-bottom:110px;">
+                    <div class="settings-item">
+                        <div class="settings-text">
+                            <span class="settings-item-title">Telefon numaramla herkes beni bulabilsin</span>
+                            <span class="settings-item-subtitle">Kapalıyken sadece kişilerindekiler seni numaranla bulabilir.</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="accFindableToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-item">
+                        <div class="settings-text">
+                            <span class="settings-item-title">Kullanıcı adımla bulunabileyim</span>
+                            <span class="settings-item-subtitle">Kullanıcı adını bilenler sana ulaşabilir.</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="accFindableUsernameToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
                     <div class="settings-item">
                         <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-id-badge"></i></div>
                         <div class="settings-text">
@@ -2086,7 +2141,18 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
+        </div>
+
+        <!-- 8. GİZLİLİK (Adım 8 — Ayarlar > Gizlilik & Güvenlik'ten açılır) -->
+        <div id="screen-gizlilik" class="screen hidden-screen" style="z-index: 15;">
+            <div class="theme-header">
+                <i class="fa-solid fa-arrow-left" onclick="app.closePrivacy()"></i>
+                <div class="main-title" style="font-size: 1.2rem;">Gizlilik &amp; Güvenlik</div>
+            </div>
+
+            <div class="content-area">
                 <div class="settings-section" style="margin-top:32px;">
                     <h3>Şifreleme</h3>
                 </div>
@@ -2193,12 +2259,17 @@
     <script src="./sohbeto-engine.js"></script>
     <!-- Adım 5: Telegram benzeri akışkan tab geçişleri + parmak swipe (motora dokunmaz) -->
     <script src="./sohbeto-fluid-tabs.js"></script>
+    <script src="./sohbeto-shell-ui.js"></script>
+    <script src="./sohbeto-account-ui.js"></script>
     <!-- Adım 13: Sohbetler başlığı 3 ikon + Notlar/Aramalar/Gelen Kutusu tam-ekran -->
     <script src="./sohbeto-extras.js"></script>
     <!-- Adım 14: Kişi kartı boyut + animasyon tercihleri -->
     <script src="./sohbeto-card-anim.js"></script>
     <!-- Adım 15: Mesaj eylem menüsü — balon yanı bağlam menüsü + emoji tepki barı (motora dokunmaz) -->
     <script src="./sohbeto-ui-sheets.js"></script>
+    <!-- Durum çubuğu rengi: aktif tema / sohbet duvar kağıdı ile eşleşir -->
+    <script src="./sohbeto-statusbar.js"></script>
+
 
 
     <!-- A2 arayüzü iframe overlay + Çıkış/Hesabı sil yardımcıları -->

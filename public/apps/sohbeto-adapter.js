@@ -424,12 +424,19 @@
       if (phEl) phEl.textContent = number || '—';
 
       try {
-        var rect = anchorEl && anchorEl.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
+        var originEl = anchorEl && anchorEl.querySelector
+          ? (anchorEl.matches && anchorEl.matches('.conv-avatar, .contact-avatar, .chat-h-avatar')
+              ? anchorEl
+              : anchorEl.querySelector('.conv-avatar, .contact-avatar, .chat-h-avatar'))
+          : null;
+        var rect = originEl && originEl.getBoundingClientRect
+          ? originEl.getBoundingClientRect()
+          : (anchorEl && anchorEl.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null);
         var orect = overlay.getBoundingClientRect();
-        var px = (ev && ev.clientX) ? ev.clientX : (rect ? rect.left + rect.width / 2 : orect.left + orect.width / 2);
-        var py = (ev && ev.clientY) ? ev.clientY : (rect ? rect.top + rect.height / 2 : orect.top + orect.height / 2);
-        overlay.style.setProperty('--tx', (px - orect.left) + 'px');
-        overlay.style.setProperty('--ty', (py - orect.top) + 'px');
+        var px = rect ? rect.left + rect.width / 2 : orect.left + orect.width / 2;
+        var py = rect ? rect.top + rect.height / 2 : orect.top + orect.height / 2;
+        overlay.style.setProperty('--dx', (px - (orect.left + orect.width / 2)) + 'px');
+        overlay.style.setProperty('--dy', (py - (orect.top + orect.height / 2)) + 'px');
       } catch (e) {}
 
       overlay.classList.remove('closing');
@@ -1480,14 +1487,15 @@
       var phEl = document.getElementById('ccPhone');
       if (phEl) phEl.textContent = number || '—';
 
-      // Tıklanan noktadan açılma origin'i (animasyon için)
+      // Satırın rastgele noktasından değil, profil avatarından merkeze açıl.
       try {
-        var rect = row.getBoundingClientRect();
+        var sourceAvatar = row.querySelector('[data-avatar="1"], .contact-avatar');
+        var rect = (sourceAvatar || row).getBoundingClientRect();
         var orect = overlay.getBoundingClientRect();
-        var px = (ev && ev.clientX) ? ev.clientX : (rect.left + rect.width / 2);
-        var py = (ev && ev.clientY) ? ev.clientY : (rect.top  + rect.height / 2);
-        overlay.style.setProperty('--tx', (px - orect.left) + 'px');
-        overlay.style.setProperty('--ty', (py - orect.top)  + 'px');
+        var px = rect.left + rect.width / 2;
+        var py = rect.top + rect.height / 2;
+        overlay.style.setProperty('--dx', (px - (orect.left + orect.width / 2)) + 'px');
+        overlay.style.setProperty('--dy', (py - (orect.top + orect.height / 2)) + 'px');
       } catch (e) {}
 
       overlay.classList.remove('closing');
@@ -2734,21 +2742,23 @@
     // ---------- 10) TEMA AYARLARI ----------
     (function bindThemeSettings() {
       var THEMES = {
-        ocean: { label: 'Okyanus · Açık', primary: '#0f766e', hover: '#115e59', light: '#dff7f5', bg: '#f8fffe' },
+        lagoon: { label: 'Lagün · Açık', primary: '#2f8f83', hover: '#25736a', light: '#d9ede8', bg: '#ffffff' },
+        teal:   { label: 'Deniz · Açık',  primary: '#1f7a70', hover: '#175f57', light: '#d3e9e4', bg: '#f7fcfb' },
+        ocean:  { label: 'Okyanus · Açık', primary: '#0f766e', hover: '#115e59', light: '#dff7f5', bg: '#f8fffe' },
         forest: { label: 'Orman · Açık', primary: '#0a7c4a', hover: '#08633b', light: '#e6f3eb', bg: '#ffffff' },
-        sunset: { label: 'Günbatımı · Açık', primary: '#ea580c', hover: '#c2410c', light: '#ffedd5', bg: '#fffaf5' }
+        mist:   { label: 'Sis · Açık', primary: '#4c8b82', hover: '#3b6f68', light: '#e4efec', bg: '#fbfdfc' }
       };
-      var PRIMARY_ORDER = ['ocean', 'forest', 'sunset'];
-      var BG_ORDER = ['ocean', 'forest', 'sunset'];
+      var PRIMARY_ORDER = ['lagoon', 'teal', 'ocean', 'forest', 'mist'];
+      var BG_ORDER = ['lagoon', 'teal', 'ocean', 'forest', 'mist'];
 
       // Eski tercih "night" idi: okyanusa zorla yükselt
       try {
         var __old = localStorage.getItem('sohbeto.oo.theme');
-        if (__old === 'night') localStorage.setItem('sohbeto.oo.theme', 'ocean');
+        if (__old === 'night' || __old === 'sunset') localStorage.setItem('sohbeto.oo.theme', 'lagoon');
       } catch (e) {}
 
       function applyTheme(name) {
-        var theme = THEMES[name] || THEMES.ocean;
+        var theme = THEMES[name] || THEMES.lagoon;
         var root = document.documentElement;
         root.style.setProperty('--primary-green', theme.primary);
         root.style.setProperty('--primary-green-hover', theme.hover);
@@ -2779,7 +2789,7 @@
         renderPalette('primary-colors', PRIMARY_ORDER, 'primary');
         renderPalette('bg-colors', BG_ORDER, 'bg');
         showScreen('screen-tema');
-        try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'ocean'); } catch (e) { applyTheme('ocean'); }
+        try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'lagoon'); } catch (e) { applyTheme('lagoon'); }
       };
       window.app.closeThemeSettings = function () { showScreen('screen-ayarlar'); };
 
@@ -2909,7 +2919,7 @@
 
       renderPalette('primary-colors', PRIMARY_ORDER, 'primary');
       renderPalette('bg-colors', BG_ORDER, 'bg');
-      try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'ocean'); } catch (e) { applyTheme('ocean'); }
+      try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'lagoon'); } catch (e) { applyTheme('lagoon'); }
     })();
 
     // ---------- 10) PROFİL FOTOĞRAFI + AD/BİYO PERSİSTANSI ----------

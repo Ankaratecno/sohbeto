@@ -236,11 +236,19 @@
         '  <div class="fs-title">Yeni Grup</div>' +
         '</div>' +
         '<div class="fs-body" id="cg-body">' +
+        '  <div class="cg-media">' +
+        '    <div class="cg-photo" id="cg-photo" title="Profil fotoğrafı"><i class="fa-solid fa-camera"></i></div>' +
+        '    <div class="cg-cover" id="cg-cover" title="Arka plan fotoğrafı">Arka plan fotoğrafı seç</div>' +
+        '  </div>' +
+        '  <div class="cg-hint">Soldaki kare grup profil fotoğrafı, sağdaki alan grup arka planıdır.</div>' +
         '  <input id="cg-name" class="cg-name-input" placeholder="Grup adı" maxlength="60">' +
-        '  <div style="font-size:.78rem;color:var(--text-secondary,#6b7280);margin:6px 2px 4px;">Davet edilecek kişiler</div>' +
+        '  <div style="font-size:.78rem;color:var(--app-text-2,#6b7280);margin:10px 2px 6px;">Davet edilecek kişiler</div>' +
         '  <div class="cg-list" id="cg-list"></div>' +
         '  <button class="cg-save" id="cg-save">Grubu Oluştur</button>' +
+        '  <input type="file" accept="image/*" id="cg-photo-file" style="display:none">' +
+        '  <input type="file" accept="image/*" id="cg-cover-file" style="display:none">' +
         '</div>';
+
       app.appendChild(g);
     }
   }
@@ -987,16 +995,38 @@
     return out;
   }
   var _cgSelected = {};
+  var _cgPhoto = '', _cgCover = '';
   function openCreateGroup() {
     _cgSelected = {};
+    _cgPhoto = ''; _cgCover = '';
     openScreen('screen-create-group');
     bindCgFields();
     var nm = document.getElementById('cg-name');
     if (nm) nm.value = '';
+    renderCgMedia();
     renderCgContactList();
     updateCgSaveBtn();
     setTimeout(function () { if (nm) nm.focus(); }, 80);
   }
+  function renderCgMedia() {
+    var ph = document.getElementById('cg-photo');
+    var cv = document.getElementById('cg-cover');
+    if (ph) {
+      ph.style.backgroundImage = _cgPhoto ? 'url(' + _cgPhoto + ')' : '';
+      ph.innerHTML = _cgPhoto ? '' : '<i class="fa-solid fa-camera"></i>';
+    }
+    if (cv) {
+      cv.style.backgroundImage = _cgCover ? 'url(' + _cgCover + ')' : '';
+      cv.textContent = _cgCover ? '' : 'Arka plan fotoğrafı seç';
+    }
+  }
+  function readImage(file, cb) {
+    if (!file) return;
+    var r = new FileReader();
+    r.onload = function () { cb(String(r.result || '')); };
+    r.readAsDataURL(file);
+  }
+
   function renderCgContactList() {
     var box = document.getElementById('cg-list');
     if (!box) return;
@@ -1044,7 +1074,22 @@
       sv.__bound = 1;
       sv.addEventListener('click', createGroupFromCg);
     }
+    [['cg-photo', 'cg-photo-file'], ['cg-cover', 'cg-cover-file']].forEach(function (pair) {
+      var box = document.getElementById(pair[0]);
+      var inp = document.getElementById(pair[1]);
+      if (!box || !inp || box.__bound) return;
+      box.__bound = 1;
+      box.addEventListener('click', function () { inp.click(); });
+      inp.addEventListener('change', function () {
+        readImage(inp.files && inp.files[0], function (data) {
+          if (pair[0] === 'cg-photo') _cgPhoto = data; else _cgCover = data;
+          renderCgMedia();
+        });
+        inp.value = '';
+      });
+    });
   }
+
   function createGroupFromCg() {
     var nm = document.getElementById('cg-name');
     var name = (nm && nm.value || '').trim();
@@ -1055,6 +1100,9 @@
     var group = {
       id: 'g_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       name: name,
+      photo: _cgPhoto || '',
+      cover: _cgCover || '',
+
       createdAt: Date.now(),
       ownerNumber: myNumber(),
       members: memberObjs.map(function (c) { return { number: c.number, name: c.name, connId: c.connId }; })
@@ -1094,7 +1142,7 @@
       arr.forEach(function (g) {
         var sub = (g.members ? g.members.length : 0) + ' üye';
         html += '<div class="group-card" data-gid="' + escapeHtml(g.id) + '">' +
-                '  <div class="gc-ic"><i class="fa-solid fa-users"></i></div>' +
+                '  <div class="gc-ic"' + (g.photo ? ' style="background-image:url(' + g.photo + ');background-size:cover;background-position:center"' : '') + '>' + (g.photo ? '' : '<i class="fa-solid fa-users"></i>') + '</div>' +
                 '  <div class="gc-info">' +
                 '    <div class="gc-name">' + escapeHtml(g.name) + '</div>' +
                 '    <div class="gc-sub">' + sub + ' · ' + fmtDT(g.createdAt) + '</div>' +

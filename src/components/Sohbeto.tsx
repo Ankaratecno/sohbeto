@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { enablePush, disablePush } from "@/pwa/push";
 
 /**
  * Sohbeto tam ekran kabuğu.
@@ -24,6 +25,20 @@ const Sohbeto: React.FC = () => {
     win.postMessage({ type: "sohbeto:push-click", ...payload }, "*");
   };
   const iframeReadyRef = useRef(false);
+
+  function getPushStatus() {
+    if (typeof window === "undefined") return { unsupported: true, enabled: false };
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      return { unsupported: true, enabled: false };
+    }
+    return { unsupported: false, enabled: Notification.permission === "granted" };
+  }
+
+  function notifyPushStatus() {
+    const win = frameRef.current?.contentWindow;
+    if (!win || !iframeReadyRef.current) return;
+    win.postMessage({ type: "sohbeto:push-status", ...getPushStatus() }, "*");
+  }
 
   useEffect(() => {
     // 1) Soğuk açılış: adres satırındaki ?from=&kind=&act= parametreleri.
@@ -61,10 +76,44 @@ const Sohbeto: React.FC = () => {
       // iframe içindeki motor hazır olmadan mesaj kaybolmasın: kısa gecikme.
       setTimeout(() => frameRef.current?.contentWindow?.postMessage({ type: "sohbeto:push-click", ...payload }, "*"), 300);
     }
+    // Ayarlar ekranındaki push bildirim toggle'ının ilk durumunu gönder.
+    notifyPushStatus();
   };
 
+  // Durum çubuğu (saat/pil alanı) rengi — iframe'den gelen tema/duvar kağıdı rengiyle boyanır.
+  const [barColor, setBarColor] = useState<string>("#0e1621");
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (meta) meta.setAttribute("content", barColor);
+    document.documentElement.style.backgroundColor = barColor;
+    document.body.style.backgroundColor = barColor;
+  }, [barColor]);
+
+  useEffect(() => {
+    const onMessage = async (ev: MessageEvent) => {
+      const d = ev.data as { type?: string; color?: string; dark?: boolean } | null;
+      if (!d) return;
+      if (d.type === "sohbeto:theme-color") {
+        if (typeof d.color === "string" && d.color) setBarColor(d.color);
+        return;
+      }
+      if (d.type === "sohbeto:query-push-status") {
+        notifyPushStatus();
+      } else if (d.type === "sohbeto:enable-push") {
+        await enablePush();
+        notifyPushStatus();
+      } else if (d.type === "sohbeto:disable-push") {
+        await disablePush();
+        notifyPushStatus();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+
   return (
-    <div className="fixed inset-0 w-full h-[100dvh] bg-[#0e1621]">
+    <div className="fixed inset-0 w-full h-[100dvh]" style={{ backgroundColor: barColor }}>
       {!iframeReady && (
         <div
           aria-hidden="true"
