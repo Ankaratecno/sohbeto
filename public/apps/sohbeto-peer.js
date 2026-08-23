@@ -157,10 +157,7 @@
                 toNumber,
                 isCall ? 'Gelen arama' : 'Yeni mesaj',
                 isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi',
-                isCall ? 'call' : 'message',
-                undefined,
-                undefined,
-                { from: from }
+                isCall ? 'call' : 'message'
             );
         } catch (e) {}
     }

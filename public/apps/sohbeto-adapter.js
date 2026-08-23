@@ -1078,9 +1078,7 @@
     }
 
     function ooCamPickVideoMime() {
-      // mp4 önce: her yerde (iOS dahil) oynatılabilir. webm parametreli MIME'ı
-      // sonradan temizliyoruz, aksi halde data:URL bozulup video açılmıyor.
-      var cands = ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'];
+      var cands = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
       for (var i = 0; i < cands.length; i++) {
         try { if (window.MediaRecorder && MediaRecorder.isTypeSupported(cands[i])) return cands[i]; } catch (_) {}
       }
@@ -1094,8 +1092,6 @@
         __ooCam.mime = ooCamPickVideoMime();
         __ooCam.chunks = [];
         __ooCam.rec = new MediaRecorder(__ooCam.stream, { mimeType: __ooCam.mime, videoBitsPerSecond: 900000 });
-        // Kaydedicinin gerçekten kullandığı türü esas al, parametreleri at.
-        __ooCam.mime = String(__ooCam.rec.mimeType || __ooCam.mime).split(';')[0] || 'video/webm';
         __ooCam.rec.ondataavailable = function (e) { if (e.data && e.data.size) __ooCam.chunks.push(e.data); };
         __ooCam.rec.onstop = ooCamFinishRecording;
         __ooCam.rec.start(200);
@@ -1118,8 +1114,7 @@
     }
 
     function ooCamFinishRecording() {
-      var mime = String(__ooCam.mime || 'video/webm').split(';')[0];
-      var blob = new Blob(__ooCam.chunks, { type: mime });
+      var blob = new Blob(__ooCam.chunks, { type: __ooCam.mime });
       __ooCam.chunks = [];
       ooCamClose();
       if (!blob.size) return;
@@ -1127,7 +1122,7 @@
       var fr = new FileReader();
       fr.onload = function () {
         var du = String(fr.result || '');
-        if (du) ooCamSendDataUrl(du, 'video', mime, 'video-' + Date.now() + (mime === 'video/mp4' ? '.mp4' : '.webm'));
+        if (du) ooCamSendDataUrl(du, 'video', __ooCam.mime, 'video-' + Date.now() + '.webm');
       };
       fr.readAsDataURL(blob);
     }
@@ -1913,29 +1908,11 @@
 
     // ====== Outgoing track mute (accept'e kadar mikrofon kapalı) ======
     var outgoingMutePoll = null;
-    var ooOutgoingStartedAt = 0;
-    /**
-     * Bu aramanın gerçekten kabul edildiğini doğrular. Sadece "Bağlandı" metnine
-     * bakmak yetmiyordu: önceki aramadan kalan bayat metin, ikinci aramada
-     * daha karşı taraf açmadan süreyi başlatıp mikrofonu açıyordu.
-     */
-    function isCallAccepted() {
-      var at = 0;
-      try { at = Number(window.__SOHBETO_CALL_CONNECTED_AT || 0); } catch (e) {}
-      if (!at) return 0;
-      if (ooOutgoingStartedAt && at < ooOutgoingStartedAt - 1500) return 0;
-      return at;
-    }
     function muteOutgoingTracksUntilAccepted(connId) {
       if (outgoingMutePoll) clearInterval(outgoingMutePoll);
       ooOutgoingPending = true;
       ooOutgoingConnId = connId;
-      ooOutgoingStartedAt = Date.now();
-      try { window.__SOHBETO_CALL_CONNECTED_AT = null; } catch (e) {}
-      var stStale = document.getElementById('activeCallStatus');
-      if (stStale && (stStale.innerText || '').trim() === 'Bağlandı') stStale.innerText = 'Çalıyor…';
       var elapsed = 0;
-
       outgoingMutePoll = setInterval(function () {
         elapsed += 200;
         try {
@@ -1985,13 +1962,9 @@
     }
     function enqueueOfflineCall(c, kind) {
       var q = loadOfflineCallQueue();
-      // Aynı kişi için tek kayıt: 19:00, 19:05, 19:10 denemeleri karşı taraf
-      // açıldığında üst üste mesaj olarak gitmesin; sadece en sonu kalsın.
-      q = q.filter(function (x) { return String(x && x.number) !== String(c.number || ''); });
       q.push({ name: c.name || '', number: c.number || '', kind: kind, ts: Date.now() });
       saveOfflineCallQueue(q);
     }
-
     function showCallToast(msg) {
       var t = document.createElement('div');
       t.textContent = msg;
@@ -2064,26 +2037,10 @@
       } catch (e) { console.error('[adapter] arama başlatılamadı:', e); }
     }
 
-    // Eski sekmelere ait öksüz kuyruk anahtarlarını temizle (24 saat üstü).
-    (function cleanupOrphanCallQueues() {
-      try {
-        for (var i = localStorage.length - 1; i >= 0; i--) {
-          var k = localStorage.key(i);
-          if (!k || k.indexOf('oo_offline_call_queue_v1__') !== 0 || k === OFFLINE_CALL_KEY) continue;
-          var arr = [];
-          try { arr = JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { arr = []; }
-          var fresh = arr.filter(function (x) { return x && Date.now() - (x.ts || 0) < 24 * 3600 * 1000; });
-          if (!fresh.length) localStorage.removeItem(k);
-          else localStorage.setItem(k, JSON.stringify(fresh));
-        }
-      } catch (e) {}
-    })();
-
     // Periyodik kontrol: kuyruktaki kişi online olduysa bildirim mesajı yolla
     setInterval(function () {
       var q = loadOfflineCallQueue();
       if (!q.length) return;
-
       var remaining = [];
       q.forEach(function (item) {
         var connId = findLiveConnIdByNumber(item.number);
