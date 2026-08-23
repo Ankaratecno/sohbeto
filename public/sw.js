@@ -8,7 +8,7 @@
  * scope ile uyumlu bir path'ten servis edilmelidir.
  * Örn: /sohbeto/sw.js  → register('/sohbeto/sw.js', { scope: '/sohbeto/' })
  */
-const VERSION = "v1.0.5";
+const VERSION = "v1.0.6";
 const PRECACHE = `sohbeto-precache-${VERSION}`;
 const RUNTIME_HTML = `sohbeto-html-${VERSION}`;
 const RUNTIME_ASSETS = `sohbeto-assets-${VERSION}`;
@@ -61,6 +61,53 @@ self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
 });
 
+// -------------------------------------------- REHBER ADI (IndexedDB okuma)
+// Gönderen numarası bildirimde ham "+90..." olarak görünmesin: alıcının kendi
+// rehberinde bu numara kayıtlıysa bildirimde kişinin adı yazılır.
+function normalizeNumber(n) {
+  let s = String(n || "")
+    .trim()
+    .replace(/[\s\-()]/g, "");
+  if (!s) return "";
+  s = s.replace(/^00/, "+").replace(/[^+\d]/g, "");
+  let digits = s.replace(/^\+/, "");
+  if (digits.startsWith("0") && digits.length === 11) digits = "90" + digits.substring(1);
+  else if (digits.length === 10 && digits.startsWith("5")) digits = "90" + digits;
+  else if (digits.startsWith("0090")) digits = digits.substring(2);
+  return "+" + digits;
+}
+
+function contactNameFor(number) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => {
+      if (!done) {
+        done = true;
+        resolve(v || "");
+      }
+    };
+    setTimeout(() => finish(""), 1500);
+    try {
+      const open = indexedDB.open("EgaNetwork");
+      open.onerror = () => finish("");
+      open.onsuccess = () => {
+        const db = open.result;
+        try {
+          if (!db.objectStoreNames.contains("contacts")) return finish("");
+          const tx = db.transaction("contacts", "readonly");
+          const req = tx.objectStore("contacts").get(number);
+          req.onsuccess = () => finish(req.result?.name || "");
+          req.onerror = () => finish("");
+        } catch (e) {
+          finish("");
+        }
+      };
+    } catch (e) {
+      finish("");
+    }
+  });
+}
+
 // ------------------------------------------------------------------ WEB PUSH
 self.addEventListener("push", (event) => {
   let payload = {};
@@ -70,7 +117,7 @@ self.addEventListener("push", (event) => {
     payload = { title: "Sohbeto", body: event.data ? event.data.text() : "" };
   }
   const isCall = payload.kind === "call";
-  const title = payload.title || "Sohbeto";
+  let title = payload.title || "Sohbeto";
   // Sağdaki büyük ikon: gönderenin profil fotoğrafı (varsa), yoksa uygulama simgesi.
   // Sol üstteki küçük simge (badge): tek renk uygulama simgemiz.
   const largeIcon = payload.icon || `${SCOPE}icons/icon-192.png`;
@@ -83,6 +130,27 @@ self.addEventListener("push", (event) => {
     (async () => {
       let count = 1;
       let body = payload.body || "";
+
+      // Gövde/başlıkta geçen ham numarayı rehberdeki adla değiştir.
+      try {
+        const fromRaw = payload.data?.from || payload.data?.phone || "";
+        const from = normalizeNumber(fromRaw);
+        if (from && from !== "+") {
+          const name = await contactNameFor(from);
+          if (name) {
+            const variants = [from, from.replace(/^\+/, ""), String(fromRaw)];
+            for (const v of variants) {
+              if (!v) continue;
+              const rx = new RegExp(v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
+              body = body.replace(rx, name);
+              title = title.replace(rx, name);
+            }
+          }
+        }
+      } catch (e) {
+        /* noop */
+      }
+
       if (!isCall) {
         try {
           const shown = await self.registration.getNotifications({ tag });
@@ -93,6 +161,7 @@ self.addEventListener("push", (event) => {
         }
         if (count > 1) body = `${body} (${count} yeni mesaj)`;
       }
+
 
       const options = {
         body,
