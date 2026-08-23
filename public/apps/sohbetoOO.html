@@ -29,7 +29,194 @@
             --text-secondary: #6b7280;
             --border-light: #f3f4f6;
             --nav-bg: #ffffff;
+
+            /* ===================================================================
+               TASARIM SİSTEMİ — Adım 1 (temel)
+               Buradaki değişkenler mevcut görünümü DEĞİŞTİRMEZ; sıradaki
+               adımlarda (mesaj balonları, bottom sheet, boş durumlar, profil)
+               tek kaynak olarak kullanılır. Renkler tema motoruna bağlıdır:
+               --primary-green değişince tüm token'lar birlikte değişir.
+               =================================================================== */
+
+            /* --- Marka / anlamsal renkler (tema ile birlikte değişir) --- */
+            --brand: var(--primary-green);
+            --brand-hover: var(--primary-green-hover);
+            --brand-soft: var(--light-green-bg);
+            --brand-gradient: linear-gradient(135deg, var(--primary-green), #12b981);
+            --on-brand: #ffffff;
+
+            --surface: var(--bg-white);
+            --surface-2: #f7f8fa;
+            --surface-3: #f0f2f5;
+            --surface-inverse: #10192a;
+            --overlay: rgba(9, 14, 24, 0.48);
+
+            --text-1: var(--text-main);
+            --text-2: var(--text-secondary);
+            --text-3: #9aa3b2;
+            --border-1: var(--border-light);
+            --border-2: #e5e7eb;
+
+            --success: #16a34a;
+            --warning: #f59e0b;
+            --danger: #dc2626;
+            --danger-soft: #fee2e2;
+            --info: #2563eb;
+            --tick-read: #34b7f1;   /* mavi tik */
+            --tick-sent: #9aa3b2;   /* gri tik */
+
+            /* --- Tipografi ölçeği --- */
+            --fs-2xs: 0.66rem;
+            --fs-xs: 0.72rem;
+            --fs-sm: 0.82rem;
+            --fs-md: 0.92rem;
+            --fs-lg: 1.02rem;
+            --fs-xl: 1.18rem;
+            --fs-2xl: 1.42rem;
+            --fw-regular: 400;
+            --fw-medium: 500;
+            --fw-semibold: 600;
+            --fw-bold: 700;
+            --fw-black: 800;
+            --lh-tight: 1.2;
+            --lh-normal: 1.45;
+
+            /* --- Boşluk ölçeği (4px tabanlı) --- */
+            --sp-1: 4px;
+            --sp-2: 8px;
+            --sp-3: 12px;
+            --sp-4: 16px;
+            --sp-5: 20px;
+            --sp-6: 24px;
+            --sp-8: 32px;
+            --sp-10: 40px;
+
+            /* --- Köşe yarıçapı --- */
+            --r-xs: 6px;
+            --r-sm: 10px;
+            --r-md: 14px;
+            --r-lg: 18px;
+            --r-xl: 24px;
+            --r-pill: 999px;
+
+            /* --- Gölgeler (yükseklik katmanları) --- */
+            --sh-1: 0 1px 2px rgba(16, 25, 42, 0.06);
+            --sh-2: 0 4px 12px rgba(16, 25, 42, 0.08);
+            --sh-3: 0 10px 24px rgba(16, 25, 42, 0.12);
+            --sh-4: 0 20px 44px rgba(16, 25, 42, 0.18);
+            --sh-brand: 0 8px 20px color-mix(in srgb, var(--primary-green) 28%, transparent);
+
+            /* --- Hareket (native hissi için tek kaynak) --- */
+            --dur-fast: 120ms;
+            --dur-base: 200ms;
+            --dur-slow: 320ms;
+            --dur-sheet: 380ms;
+            --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+            --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-spring: cubic-bezier(0.34, 1.4, 0.42, 1);
+
+            /* --- Katman sırası --- */
+            --z-nav: 40;
+            --z-sheet: 9500;
+            --z-toast: 9700;
+
+            /* --- Güvenli alan (çentikli ekranlar) --- */
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
         }
+
+        /* Hareket azaltma tercihi olan kullanıcılar için tüm süreler kısılır. */
+        @media (prefers-reduced-motion: reduce) {
+            :root {
+                --dur-fast: 1ms;
+                --dur-base: 1ms;
+                --dur-slow: 1ms;
+                --dur-sheet: 1ms;
+            }
+        }
+
+        /* ===================================================================
+           TASARIM SİSTEMİ — yeniden kullanılabilir sınıflar (ds-* öneki)
+           Mevcut sınıflara dokunmaz; sıradaki adımlarda arayüz parça parça
+           bu sınıflara taşınacak. Şu an hiçbir eleman kullanmıyor.
+           =================================================================== */
+
+        /* Basma geri bildirimi: native uygulama hissinin temeli */
+        .ds-press { transition: transform var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard); }
+        .ds-press:active { transform: scale(0.965); }
+
+        /* Butonlar */
+        .ds-btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+            padding: 12px var(--sp-5); border: 1px solid transparent; border-radius: var(--r-md);
+            font-size: var(--fs-md); font-weight: var(--fw-semibold); line-height: 1;
+            cursor: pointer; user-select: none; background: none; color: var(--text-1);
+            transition: transform var(--dur-fast) var(--ease-standard), background-color var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
+        }
+        .ds-btn:active { transform: scale(0.97); }
+        .ds-btn[disabled] { opacity: 0.5; pointer-events: none; }
+        .ds-btn--primary { background: var(--brand-gradient); color: var(--on-brand); box-shadow: var(--sh-brand); }
+        .ds-btn--soft { background: var(--brand-soft); color: var(--brand); }
+        .ds-btn--ghost { background: transparent; color: var(--brand); }
+        .ds-btn--outline { background: var(--surface); color: var(--brand); border-color: var(--brand); }
+        .ds-btn--danger { background: var(--danger-soft); color: var(--danger); }
+        .ds-btn--block { display: flex; width: 100%; }
+        .ds-btn--pill { border-radius: var(--r-pill); }
+        .ds-btn--sm { padding: 8px var(--sp-3); font-size: var(--fs-sm); }
+        .ds-btn--lg { padding: 15px var(--sp-6); font-size: var(--fs-lg); }
+
+        /* Alt menü (bottom sheet) iskeleti */
+        .ds-scrim {
+            position: absolute; inset: 0; z-index: var(--z-sheet);
+            background: var(--overlay); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+            opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease-standard);
+        }
+        .ds-scrim.is-open { opacity: 1; pointer-events: auto; }
+        .ds-sheet {
+            position: absolute; left: 0; right: 0; bottom: 0; z-index: calc(var(--z-sheet) + 1);
+            background: var(--surface); border-radius: var(--r-xl) var(--r-xl) 0 0;
+            padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + var(--safe-bottom));
+            box-shadow: var(--sh-4);
+            transform: translateY(101%);
+            transition: transform var(--dur-sheet) var(--ease-out);
+        }
+        .ds-sheet.is-open { transform: translateY(0); }
+        .ds-sheet__grip { width: 40px; height: 4px; border-radius: var(--r-pill); background: var(--border-2); margin: 0 auto var(--sp-3); }
+        .ds-sheet__title { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-2); padding: 0 var(--sp-2) var(--sp-2); }
+        .ds-sheet__item {
+            display: flex; align-items: center; gap: var(--sp-4); width: 100%;
+            padding: 14px var(--sp-3); border: 0; border-radius: var(--r-md);
+            background: transparent; color: var(--text-1); font-size: var(--fs-md); font-weight: var(--fw-medium);
+            text-align: left; cursor: pointer;
+            transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+        }
+        .ds-sheet__item:active { transform: scale(0.985); background: var(--surface-3); }
+        .ds-sheet__item i { width: 20px; text-align: center; color: var(--text-2); font-size: var(--fs-lg); }
+        .ds-sheet__item--danger, .ds-sheet__item--danger i { color: var(--danger); }
+
+        /* Mesaj durum tikleri */
+        .ds-tick { display: inline-flex; align-items: center; font-size: var(--fs-2xs); line-height: 1; color: var(--tick-sent); }
+        .ds-tick--read { color: var(--tick-read); }
+        .ds-tick--pending { opacity: 0.6; }
+        .ds-meta { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-2xs); color: var(--text-3); }
+
+        /* Boş durum */
+        .ds-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3); padding: var(--sp-8) var(--sp-6); text-align: center; }
+        .ds-empty__art { width: 132px; height: 132px; opacity: 0.95; }
+        .ds-empty__title { font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--text-1); }
+        .ds-empty__text { font-size: var(--fs-sm); color: var(--text-2); line-height: var(--lh-normal); max-width: 34ch; }
+
+        /* Avatar ölçekleri */
+        .ds-avatar { border-radius: 50%; object-fit: cover; background: var(--brand-gradient); color: var(--on-brand); display: flex; align-items: center; justify-content: center; font-weight: var(--fw-bold); flex-shrink: 0; }
+        .ds-avatar--sm { width: 34px; height: 34px; font-size: var(--fs-xs); }
+        .ds-avatar--md { width: 48px; height: 48px; font-size: var(--fs-md); }
+        .ds-avatar--lg { width: 72px; height: 72px; font-size: var(--fs-xl); }
+        .ds-avatar--xl { width: 108px; height: 108px; font-size: var(--fs-2xl); box-shadow: var(--sh-3); }
+
+        /* İskelet yükleme */
+        .ds-skeleton { background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 37%, var(--surface-3) 63%); background-size: 400% 100%; animation: dsShimmer 1.4s ease infinite; border-radius: var(--r-sm); }
+        @keyframes dsShimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
 
         * {
             margin: 0;
@@ -565,41 +752,55 @@
 
         /* ===== Sohbet Detay Ekranı ===== */
         .chat-header {
-            padding: 10px 12px;
-            padding-top: max(12px, env(safe-area-inset-top));
+            padding: 8px 10px;
+            margin: max(8px, env(safe-area-inset-top)) 10px 0;
             display:flex; align-items:center; gap:8px;
-            background:var(--bg-white);
-            border-bottom:1px solid var(--border-light);
-            position:sticky; top:0; z-index:25;
+            background:rgba(16,22,31,.55);
+            -webkit-backdrop-filter:blur(18px) saturate(140%);
+            backdrop-filter:blur(18px) saturate(140%);
+            border:1px solid rgba(255,255,255,.12);
+            border-radius:20px;
+            box-shadow:0 10px 28px rgba(0,0,0,.28);
+            position:sticky; top:max(8px, env(safe-area-inset-top)); z-index:25;
         }
+
         .chat-hbtn {
             width:36px; height:36px; border-radius:50%;
             display:flex; align-items:center; justify-content:center;
-            color:var(--primary-green); cursor:pointer;
+            color:#fff; cursor:pointer;
             transition:background .15s;
             flex-shrink:0; background:transparent; border:none;
             font-size:1rem;
         }
-        .chat-hbtn:hover { background:var(--light-green-bg); }
+        .chat-hbtn:hover { background:rgba(255,255,255,.14); }
         .chat-h-avatar {
             width:38px; height:38px; border-radius:50%;
             background:var(--primary-green); color:#fff;
             display:flex; align-items:center; justify-content:center;
             font-weight:700; flex-shrink:0; overflow:hidden;
             font-size:.95rem;
+            box-shadow:0 0 0 2px rgba(255,255,255,.18);
         }
         .chat-h-avatar img { width:100%; height:100%; object-fit:cover; }
         .chat-h-info { flex:1; min-width:0; line-height:1.15; }
-        .chat-h-name { font-weight:600; font-size:.98rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .chat-h-status { font-size:.72rem; color:var(--primary-green); margin-top:2px; }
+        .chat-h-name { font-weight:600; font-size:.98rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .chat-h-status { font-size:.72rem; color:rgba(255,255,255,.68); margin-top:2px; }
 
+
+        /* Duvar kağıdı ekrana sabit: kaydırma alanında büyüyüp yakınlaşmaz. */
+        #screen-chat {
+            background:var(--oo-chat-bg, linear-gradient(180deg, var(--bg-white) 0%, var(--light-green-bg) 280%));
+            /* Görsel yüklenemezse bile ekran saydam kalmasın (altındaki sohbet listesi sızmasın). */
+            background-color:var(--oo-chat-fallback, var(--bg-white));
+            background-size:cover; background-position:center; background-repeat:no-repeat;
+        }
         .chat-messages {
             flex:1; overflow-y:auto;
             padding:14px 14px 4px;
             display:flex; flex-direction:column; gap:8px;
-            background:var(--oo-chat-bg, linear-gradient(180deg, var(--bg-white) 0%, var(--light-green-bg) 280%));
-            background-attachment:local;
+            background:transparent;
         }
+
         /* Kısa sohbetlerde de son mesaj giriş alanının hemen üstünde başlar. */
         .chat-messages::before { content:''; margin-top:auto; flex:0 0 0; }
         .chat-messages::-webkit-scrollbar { display:none; }
@@ -619,28 +820,34 @@
         .chat-empty { text-align:center; color:var(--text-secondary); font-size:.85rem; padding:30px 24px; }
 
         .chat-input-bar {
-            padding: 8px 8px;
-            padding-bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
-            background:var(--bg-white);
-            border-top:1px solid var(--border-light);
-            display:flex; align-items:center; gap:6px;
+            padding: 8px 10px;
+            padding-bottom: max(16px, calc(env(safe-area-inset-bottom) + 10px));
+            background:transparent;
+            border-top:none;
+            display:flex; align-items:center; gap:8px;
             min-width:0;
         }
         .ci-field {
             flex:1 1 auto; min-width:0;
             display:flex; align-items:flex-end;
-            background:#f3f4f6; border-radius:22px;
+            background:rgba(16,22,31,.55);
+            -webkit-backdrop-filter:blur(18px) saturate(140%);
+            backdrop-filter:blur(18px) saturate(140%);
+            border:1px solid rgba(255,255,255,.12);
+            box-shadow:0 10px 28px rgba(0,0,0,.28);
+            border-radius:26px;
             padding:4px 6px; gap:2px;
             transition:background .15s;
         }
-        .ci-field:focus-within { background:#eef0f3; }
+        .ci-field:focus-within { background:rgba(16,22,31,.68); }
         .ci-field input,
         .ci-field textarea {
             flex:1 1 auto; min-width:0;
             border:none; background:transparent; outline:none;
-            font-size:.95rem; color:var(--text-main); font-family:inherit;
+            font-size:.95rem; color:#fff; font-family:inherit;
             padding:6px 4px;
         }
+
         /* Mesaj kutusu: yazı sağa kaymaz, satır atlayarak yukarı doğru büyür */
         .ci-field textarea#chatInput {
             display:block; resize:none;
@@ -659,17 +866,18 @@
             white-space:nowrap;
         }
         .ci-field input::placeholder,
-        .ci-field textarea::placeholder { color:#9ca3af; }
+        .ci-field textarea::placeholder { color:rgba(255,255,255,.55); }
 
         .ci-inner-btn {
             width:32px; height:32px; border-radius:50%;
-            background:transparent; border:none; color:var(--text-secondary);
+            background:transparent; border:none; color:rgba(255,255,255,.78);
             display:flex; align-items:center; justify-content:center; cursor:pointer;
             flex-shrink:0; font-size:1rem; padding:0;
             transition:background .15s, color .15s, transform .15s;
         }
-        .ci-inner-btn:hover { background:rgba(0,0,0,.05); color:var(--primary-green); }
-        .ci-inner-btn.active { color:var(--primary-green); background:var(--light-green-bg); }
+        .ci-inner-btn:hover { background:rgba(255,255,255,.12); color:#fff; }
+        .ci-inner-btn.active { color:#fff; background:rgba(255,255,255,.18); }
+
         .ci-send {
             width:40px; height:40px; border-radius:50%;
             background:var(--primary-green); color:#fff;
@@ -1600,7 +1808,6 @@
                 <button class="chat-hbtn" onclick="chatVideo()" title="Görüntülü arama" aria-label="Görüntülü arama"><i class="fa-solid fa-video"></i></button>
                 <button class="chat-hbtn" onclick="chatCall()" title="Sesli arama" aria-label="Sesli arama"><i class="fa-solid fa-phone"></i></button>
                 <button class="chat-hbtn" onclick="chatMore()" title="Sohbet ayarları" aria-label="Sohbet ayarları"><i class="fa-solid fa-ellipsis-vertical"></i></button>
-                <button class="chat-hbtn" onclick="chatNext()" title="Sonraki kişi" aria-label="Sonraki kişi"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
             <div class="chat-messages" id="chatMessages"></div>
             <div class="chat-input-bar">
@@ -1990,6 +2197,9 @@
     <script src="./sohbeto-extras.js"></script>
     <!-- Adım 14: Kişi kartı boyut + animasyon tercihleri -->
     <script src="./sohbeto-card-anim.js"></script>
+    <!-- Adım 15: Mesaj eylem menüsü — balon yanı bağlam menüsü + emoji tepki barı (motora dokunmaz) -->
+    <script src="./sohbeto-ui-sheets.js"></script>
+
 
     <!-- A2 arayüzü iframe overlay + Çıkış/Hesabı sil yardımcıları -->
     <div id="a2FrameOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#fff;">
@@ -2001,60 +2211,91 @@
     <!-- ===== Sohbet Ayarları modalı (baloncuk rengi + arka plan teması) ===== -->
     <style>
       #csModal { position:absolute; inset:0; z-index:120; display:flex; align-items:flex-end; justify-content:center;
-        background:rgba(15,23,42,.42); backdrop-filter:blur(2px); }
+        background:rgba(6,11,20,.55); }
       #csModal.hidden { display:none; }
-      #csModal .cs-sheet { width:100%; max-width:520px; background:var(--bg-white,#fff);
-        border-radius:20px 20px 0 0; padding:14px 16px calc(18px + env(safe-area-inset-bottom));
-        box-shadow:0 -8px 30px rgba(15,23,42,.18); animation:csUp .2s ease; max-height:82%; overflow-y:auto; }
-      @keyframes csUp { from{ transform:translateY(16px); opacity:0 } to{ transform:translateY(0); opacity:1 } }
-      #csModal .cs-title { font-weight:700; font-size:1rem; color:var(--text-main,#0f172a); }
-      #csModal .cs-sub { font-size:.74rem; color:var(--text-secondary,#64748b); margin-top:2px; }
-      #csModal .cs-label { font-size:.78rem; font-weight:600; color:var(--text-secondary,#64748b);
-        margin:14px 0 8px; text-transform:uppercase; letter-spacing:.04em; }
-      #csModal .cs-row { display:flex; gap:10px; flex-wrap:wrap; }
-      #csModal .cs-chip { border:2px solid rgba(15,23,42,.08); background:#fff; border-radius:14px;
-        padding:8px 10px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:.8rem;
-        color:var(--text-main,#0f172a); transition:border-color .15s, transform .12s; }
-      #csModal .cs-chip:active { transform:scale(.97); }
-      #csModal .cs-chip.sel { border-color:var(--primary-green,#16a34a); }
-      #csModal .cs-dot { width:22px; height:22px; border-radius:7px; border:1px solid rgba(15,23,42,.08); }
-      #csModal .cs-bg { width:74px; height:52px; border-radius:12px; border:2px solid rgba(15,23,42,.08);
-        cursor:pointer; position:relative; overflow:hidden; }
-      #csModal .cs-bg.sel { border-color:var(--primary-green,#16a34a); }
-      #csModal .cs-bg span { position:absolute; left:0; right:0; bottom:0; font-size:.6rem; text-align:center;
-        background:rgba(255,255,255,.78); color:#0f172a; padding:1px 0; }
-      #csModal .cs-close { margin-top:16px; width:100%; padding:11px; border:none; border-radius:14px;
-        background:var(--primary-green,#16a34a); color:#fff; font-weight:600; font-size:.9rem; cursor:pointer; }
+      #csModal .cs-sheet { width:100%; max-width:520px; background:#0f1b2a; color:#e8edf5;
+        border-radius:22px 22px 0 0; padding:6px 14px calc(14px + env(safe-area-inset-bottom));
+        box-shadow:0 -14px 40px rgba(0,0,0,.45); animation:csUp .22s ease-out;
+        max-height:88%; overflow-y:auto; will-change:transform; }
+      @keyframes csUp { from{ transform:translateY(18px) } to{ transform:translateY(0) } }
+      #csModal .cs-grab { width:38px; height:4px; border-radius:99px; background:rgba(255,255,255,.22);
+        margin:8px auto 12px; }
+      #csModal .cs-title { font-weight:600; font-size:1.12rem; color:#fff; text-align:center; }
+      #csModal .cs-sub { display:none; }
+      #csModal .cs-label { display:none; }
+
+      /* Duvar kağıdı grid önizlemesi */
+      #csModal .cs-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:16px; }
+      #csModal .cs-card { position:relative; aspect-ratio:3/4; border-radius:14px; overflow:hidden;
+        border:2px solid transparent; cursor:pointer; transition:border-color .14s;
+        background-size:cover; background-position:center; }
+      #csModal .cs-card.sel { border-color:#3b82f6; }
+      /* Mini sohbet balonu önizlemesi */
+      #csModal .cs-card i.in, #csModal .cs-card i.out { position:absolute; height:16%; min-height:12px;
+        border-radius:6px; display:block; }
+      #csModal .cs-card i.in  { left:9%; top:22%; width:54%; background:#f2f4f8;
+        box-shadow:0 1px 3px rgba(0,0,0,.25); }
+      #csModal .cs-card i.out { right:9%; top:50%; width:48%; background:var(--cs-prev-own,#16243a); }
+      #csModal .cs-card b { display:none; }
+      #csModal .cs-card u { position:absolute; right:6px; bottom:6px; width:22px; height:22px; border-radius:99px;
+        background:#3b82f6; color:#fff; display:none; align-items:center; justify-content:center;
+        font-size:.66rem; text-decoration:none; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+      #csModal .cs-card.sel u { display:flex; }
+
+      /* Baloncuk rengi noktaları */
+      #csModal .cs-dots { display:flex; gap:10px; justify-content:space-between; margin-top:16px; }
+      #csModal .cs-dotbtn { width:44px; height:44px; border-radius:99px; cursor:pointer; border:2px solid transparent;
+        display:flex; align-items:center; justify-content:center; transition:border-color .14s; }
+      #csModal .cs-dotbtn.sel { border-color:#3b82f6; }
+      #csModal .cs-dotbtn span { width:38px; height:38px; border-radius:99px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); }
+      #csModal .cs-close { margin-top:18px; width:100%; padding:15px; border:none; border-radius:99px;
+        background:#3b82f6; color:#fff; font-weight:600; font-size:1rem; cursor:pointer; }
+      #csModal .cs-close:active { transform:scale(.99); }
     </style>
     <div id="csModal" class="hidden" onclick="if(event.target===this)csCloseSettings()">
       <div class="cs-sheet">
-        <div class="cs-title">Sohbet ayarları</div>
-        <div class="cs-sub">Baloncuk rengi ve arka plan temasını seç</div>
-        <div class="cs-label">Baloncuk rengi</div>
-        <div class="cs-row" id="csBubbleRow"></div>
-        <div class="cs-label">Arka plan teması</div>
-        <div class="cs-row" id="csBgRow"></div>
-        <button class="cs-close" onclick="csCloseSettings()">Tamam</button>
+        <div class="cs-grab"></div>
+        <div class="cs-title">Sohbet teması</div>
+        <div class="cs-grid" id="csBgRow"></div>
+        <div class="cs-dots" id="csBubbleRow"></div>
+        <button class="cs-close" onclick="csCloseSettings()">Uygula</button>
       </div>
     </div>
+
     <script>
     (function(){
       'use strict';
       var BUBBLES = [
-        { id:'varsayilan', label:'Sohbeto varsayılan', bg:'#0f766e', fg:'#ffffff', bd:'rgba(0,0,0,.06)' },
-        { id:'klasik',  label:'Klasik yeşil',   bg:'#e7fbe1', fg:'#0f172a', bd:'rgba(10,124,74,.10)' },
-        { id:'sohbeto', label:'Sohbeto yeşili', bg:'#0a7c4a', fg:'#ffffff', bd:'rgba(0,0,0,.06)' },
-        { id:'gece',    label:'Gece mavisi',    bg:'#1e293b', fg:'#f8fafc', bd:'rgba(255,255,255,.08)' },
-        { id:'lila',    label:'Lila',           bg:'#ece5ff', fg:'#2b2154', bd:'rgba(84,60,160,.12)' },
-        { id:'kum',     label:'Kum',            bg:'#fdf1dc', fg:'#3b2f1c', bd:'rgba(120,90,40,.12)' }
+        { id:'varsayilan', label:'Varsayılan', bg:'#3b82f6', fg:'#ffffff', bd:'rgba(0,0,0,.06)',
+          dot:'conic-gradient(from 0deg,#ef4444,#f59e0b,#22c55e,#3b82f6,#8b5cf6,#ec4899,#ef4444)' },
+        { id:'siyah',   label:'Gece siyahı',  bg:'#1c1c1e', fg:'#f8fafc', bd:'rgba(255,255,255,.08)' },
+        { id:'lacivert',label:'Lacivert',     bg:'#1e3a68', fg:'#ffffff', bd:'rgba(255,255,255,.08)' },
+        { id:'yesil',   label:'Koyu yeşil',   bg:'#14603c', fg:'#ffffff', bd:'rgba(0,0,0,.06)' },
+        { id:'mor',     label:'Mor',          bg:'#7c3aed', fg:'#ffffff', bd:'rgba(0,0,0,.06)' },
+        { id:'pembe',   label:'Pembe',        bg:'#be185d', fg:'#ffffff', bd:'rgba(0,0,0,.06)' },
+        { id:'kahve',   label:'Kahve',        bg:'#7c4a2d', fg:'#ffffff', bd:'rgba(0,0,0,.06)' }
       ];
 
+
+      // Duvar kağıtları: uygulamanın kendi klasöründe (public/apps/wallpapers) — göreli yol,
+      // hem dev hem GitHub Pages'te çalışır.
+      var W = 'wallpapers/';
+      // Not: görsel yüklenemezse ekran saydam kalıp altındaki listeyi göstermesin diye
+      // her duvar kağıdının bir de düz renk karşılığı (solid) var.
       var BGS = [
-        { id:'varsayilan', label:'Varsayılan', css:'linear-gradient(180deg,#ffffff 0%,#eafaf0 280%)' },
-        { id:'doga',       label:'Doğa',       css:'linear-gradient(180deg,#eef8ec 0%,#d7ecd8 100%)' },
-        { id:'gunbatimi',  label:'Gün batımı', css:'linear-gradient(180deg,#fff3e6 0%,#ffe0e6 100%)' },
-        { id:'gece',       label:'Gece',       css:'linear-gradient(180deg,#101827 0%,#1b2437 100%)' }
+        { id:'desen',      label:'Desen',      solid:'#f8fbf9', css:'radial-gradient(rgba(15,118,110,.14) 1.2px, transparent 1.2px) 0 0/16px 16px, linear-gradient(180deg,#f8fbf9 0%,#eef6f2 100%)' },
+        { id:'orman',      label:'Orman',      solid:'#223027', css:'url("' + W + 'forest.jpg") center/cover no-repeat' },
+        { id:'gece',       label:'Gece şehri', solid:'#0b1020', css:'url("' + W + 'city.jpg") center/cover no-repeat' },
+        { id:'kutup',      label:'Kutup ışığı',solid:'#0d1b2a', css:'url("' + W + 'aurora.jpg") center/cover no-repeat' },
+        { id:'gunbatimi',  label:'Gün batımı', solid:'#f6d9bd', css:'url("' + W + 'beach.jpg") center/cover no-repeat' },
+        { id:'tropik',     label:'Tropik gün batımı', solid:'#3a1f2b', css:'url("' + W + 'sunset2.jpg") center/cover no-repeat' },
+        { id:'pembe',      label:'Pembe gökyüzü', solid:'#f3d7e6', css:'url("' + W + 'pinksky.jpg") center/cover no-repeat' },
+        { id:'buz',        label:'Buz',        solid:'#dbe9f7', css:'url("' + W + 'ice.jpg") center/cover no-repeat' },
+        { id:'yaprak',     label:'Yaprak',     solid:'#23431f', css:'url("' + W + 'leaf.jpg") center/cover no-repeat' },
+        { id:'kagit',      label:'Kağıt',      solid:'#fbf1de', css:'url("' + W + 'paper.jpg") center/cover no-repeat' }
       ];
+      var DARK_BGS = { orman:1, gece:1, kutup:1, tropik:1 };
+
       var KEY = 'sohbeto-chat-look';
       function load(){
         try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; }
@@ -2069,7 +2310,9 @@
         r.setProperty('--oo-own-fg', b.fg);
         r.setProperty('--oo-own-border', b.bd);
         r.setProperty('--oo-chat-bg', g.css);
-        document.body.classList.toggle('oo-chat-dark', g.id === 'gece');
+        r.setProperty('--oo-chat-fallback', g.solid || '#ffffff');
+        r.setProperty('--cs-prev-own', b.bg);
+        document.body.classList.toggle('oo-chat-dark', !!DARK_BGS[g.id]);
       }
       function build(){
         var s = load();
@@ -2077,20 +2320,23 @@
         var gr = document.getElementById('csBgRow');
         if (!br || !gr) return;
         br.innerHTML = ''; gr.innerHTML = '';
-        BUBBLES.forEach(function(b){
-          var el = document.createElement('div');
-          el.className = 'cs-chip' + ((s.bubble || 'varsayilan') === b.id ? ' sel' : '');
-          el.innerHTML = '<span class="cs-dot" style="background:' + b.bg + '"></span>' + b.label;
-          el.onclick = function(){ var v = load(); v.bubble = b.id; save(v); apply(); build(); };
-          br.appendChild(el);
-        });
         BGS.forEach(function(g){
           var el = document.createElement('div');
-          el.className = 'cs-bg' + ((s.bg || 'varsayilan') === g.id ? ' sel' : '');
+          el.className = 'cs-card' + ((s.bg || 'varsayilan') === g.id ? ' sel' : '');
           el.style.background = g.css;
-          el.innerHTML = '<span>' + g.label + '</span>';
+          el.title = g.label;
+          el.innerHTML = '<i class="in"></i><i class="out"></i><u>✓</u><b>' + g.label + '</b>';
           el.onclick = function(){ var v = load(); v.bg = g.id; save(v); apply(); build(); };
           gr.appendChild(el);
+        });
+        BUBBLES.forEach(function(b){
+          var el = document.createElement('div');
+          el.className = 'cs-dotbtn' + ((s.bubble || 'varsayilan') === b.id ? ' sel' : '');
+          el.title = b.label;
+          el.setAttribute('aria-label', b.label);
+          el.innerHTML = '<span style="background:' + (b.dot || b.bg) + '"></span>';
+          el.onclick = function(){ var v = load(); v.bubble = b.id; save(v); apply(); build(); };
+          br.appendChild(el);
         });
       }
       window.chatOpenSettings = function(){
@@ -2113,6 +2359,7 @@
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
       else apply();
     })();
+
     </script>
 
     <script>

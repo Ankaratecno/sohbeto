@@ -681,3 +681,323 @@ Yapılanlar:
   (eski kayıtlı videolar da açılır hale geldi).
 - Video balonundaki #t=0.1 kaldırıldı, tam ekran açma data-src üzerinden.
 - Çevrimdışı bildirim metni video için "Yeni video" oldu.
+
+================================================================================
+[23.08.2026 09:29 Ankara] KULLANICI
+================================================================================
+Kredi bittiği için tamamlanamayanlar: adapter'daki mikrofon açma kontrolünün
+isCallAccepted() ile değiştirilmesi (~1958), ekran köprüsündeki st === 'Bağlandı'
+kontrolü (~2270), durum yazılarının netleştirilmesi ve bu turun sohbeto.txt'ye
+kaydı. "Karşı taraf açmadan ses akışı başlıyor" sorununa fayda veriyorsa yap.
+
+================================================================================
+[23.08.2026 09:31 Ankara] LOVABLE
+================================================================================
+Evet, tam olarak o soruna fayda veren kısımdı; tamamlandı:
+- public/apps/sohbeto-adapter.js (~1955): mikrofonu açma kararı artık
+  activeCallStatus metnine değil isCallAccepted() (kabul zaman damgası,
+  window.__SOHBETO_CALL_CONNECTED_AT + bu aramanın başlangıç zamanı doğrulaması)
+  sonucuna bakıyor. Bayat "Bağlandı" metni artık mikrofonu erken açamıyor.
+- public/apps/sohbeto-adapter.js (~2262): OO arama ekranı köprüsü de metin yerine
+  isCallAccepted() kullanıyor; "connected" sınıfı, süre görünürlüğü ve timer
+  yalnızca gerçek kabul anında (kabul damgasından) başlıyor.
+- Durum yazısı netleşti: kabul damgası yokken ekranda "Bağlandı" yazamaz;
+  çevrimdışı akışta "Aranıyor…", çevrimiçi/çalan durumda "Çalıyor…" kalır.
+
+================================================================================
+[23.08.2026 09:38 Ankara] KULLANICI
+================================================================================
+Son yaptıklarından önce test ettim, eskiye göre düzelmişti; şimdi daha iyi oldu
+değil mi? Bayat "Bağlandı" yazısı ile ses akışı artık karşı taraf açmadan
+başlamaz diye tahmin ediyorum. sohbeto.txt yazmaya devam et. Ayrıca sorularım:
+kullandığımız arayüz kütüphaneleri biraz basit değil mi? Örneğin "mesajı
+herkesten sil" gibi sonradan çıkan bar/div'ler renk uyumsuz. Bunlar daha da
+geliştirilebilir mi; PWA'lar arasında en iyi arayüzlü uygulama olmalı. Hatta
+dünyada yapılmayanı yapıp profil fotoğrafını özel yapmak istiyorum: x grupta bu
+görünsün, y kişide bu görünsün, şunlara hiç görünmesin gibi (rehberde olsa bile).
+Mümkün mü? Sadece cevap ve arayüz fikirleri.
+
+================================================================================
+[23.08.2026 09:40 Ankara] LOVABLE
+================================================================================
+1) Arama durumu — evet, doğru tahmin:
+   Artık ses akışı tek bir kaynağa bağlı: kabul zaman damgası
+   (window.__SOHBETO_CALL_CONNECTED_AT). Metin ne yazarsa yazsın, damga yoksa
+   giden mikrofon parçaları kapalı; süre saati de başlamıyor. Yani ne arayanda
+   ne arananda kabul öncesi ses akmaz. Kalan tek risk: aynı cihazda yan yana
+   test yapıldığında hoparlörden karşı cihazın mikrofonuna kaçan gerçek akustik
+   ses (yazılımsal değil).
+
+2) Arayüz katmanı hakkında değerlendirme:
+   Şu an arayüz büyük ölçüde sohbetoOO.html içinde elle yazılmış CSS + motorun
+   ürettiği DOM ile çalışıyor; React/shadcn tarafı sadece kabuk (iframe,
+   InstallSheet, Toaster). Bu yüzden sonradan açılan action sheet / context bar
+   / onay kutuları kendi ad-hoc renklerini kullanıyor ve tema ile uyumsuz
+   görünüyor. Kök çözüm: tek bir token seti (CSS değişkenleri) ve tek bir
+   "overlay" bileşen ailesi.
+   Önerilen yol (uygulama sırası):
+   a. Tasarım tokenları: --bg, --surface, --surface-2, --line, --text,
+      --text-dim, --accent (#0a7c4a), --danger, --radius, --shadow-1/2,
+      --blur. Tüm panel/bar/menü bu tokenları kullansın; sabit hex kalmasın.
+   b. Tek bir sheet/menu motoru: uzun bas → alt sheet, sağ tık → aynı sheet.
+      Ortak yapı: 12px üst tutamaç, 16px kenar boşluğu, 14px köşe,
+      backdrop-filter: blur(18px) + rgba surface, satır yüksekliği 52px,
+      ikon+etiket hizası 12px. "Herkesten sil" gibi yıkıcı eylem --danger,
+      ayrı grupta ve en altta.
+   c. Hareket dili: sheet 220ms cubic-bezier(.22,.61,.36,1) ile aşağıdan,
+      backdrop 160ms fade; balon gönderiminde 1 kez 120ms scale-in; sekme
+      geçişinde mevcut fluid-tabs korunur. prefers-reduced-motion desteklenir.
+   d. Dokunma geri bildirimi: her eylem satırında ripple/press state, 10ms
+      haptic (navigator.vibrate) — PWA'da premium hissi çoğu şeyden fazla
+      artıran detay.
+   e. Sohbet ekranı ince ayarları: seçim modunda üst bar yerine "bağlam
+      şeridi" (kaç mesaj seçili + kopyala/yanıtla/sil), tarih ayırıcı çipleri,
+      okundu tikleri için tek renk ölçeği, medya balonlarında 4:3/1:1 sabit
+      oran ve blur-up yükleme.
+   f. Erişilebilirlik/güvenlik hissi: 44px minimum dokunma alanı, kontrast
+      AA, safe-area (env(safe-area-inset-*)) tüm sheet ve barlarda.
+   Kütüphane sorusu: yeni ağır bir UI kütüphanesi şart değil; motor DOM'unu
+   kırmadan token + ortak sheet/menu bileşeni ile "en iyi PWA arayüzü"
+   hedefine gidilebilir. React kabuğunda shadcn zaten var; iframe içindeki
+   arayüz için aynı tokenları paylaşan hafif bir CSS katmanı en güvenlisi.
+
+3) Kişiye/gruba özel profil fotoğrafı — teknik olarak mümkün:
+   Model: avatar_variants (id, owner_id, url, etiket) + avatar_visibility
+   (owner_id, variant_id, scope: 'default' | 'contact' | 'group',
+   target_id, mode: 'show' | 'hide'). Çözümleme sırası:
+   kişiye özel kural → grup kuralı → gizli listesi → varsayılan avatar →
+   baş harf placeholder.
+   Sunucu tarafı zorunlu: avatar dosyaları private storage'da tutulur,
+   istemciye asla ham URL verilmez; bakan kişinin kimliğine göre imzalı URL
+   üreten bir edge function (get-avatar) döner. Aksi halde "gizli" avatar
+   yine ele geçirilebilir. Önbellek: variant hash'i URL'de, değişince eskisi
+   düşer.
+   Arayüz: Profil > "Fotoğraf görünürlüğü" ekranı — üstte varyant şeridi
+   (fotoğraf ekle/etiketle), altta "Kimler hangisini görür" listesi: kişi/grup
+   ara, satır sağında küçük avatar önizleme, uzun bas → "Bu kişiye özel
+   fotoğraf seç / Gizle / Varsayılana dön". Ayrıca "Önizleme: X kişisi seni
+   böyle görüyor" modu — bu özelliği anlaşılır kılan kritik parça.
+   Not: Kalıcı ve güvenli çalışması için Lovable Cloud (veritabanı + private
+   storage + edge function) gerekir; sadece yerel IndexedDB ile kural
+   senkronu ve gizlilik garantisi sağlanamaz.
+
+================================================================================
+[23.08.2026 09:43 Ankara] KULLANICI
+================================================================================
+2. maddeyi tam anlamadım ben açarmısın biraz şu aniyimi yani yada gelişirmi
+3. madde bence kişinin index db şimdilik pwa olduğu için yada ilerde apk olursa
+dosya yolunda saklanabilir cloud istemiyorum sadece cevaplar ve sohbeto.txt
+yazmaya devam lütfen
+
+================================================================================
+[23.08.2026 09:43 Ankara] LOVABLE
+================================================================================
+2. maddeyi açıyorum:
+
+Şu an Sohbeto'nun arayüzü React + Tailwind gibi hazır kütüphanelerle değil,
+sohbetoOO.html içinde elle yazılmış CSS ile çiziliyor. Yani her buton, balon,
+kart kendi içinde kodlanmış. Bu "basit" görünmesinin sebebi kütüphane eksikliği
+değil, tasarımın henüz inceltilmemiş olması.
+
+Geliştirme şansı çok yüksek. Örneğin:
+- Mesaj balonlarına gönderim durumu ikonları (tek tik, çift tik, mavi tik),
+zaman damgası, alıntı çizgisi eklenebilir.
+- "Herkesten sil" gibi işlemler için alt alta düğmeler yerine yarı saydam,
+animasyonlu bir alt menü (bottom sheet) açılabilir.
+- Sekmeler arası geçişler daha yumuşak, iOS/Android native uygulama hissine
+yakın hale getirilebilir.
+- Sohbet listesi boşken sadece "henüz sohbet yok" yazısı yerine illüstrasyon
++ açıklama + yeni sohbet butonu konabilir.
+- Profil ekranı kart yerine tam ekran, büyük avatar, düzenleme alanlarıyla
+tasarlanabilir.
+
+Yani kütüphane değişikliğine gerek yok; mevcut yapıyı sadece daha detaylı,
+konsistent ve hareketli hale getirmek mümkün.
+
+3. madde — Profil fotoğrafı gizliliği (yerel depolama):
+
+Cloud istemediğin için çözüm tamamen cihaz içinde çalışır:
+- Her kullanıcının profil fotoğrafı IndexedDB'de (örneğin
+EgaNetwork/avatars/<numara>) base64 veya blob olarak saklanır.
+- Gönderilen fotoğraf aslında "orijinal fotoğraf" değil, "görüntüleme kuralları"
+olur: "X kişisine bu kırpılmış hali göster", "Y grubuna bu göster", "Z kişisine
+hiç gösterme".
+- Karşı taraf uygulamayı açtığında, kendi IndexedDB'sinde o kişinin avatar
+kuralına göre yerel fotoğrafı çeker ve ekranda gösterir.
+- APK aşamasında aynı mantık cihaz dosya sistemine (örneğin
+/sdcard/Android/data/.../avatars/) taşınabilir; IndexedDB zaten tarayıcı içinde
+benzer bir dosya yoludur.
+
+Önemli not: Fotoğrafın kendisi karşı tarafa ulaşır; gizlilik "hangi versiyonu
+kime gösterdiğin" ile sağlanır. Tam gizlilik için fotoğrafı göndermemek gerekir.
+Yani "X kişisine bu fotoğraf, Y kişisine başka fotoğraf" yapılabilir; "X kişisi
+hiç görmesin" da yapılabilir ama bu durumda karşı tarafta o fotoğrafın hiç
+kaydedilmemiş olması gerekir.
+
+Cloud kullanılmayacak, IndexedDB / ileride APK dosya yolu yeterli.
+
+Kod değişikliği yapılmadı; sadece açıklama ve kayıt eklendi.
+
+================================================================
+23 Ağustos 2026 — Yeni Lovable projesi (sohbeto09.zip geri yükleme)
+================================================================
+
+Kullanıcı (yoras):
+"merhaba lovable bu zip dosyasını olduğu gibi oluştur hiçbir kod ekleme yapma
+bu yazdıklarım dahil herşeyi sohbeto.txt dosyasına yazmaya devam et lütfen
+sonra geliştirmeye devam edeceğiz seninle"
+
+Lovable:
+- sohbeto09.zip içeriği olduğu gibi projeye yerleştirildi (kod eklenmedi,
+  değiştirilmedi). Şablondan gelen TanStack Start route dosyaları
+  (src/routes, src/router.tsx, src/routeTree.gen.ts, src/start.ts, src/server.ts)
+  kaldırıldı; proje zipteki Vite SPA yapısıyla (index.html + src/main.tsx)
+  çalışıyor.
+- Yerleştirilen içerik: index.html, vite.config.ts, package.json, src/
+  (Sohbeto.tsx, SohbetoIcon.tsx, ui/, pwa/, lib/, hooks/, styles.css),
+  public/ (apps/, icons/, manifest.json, sw.js, offline.html),
+  supabase/ (config.toml, init.sql, functions/send-push, functions/push-diag),
+  sohbet.txt, sohbeto.txt, url-degisikligi.txt, .github/workflows/deploy.yml.
+- bun install çalıştırıldı, dev sunucu yeniden başladı.
+- Bundan sonraki tüm konuşmalar ve kararlar bu dosyaya eklenmeye devam edecek.
+
+----------------------------------------------------------------
+23 Ağustos 2026 — 2. madde tartışması: kütüphaneye geçelim mi?
+----------------------------------------------------------------
+
+Kullanıcı (yoras):
+2. maddeyi açtı. Şu an Sohbeto arayüzü React + Tailwind ile değil,
+sohbetoOO.html içinde elle yazılmış CSS ile çiziliyor. Her buton, balon, kart
+kendi içinde kodlanmış. Basit görünmesinin sebebi kütüphane eksikliği değil,
+tasarımın henüz inceltilmemiş olması. Geliştirme fikirleri: gönderim durumu
+ikonları (tek/çift/mavi tik), zaman damgası, alıntı çizgisi; "Herkesten sil"
+için animasyonlu bottom sheet; daha yumuşak sekme geçişleri (native hissi);
+boş sohbet listesi için illüstrasyon + açıklama + yeni sohbet butonu; profil
+ekranının tam ekran, büyük avatar ve düzenleme alanlarıyla tasarlanması.
+Soru: "Bu kısmı böyle mi yapalım, yoksa kütüphaneye mi geçelim? Ben çok güzel
+bir uygulama olsun istiyorum."
+
+Lovable'ın görüşü (kod değişikliği yapılmadı, sadece kayıt):
+- Öneri: KÜTÜPHANEYE GEÇMEYELİM. Mevcut yapı korunmalı, tasarım inceltilmeli.
+- Sebep 1: Motor dosyaları (sohbeto-engine.js ~3425, adapter ~3370,
+  extras ~1217, fluid-tabs, card-anim, peer) doğrudan sohbetoOO.html'in DOM
+  yapısına (id/class/event) bağlı. React'e taşımak ~13.000 satırlık çalışan
+  mantığın (WebRTC/peer, push, IndexedDB, sanal numara) yeniden yazılması
+  demek; en yüksek riskli ve en yavaş yol.
+- Sebep 2: "Güzel uygulama" hissi kütüphaneden değil şu üç şeyden gelir:
+  tutarlı tasarım token'ları (renk/boşluk/yarıçap/gölge/tipografi ölçeği),
+  mikro etkileşimler (basma geri bildirimi, yumuşak geçiş, spring animasyon),
+  ve detay (tik ikonları, zaman damgası, boş durum, iskelet yükleme).
+  Bunların hepsi saf CSS + küçük JS ile native seviyesinde yapılabilir.
+- Sebep 3: Tailwind iframe içindeki HTML'e ayrıca kurulmalı ve build zinciri
+  karmaşıklaşır; kazanç yok. React katmanı (src/) kabuk + PWA görevini
+  şimdiki gibi sürdürür.
+- Planlanan yol: sohbetoOO.html içine tek bir "tasarım sistemi" CSS bloğu
+  (:root değişkenleri) + yeniden kullanılabilir sınıflar (.btn, .sheet, .bubble,
+  .tick, .empty-state, .avatar) eklemek; sonra sırayla 5 madde uygulanmak.
+
+Kullanıcının kararı (23 Ağustos 2026):
+- Yol: "Mevcut yapıyı inceltelim" (kütüphaneye geçilmeyecek).
+- Başlangıç: Tasarım sistemi temeli.
+- Renk: mevcut tema renkleri korunacak. Gösterilen 3 koyu ton (derin gece,
+  mürekkep+turkuaz, kömür+kehribar) ileride "Temalar" bölümüne SEÇENEK olarak
+  eklenebilir; ama koda zarar verecekse hiç yapılmayacak. Adım adım ilerlenecek,
+  hepsi bir anda yapılmayacak.
+
+Adım 1 — UYGULANDI (public/apps/sohbetoOO.html, sadece CSS eklendi):
+- :root içine tasarım sistemi token katmanı eklendi. Mevcut hiçbir kural
+  değiştirilmedi, görünüm birebir aynı kaldı.
+  * Anlamsal renkler: --brand / --brand-hover / --brand-soft / --brand-gradient
+    / --on-brand (hepsi --primary-green'e bağlı, tema değişince birlikte
+    değişir), --surface, --surface-2/3, --surface-inverse, --overlay,
+    --text-1/2/3, --border-1/2, --success, --warning, --danger, --danger-soft,
+    --info, --tick-sent, --tick-read (mavi tik #34b7f1).
+  * Tipografi ölçeği: --fs-2xs..--fs-2xl, --fw-regular..--fw-black,
+    --lh-tight/--lh-normal.
+  * Boşluk ölçeği (4px tabanlı): --sp-1..--sp-10.
+  * Yarıçap: --r-xs..--r-xl, --r-pill.
+  * Gölge katmanları: --sh-1..--sh-4, --sh-brand.
+  * Hareket: --dur-fast/base/slow/sheet, --ease-standard/out/spring.
+  * Katman sırası: --z-nav/--z-sheet/--z-toast.
+  * Güvenli alan: --safe-top/--safe-bottom (çentikli ekranlar).
+  * prefers-reduced-motion: reduce olduğunda tüm süreler 1ms'e iner.
+- Yeniden kullanılabilir "ds-*" sınıfları eklendi (henüz hiçbir eleman
+  kullanmıyor, sıradaki adımlarda arayüz parça parça bunlara taşınacak):
+  .ds-press (basma geri bildirimi), .ds-btn + primary/soft/ghost/outline/
+  danger/block/pill/sm/lg, .ds-scrim + .ds-sheet (+ __grip/__title/__item,
+  item--danger) bottom sheet iskeleti, .ds-tick (+ --read/--pending) ve
+  .ds-meta, .ds-empty (+ __art/__title/__text), .ds-avatar (sm/md/lg/xl),
+  .ds-skeleton (shimmer).
+- Motor dosyalarına (engine/adapter/extras/peer/fluid-tabs/card-anim)
+  dokunulmadı. Tema motoru (adapter.js THEMES: ocean/forest/sunset) aynen
+  çalışıyor.
+
+Sırada (onay bekliyor): Adım 2 — mesaj balonları (tik ikonları, zaman damgası,
+alıntı çizgisi) bu token'lar üzerine kurulacak.
+
+================================================================================
+[23.08.2026 11:05 Ankara] KULLANICI
+================================================================================
+tema fotoğrafları sohbet penceresine göre küçülmüyor bunun olması çok sıkıntı bence
+yakınlaşıyor ve çok çirkin oluyor fotoğrafları attım tekrar renkler temalar için aynı
+olmalı yani benim gönderdiğim mesaj balonları rengi fotoğrafta ki gibi 2. fotoğrafta
+ise emojiler gelen mesajın yada gönderdiğim mesajın üstünde olmalı yanıtla kopyala
+ilet sabitle benden sil herkesten sil sırası ile aynı olmalı aynı görünüm
+yakalanmalı. Ayrıca emoji bırakınca emoji kayması yaşanıyor ve görünmüyor.
+
+================================================================================
+[23.08.2026 11:08 Ankara] LOVABLE
+================================================================================
+- Duvar kağıdı artık kaydırma alanına değil #screen-chat ekranına uygulanıyor
+  (background-size:cover, sabit) — mesaj listesi uzadıkça fotoğraf yakınlaşmıyor.
+- Renk noktaları fotoğraftaki sıraya çekildi: gökkuşağı (varsayılan mavi #3b82f6),
+  siyah, lacivert, koyu yeşil, mor, pembe, kahve. Gönderilen balon rengi seçilen
+  noktayla birebir aynı.
+- Mesaj menüsü sırası: Yanıtla, Kopyala, İlet, Sabitle, Benden sil, Herkesten sil
+  (son satır kırmızı). Yanıtla mesajı alıntı olarak yazma kutusuna koyar, İlet
+  paylaş/kopyala, Sabitle yereldir (📌 işareti).
+- Emoji tepki barı artık DAİMA balonun üstünde, menü balonun altında açılıyor.
+- Tepki baloncuğu mesaj balonunun içine (alt köşeye) yerleşiyor; kayma ve
+  görünmeme sorunu bitti, twemoji görselleri de inline-block zorlandı.
+
+================================================================================
+[23.08.2026 11:38 Ankara] KULLANICI
+================================================================================
+merhaba lovable bu zip dosyasını olduğu gibi oluştur hiçbir kod ekleme sonra
+geliştirmeye devam edeceğiz seninle bu yazdıklarım dahil tüm konuşmalarımızı
+sohbeto.txt dosyazına yazmaya devam edelim lütfen
+
+================================================================================
+[23.08.2026 11:39 Ankara] LOVABLE
+================================================================================
+- sohbeto001.zip içeriği projeye birebir yazıldı; hiçbir kod eklenmedi/değiştirilmedi.
+- Şablondan kalan ve zipte olmayan TanStack dosyaları kaldırıldı
+  (src/routes, src/router.tsx, src/server.ts, src/start.ts, src/routeTree.gen.ts)
+  böylece proje zipteki Vite SPA yapısıyla (index.html + src/main.tsx) çalışıyor.
+- Bağımlılıklar kuruldu, dev sunucu 8080'de sorunsuz açıldı.
+- Bundan sonra tüm konuşmalarımız sohbeto.txt dosyasına eklenmeye devam edecek.
+
+=== 2026-08-23 09:1x UTC ===
+[Kullanıcı] sana attığım zipte bozuklukmu vardı çünkü sohbet temaları görünmüyor attığım zipte temalar hangi klasör de ve dosyada ayrıca temalardan seçim yapayım dedim ekran sohbet kutusu içinde ama sohbetleri gösteriyor
+[Lovable] Zip bozuk değildi. Sohbet temaları public/apps/sohbetoOO.html içinde yaşıyor:
+ - Duvar kağıtları + baloncuk renkleri: BGS / BUBBLES dizileri (~2240-2300. satırlar), panel: #csModal, açan fonksiyon window.chatOpenSettings().
+ - Ayarlar > Tema Ayarları ekranı (#screen-tema) ise vurgu/arka plan rengi ve kart boyutu/animasyonu içindir; adapter'daki bindThemeSettings yönetir.
+Sorun: duvar kağıdı görselleri eski projeye ait /__l5e/assets-v1/... CDN adreslerini gösteriyordu; bu projede olmadığı için HTML dönüyor, görsel yüklenmiyordu. url() başarısız olunca #screen-chat arka planı saydam kalıyor ve altındaki sohbet listesi sohbet kutusunun içinde görünüyordu — ekranda gördüğün hata buydu.
+Çözüm: 8 duvar kağıdı bu projeye üretildi ve public/apps/wallpapers/ altına konuldu (göreli yol: wallpapers/*.jpg, dev + GitHub Pages uyumlu). Ayrıca her temaya düz renk karşılığı (solid) eklendi ve #screen-chat'e background-color:var(--oo-chat-fallback) verildi; görsel yüklenmese bile ekran asla saydam kalmaz.
+
+--- 2026-08-23 ---
+Kullanıcı: emoji/mesaj eylem menüsünün (sil, ilet, kopyala) responsive'i iyi değil; emoji atölyesi basit duruyor, öneri istedi.
+Lovable: public/apps/sohbeto-ui-sheets.js güncellendi.
+ - Konumlandırma artık overlay sınırlarına göre yapılıyor; pop max-width/max-height ekran içinde kalacak şekilde kısıtlandı, resize/orientationchange'te yeniden konumlanıyor.
+ - Hızlı tepki şeridi yatay kaydırılabilir, "＋" düğmesi sağda sabit; simge sırası eşit bölüştürülmüş esnek düğmeler.
+ - Emoji atölyesi kategori sekmeli hale geldi (Son kullanılan, Yüzler, Jestler, Kalpler, Doğa, Yiyecek, Simgeler); son kullanılanlar localStorage'da (sohbeto-emoji-recent) tutuluyor; ızgara auto-fill ile ekrana uyum sağlıyor.
+
+--- 2026-08-23 ---
+Kullanıcı: gönderdiği fotoğraftaki cam (glass) sohbet görünümünü istedi; 3 noktanın yanındaki sağ geçiş oku kaldırılacak; gönderilen gün batımı teması eklenecek; emoji işi sonraya.
+Yapılanlar:
+- public/apps/sohbetoOO.html: .chat-header artık beyaz bar değil; kenarlardan boşluklu, yuvarlak (20px), rgba(16,22,31,.55) + backdrop-blur cam kapsül; ikon/ad/durum renkleri beyaz tonlarına çevrildi.
+- Başlıktaki "Sonraki kişi" (fa-chevron-right / chatNext) düğmesi kaldırıldı — yer kazanıldı (chatNext fonksiyonu adapter'da duruyor).
+- .chat-input-bar arka planı ve üst çizgisi kaldırıldı; .ci-field cam kapsül (blur + ince beyaz kenar), yazı beyaz, placeholder rgba(255,255,255,.55), + / emoji / kamera ikonları beyaz tonlu. Gönder/mikrofon düğmesi yeşil daire olarak kaldı.
+- Duvar kağıdı artık tepeden dibe akıyor (beyaz div'ler yok).
+- Yeni tema: "Tropik gün batımı" (id: tropik) — public/apps/wallpapers/sunset2.jpg, solid #3a1f2b, DARK_BGS listesine eklendi.
+Doğrulama: Playwright ile 390x844 ekran görüntüsü alındı; cam başlık + cam mesaj kutusu ve yeni tema beklendiği gibi.

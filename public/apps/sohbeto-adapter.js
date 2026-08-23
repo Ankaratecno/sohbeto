@@ -1952,10 +1952,8 @@
             });
           }
         } catch (e) {}
-        // Status değişti mi? (Bağlandı → mikrofonu aç)
-        var stEl = document.getElementById('activeCallStatus');
-        var st = stEl ? (stEl.innerText || '').trim() : '';
-        if (st === 'Bağlandı' || elapsed > 60000) {
+        // Gerçekten kabul edildi mi? (metin değil, kabul zaman damgası)
+        if (isCallAccepted() || elapsed > 60000) {
           clearInterval(outgoingMutePoll); outgoingMutePoll = null;
           ooOutgoingPending = false;
           // mute butonuna saygı duyarak mikrofonu aç
@@ -2265,19 +2263,21 @@
         var du = (document.getElementById('activeCallDuration') || {}).innerText || '';
         var oS = document.getElementById('oocStatus');
         var oD = document.getElementById('oocDuration');
+        var acceptedAt = isCallAccepted();
+        // Bayat "Bağlandı" metni ekranı yanıltmasın: kabul damgası yoksa çalıyor/aranıyor.
+        if (!acceptedAt && st.trim() === 'Bağlandı') {
+          var prev = oS ? (oS.textContent || '').trim() : '';
+          st = (prev === 'Aranıyor…') ? 'Aranıyor…' : 'Çalıyor…';
+        }
         if (oS && st) oS.textContent = st;
         if (oD && du && du !== '00:00' && !ooCallTimer) oD.textContent = du;
-        if (st === 'Bağlandı') {
+        if (acceptedAt) {
           oo.classList.add('connected');
           if (oD) oD.style.visibility = 'visible';
-          // Caller pending bekliyorduysa: ringback'i durdur, timer'ı 00:00'dan başlat
+          // Caller pending bekliyorduysa: ringback'i durdur, timer'ı kabul anından başlat
           if (ooOutgoingPending || !ooCallTimer) {
             stopRingbackTone();
-            if (!ooCallTimer) {
-              var connectedAt = 0;
-              try { connectedAt = Number(window.__SOHBETO_CALL_CONNECTED_AT || 0); } catch (e) {}
-              startOOCallTimer(connectedAt || Date.now());
-            }
+            if (!ooCallTimer) startOOCallTimer(acceptedAt);
           }
         }
       }, 500);
