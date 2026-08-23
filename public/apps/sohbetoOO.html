@@ -816,7 +816,7 @@
         }
         @keyframes msgIn { from{ opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
         .msg-me { align-self:flex-end; background:var(--primary-green); color:#fff; border-bottom-right-radius:6px; }
-        .msg-them { align-self:flex-start; background:#fff; color:var(--text-main); border-bottom-left-radius:6px; border:1px solid rgba(0,0,0,.04); }
+        .msg-them { align-self:flex-start; background:#ffffff; color:#111827; border-bottom-left-radius:6px; border:1px solid rgba(0,0,0,.04); }
         .msg-time { font-size:.62rem; opacity:.6; margin-top:3px; text-align:right; }
         .chat-empty { text-align:center; color:var(--text-secondary); font-size:.85rem; padding:30px 24px; }
 
@@ -992,7 +992,7 @@
 
         .chat-messages .msg-other > .msg-bubble,
         .chat-messages .msg-private > .msg-bubble {
-            background:#fff; color:var(--text-main);
+            background:#ffffff; color:#111827;
             border:1px solid rgba(15,23,42,.05);
             border-bottom-left-radius:5px;
         }
@@ -1178,6 +1178,9 @@
         body.oo-chat-dark .chat-messages .msg-private > .msg-bubble {
             background:#1f2937; color:#e5e7eb; border-color:rgba(255,255,255,.07);
         }
+        body.oo-chat-dark .chat-messages .msg-other > .msg-bubble .msg-text,
+        body.oo-chat-dark .chat-messages .msg-private > .msg-bubble .msg-text { color:#e5e7eb; }
+        body.oo-chat-dark .chat-messages .msg-them { background:#1f2937; color:#e5e7eb; border-color:rgba(255,255,255,.07); }
         body.oo-chat-dark .chat-messages .msg-bubble .msg-time { opacity:.7; }
         .chat-messages .msg-deleted .msg-deleted-text { color:#6b7280; font-style:italic; }
 
@@ -2269,6 +2272,8 @@
     <script src="./sohbeto-ui-sheets.js"></script>
     <!-- Durum çubuğu rengi: aktif tema / sohbet duvar kağıdı ile eşleşir -->
     <script src="./sohbeto-statusbar.js"></script>
+    <script src="./sohbeto-prcn.js"></script>
+
 
 
 
@@ -2354,6 +2359,7 @@
       // Not: görsel yüklenemezse ekran saydam kalıp altındaki listeyi göstermesin diye
       // her duvar kağıdının bir de düz renk karşılığı (solid) var.
       var BGS = [
+        { id:'siyah',      label:'Düz siyah',  solid:'#000000', css:'linear-gradient(180deg,#000000 0%,#0b0f14 100%)' },
         { id:'desen',      label:'Desen',      solid:'#f8fbf9', css:'radial-gradient(rgba(15,118,110,.14) 1.2px, transparent 1.2px) 0 0/16px 16px, linear-gradient(180deg,#f8fbf9 0%,#eef6f2 100%)' },
         { id:'orman',      label:'Orman',      solid:'#223027', css:'url("' + W + 'forest.jpg") center/cover no-repeat' },
         { id:'gece',       label:'Gece şehri', solid:'#0b1020', css:'url("' + W + 'city.jpg") center/cover no-repeat' },
@@ -2363,9 +2369,13 @@
         { id:'pembe',      label:'Pembe gökyüzü', solid:'#f3d7e6', css:'url("' + W + 'pinksky.jpg") center/cover no-repeat' },
         { id:'buz',        label:'Buz',        solid:'#dbe9f7', css:'url("' + W + 'ice.jpg") center/cover no-repeat' },
         { id:'yaprak',     label:'Yaprak',     solid:'#23431f', css:'url("' + W + 'leaf.jpg") center/cover no-repeat' },
-        { id:'kagit',      label:'Kağıt',      solid:'#fbf1de', css:'url("' + W + 'paper.jpg") center/cover no-repeat' }
+        { id:'kagit',      label:'Kağıt',      solid:'#fbf1de', css:'url("' + W + 'paper.jpg") center/cover no-repeat' },
+        { id:'karaurora',  label:'Kara aurora',solid:'#050814', css:'url("' + W + 'dark-aurora.jpg") center/cover no-repeat' },
+        { id:'kor',        label:'Kor',        solid:'#0a0705', css:'url("' + W + 'dark-ember.jpg") center/cover no-repeat' },
+        { id:'zumrutdumani',label:'Zümrüt duman', solid:'#04100b', css:'url("' + W + 'dark-emerald.jpg") center/cover no-repeat' },
+        { id:'yildizli',   label:'Yıldızlı gece', solid:'#050b1c', css:'url("' + W + 'dark-night.jpg") center/cover no-repeat' }
       ];
-      var DARK_BGS = { orman:1, gece:1, kutup:1, tropik:1 };
+      var DARK_BGS = { siyah:1, orman:1, gece:1, kutup:1, tropik:1, yaprak:1, karaurora:1, kor:1, zumrutdumani:1, yildizli:1 };
 
       var KEY = 'sohbeto-chat-look';
       function load(){
@@ -2397,7 +2407,11 @@
           el.style.background = g.css;
           el.title = g.label;
           el.innerHTML = '<i class="in"></i><i class="out"></i><u>✓</u><b>' + g.label + '</b>';
-          el.onclick = function(){ var v = load(); v.bg = g.id; save(v); apply(); build(); };
+          el.onclick = function(){
+            var v = load(); v.bg = g.id;
+            if (document.documentElement.classList.contains('sb-dark')) v.pickedDark = 1; else v.pickedLight = 1;
+            save(v); apply(); build();
+          };
           gr.appendChild(el);
         });
         BUBBLES.forEach(function(b){
@@ -2410,6 +2424,19 @@
           br.appendChild(el);
         });
       }
+      // Görünüm modu değişince (Açık/Gece) sohbet zeminini moda uygun varsayılana çek.
+      // Kullanıcı o modda kendi seçimini yaptıysa ona dokunulmaz.
+      window.sbChatBgForMode = function(mode){
+        var v = load();
+        if (mode === 'dark') {
+          if (!v.pickedDark) { v.bg = 'siyah'; save(v); }
+        } else {
+          if (!v.pickedLight) { v.bg = 'desen'; save(v); }
+        }
+        apply();
+        try { build(); } catch(e){}
+      };
+
       window.chatOpenSettings = function(){
         build();
         var m = document.getElementById('csModal');
@@ -2420,7 +2447,7 @@
         var m = document.getElementById('csModal');
         if (m) m.classList.add('hidden');
       };
-      window.chatMore = window.chatOpenSettings;
+      if (!window.SohbetoPRCN) window.chatMore = window.chatOpenSettings;
       /* Mesaj kutusu yukarı doğru büyür (yatay kaydırma yok) */
       window.ciAutoGrow = function(el){
         if (!el) return;
@@ -2739,15 +2766,16 @@
         if (existing) existing.remove();
         var wrap = document.createElement('div');
         wrap.id = 'sohbetoLogoutModal';
-        wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,14,26,.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .2s ease;';
+        wrap.className = 'sb-dialog';
         wrap.innerHTML = ''
-          + '<div style="width:100%;max-width:340px;background:#fff;border-radius:22px;padding:22px 20px;box-shadow:0 30px 60px -20px rgba(0,0,0,.4);font-family:-apple-system,system-ui,sans-serif;color:#0b3a55;">'
-          +   '<div style="font-size:18px;font-weight:800;margin-bottom:6px;">Çıkış</div>'
-          +   '<div style="font-size:13px;color:#5b7a8c;line-height:1.5;margin-bottom:16px;">Geçici çıkış oturumunu kapatır, profilin saklı kalır. Hesabı sil tüm yerel verileri (tema, profil, sohbetler) temizler ve seni baştan başlatır.</div>'
-          +   '<button id="sbLogoutTemp" style="width:100%;height:44px;border-radius:12px;border:0;margin-bottom:10px;background:linear-gradient(135deg,#7bd1e8,#4fb6d6);color:#fff;font-weight:700;cursor:pointer;">Geçici Çıkış</button>'
-          +   '<button id="sbLogoutWipe" style="width:100%;height:44px;border-radius:12px;border:0;margin-bottom:10px;background:#c4624b;color:#fff;font-weight:700;cursor:pointer;">Hesabı Sil (sıfırla)</button>'
-          +   '<button id="sbLogoutCancel" style="width:100%;height:40px;border-radius:12px;border:1px solid rgba(11,58,85,.15);background:#fff;color:#0b3a55;font-weight:600;cursor:pointer;">İptal</button>'
+          + '<div class="sb-dialog-card">'
+          +   '<div class="sb-dialog-title">Çıkış</div>'
+          +   '<div class="sb-dialog-text">Geçici çıkış oturumunu kapatır, profilin saklı kalır. Hesabı sil tüm yerel verileri (tema, profil, sohbetler) temizler ve seni baştan başlatır.</div>'
+          +   '<button id="sbLogoutTemp" class="sb-dialog-btn">Geçici Çıkış</button>'
+          +   '<button id="sbLogoutWipe" class="sb-dialog-btn sb-dialog-btn-danger">Hesabı Sil (sıfırla)</button>'
+          +   '<button id="sbLogoutCancel" class="sb-dialog-btn sb-dialog-btn-ghost">İptal</button>'
           + '</div>';
+
         document.body.appendChild(wrap);
         wrap.addEventListener('click', function(e){ if (e.target === wrap) wrap.remove(); });
         document.getElementById('sbLogoutCancel').onclick = function(){ wrap.remove(); };

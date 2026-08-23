@@ -446,18 +446,19 @@
     // ---------- Basılı tut → sohbeti sil ----------
     function ooConfirmDelete(name, onYes) {
       var back = document.createElement('div');
-      back.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:24px;animation:ooFadeIn .18s ease';
+      back.className = 'sb-dialog';
       var box = document.createElement('div');
-      box.style.cssText = 'width:100%;max-width:320px;background:#182533;color:#e9edf2;border-radius:18px;padding:20px;box-shadow:0 18px 50px rgba(0,0,0,.5);font-family:inherit';
+      box.className = 'sb-dialog-card';
       box.innerHTML =
-        '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Sohbeti sil</div>' +
-        '<div style="font-size:13.5px;opacity:.75;line-height:1.45">' +
+        '<div class="sb-dialog-title">Sohbeti sil</div>' +
+        '<div class="sb-dialog-text">' +
         (name ? String(name).replace(/[<>&]/g, '') : 'Bu kişi') +
         ' ile olan sohbet ve tüm mesajlar kalıcı olarak silinecek.</div>' +
-        '<div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end">' +
-        '<button data-x="no" style="flex:0 0 auto;padding:10px 16px;border-radius:12px;border:0;background:#233445;color:#e9edf2;font-size:14px;font-weight:600">Vazgeç</button>' +
-        '<button data-x="yes" style="flex:0 0 auto;padding:10px 16px;border-radius:12px;border:0;background:#e5484d;color:#fff;font-size:14px;font-weight:700">Sil</button>' +
+        '<div style="display:flex;gap:10px;margin-top:6px">' +
+        '<button data-x="no" class="sb-dialog-btn sb-dialog-btn-ghost">Vazgeç</button>' +
+        '<button data-x="yes" class="sb-dialog-btn sb-dialog-btn-danger">Sil</button>' +
         '</div>';
+
       back.appendChild(box);
       function close() { try { back.remove(); } catch (e) {} }
       back.addEventListener('click', function (ev) {
@@ -2678,7 +2679,7 @@
         if (isInChatOrCall()) { tracking = false; return; }
         var t = e.touches ? e.touches[0] : e;
         // Yatay kaydırma içeren elementlerde (örn. ses ayarı şeritleri) iptal et
-        var blocked = e.target && e.target.closest && e.target.closest('input,textarea,.alphabet-sidebar,.ci-emoji-grid,.ci-attach-grid,.ooc-actions');
+        var blocked = e.target && e.target.closest && e.target.closest('input[type=range],textarea,select,.alphabet-sidebar,.ci-emoji-grid,.ci-attach-grid,.ooc-actions,[data-no-swipe]');
         if (blocked) { tracking = false; return; }
         startX = t.clientX; startY = t.clientY;
         startedTab = currentTab();
@@ -2698,9 +2699,9 @@
         if (!next) return;
         if (window.app && typeof window.app.navigate === 'function') window.app.navigate(next);
       }
-      var container = document.querySelector('.app-container') || document.body;
-      container.addEventListener('touchstart', onStart, { passive: true });
-      container.addEventListener('touchend', onEnd, { passive: true });
+      // Ekranın her yerinden (ör. Ayarlar listesi) çalışsın: belge seviyesinde yakala.
+      document.addEventListener('touchstart', onStart, { passive: true, capture: true });
+      document.addEventListener('touchend', onEnd, { passive: true, capture: true });
     })();
 
     // ---------- 9) +90 OTOMATİK PREFIX (telefon inputları) ----------

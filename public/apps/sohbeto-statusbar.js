@@ -62,6 +62,13 @@
     img.src = url;
   }
 
+  // Uygulamanın o anki zemin rengi: gece modunda --app-bg, gündüz temada --bg-white.
+  function themeBg() {
+    var v = cssVar('--app-bg') || cssVar('--bg-white');
+    if (!v || v.indexOf('var(') === 0) v = cssVar('--bg-white');
+    return v || '#ffffff';
+  }
+
   function chatIsOpen() {
     var el = document.getElementById('screen-chat');
     return !!(el && el.classList.contains('active') && !el.classList.contains('hidden-screen'));
@@ -99,14 +106,14 @@
       var url = wallpaperURL();
       if (url) {
         sampleTop(url, function (c) {
-          send(c || cssVar('--oo-chat-fallback') || cssVar('--bg-white') || '#ffffff');
+          send(c || cssVar('--oo-chat-fallback') || themeBg());
         });
         return;
       }
-      send(cssVar('--oo-chat-fallback') || cssVar('--bg-white') || '#ffffff');
+      send(cssVar('--oo-chat-fallback') || themeBg());
       return;
     }
-    send(cssVar('--bg-white') || '#ffffff');
+    send(themeBg());
   }
 
   function ready() {

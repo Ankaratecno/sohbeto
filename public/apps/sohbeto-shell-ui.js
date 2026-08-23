@@ -18,6 +18,9 @@
     document.documentElement.classList.toggle('sb-dark', mode === 'dark');
     set(LS_MODE, mode);
     syncButtons();
+    // Gece modunda sohbet penceresi varsayılan olarak düz siyah olsun.
+    try { if (window.sbChatBgForMode) window.sbChatBgForMode(mode); } catch (e) {}
+    try { if (window.sbSyncStatusBar) window.sbSyncStatusBar(); } catch (e) {}
   }
   function applyFont(font) {
     document.documentElement.classList.toggle('sb-font-inter', font === 'inter');
@@ -173,6 +176,8 @@
   wrapContactFns();
 
   function ready() {
+    // OO sohbet tema motoru yüklendikten sonra moda uygun zemini tekrar uygula
+    try { if (window.sbChatBgForMode) window.sbChatBgForMode(get(LS_MODE, 'light')); } catch (e) {}
     injectSections();
     injectSearchButtons();
     setInterval(injectSearchButtons, 1200);

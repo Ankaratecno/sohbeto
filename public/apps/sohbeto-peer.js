@@ -216,7 +216,17 @@
                 try { if (handlers.onReady) handlers.onReady(id); } catch (e) {}
             });
             peer.on('connection', function (conn) { attach(conn); });
-            peer.on('call', function (call) { try { if (handlers.onCall) handlers.onCall(call); } catch (e) {} });
+            peer.on('call', function (call) {
+                // Ekran paylaşımı çağrıları PRÇN katmanına gider, sesli/görüntülü arama motora.
+                try {
+                    var md = call && call.metadata;
+                    if (md && md.prcn === 'screen' && typeof window.__prcnScreenCall === 'function') {
+                        window.__prcnScreenCall(call);
+                        return;
+                    }
+                } catch (e) {}
+                try { if (handlers.onCall) handlers.onCall(call); } catch (e) {}
+            });
             peer.on('disconnected', function () {
                 setReady(false);
                 emitLog('Bağlantı kesildi - yeniden bağlanılıyor...', '#ef4444');
@@ -257,6 +267,12 @@
         openPeers: function () { var out = []; conns.forEach(function (c, id) { if (c.open) out.push(id); }); return out; },
 
         connectTo: function (connId) { return ensure(connId); },
+
+        /** Medya çağrısı (ekran paylaşımı vb.) — metadata ile ayırt edilir. */
+        callWithStream: function (connId, stream, metadata) {
+            if (!peer || peer.destroyed || !connId || !stream) return null;
+            try { return peer.call(connId, stream, { metadata: metadata || {} }); } catch (e) { return null; }
+        },
         connectToNumber: function (number) { return ensure(idForNumber(number)); },
 
         /** Motorun wsSend() imzasıyla birebir uyumlu gönderim. */

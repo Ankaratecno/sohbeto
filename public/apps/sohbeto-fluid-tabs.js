@@ -214,8 +214,15 @@
     var el = target;
     while (el && el !== appContainer) {
       try {
-        var ov = getComputedStyle(el).overflowX;
-        if ((ov === 'auto' || ov === 'scroll') && el.scrollWidth > el.clientWidth + 1) return true;
+        // Ana sekme/scroll kapsayıcıları hariç: mobilde bunlar yanlışlıkla
+        // "yatay kaydırılabilir" görünüp swipe'ı iptal ediyordu.
+        var cls = el.className && el.className.indexOf ? el.className : '';
+        var isShell = cls.indexOf('content-area') !== -1 || cls.indexOf('screen') !== -1 ||
+                      cls.indexOf('settings-list') !== -1 || cls.indexOf('app-container') !== -1;
+        if (!isShell) {
+          var ov = getComputedStyle(el).overflowX;
+          if ((ov === 'auto' || ov === 'scroll') && el.scrollWidth > el.clientWidth + 12) return true;
+        }
       } catch (e) {}
       el = el.parentElement;
     }
