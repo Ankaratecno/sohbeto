@@ -698,3 +698,71 @@ html.sb-dark .sb-dialog-btn-danger { color: #ff8a80; }
 
 .prcn-preview video { width: 100%; display: block; background: #000; aspect-ratio: 16/9; object-fit: contain; }
 .prcn-preview.live { margin-top: 0; border-radius: 14px; }
+
+/* ---------- PRÇN: tam ekran açıkken arka plan kaydırmayı kilitle ---------- */
+.prcn-noscroll { overflow: hidden; }
+
+/* =====================================================================
+   HİBRİT AVATAR (C) — zemin nötr tema, ikon/baş harf vurgu renginde
+   ===================================================================== */
+:root {
+  --app-avatar-bg: color-mix(in srgb, var(--primary-green, #2f8f83) 12%, #ffffff);
+  --app-avatar-fg: var(--primary-green, #2f8f83);
+  --app-avatar-border: color-mix(in srgb, var(--primary-green, #2f8f83) 22%, transparent);
+}
+html.sb-dark {
+  --app-bg: var(--sb-dark-bg, #0f1418);
+  --app-avatar-bg: rgba(255, 255, 255, 0.08);
+  --app-avatar-fg: var(--primary-green, #9aa7b2);
+  --app-avatar-border: rgba(255, 255, 255, 0.10);
+}
+
+#screen-sohbetler .conv-avatar,
+.contact-avatar,
+.group-avatar,
+.chat-h-avatar,
+.cc-avatar {
+  background: var(--app-avatar-bg) !important;
+  background-image: none !important;
+  color: var(--app-avatar-fg) !important;
+  border: 1px solid var(--app-avatar-border);
+  font-weight: 700;
+}
+#screen-sohbetler .conv-avatar img,
+.contact-avatar img,
+.group-avatar img,
+.chat-h-avatar img,
+.cc-avatar img { border: 0; }
+
+/* Fotoğrafı olan avatarlarda zemin/kenarlık görünmesin */
+.chat-h-avatar:has(img),
+.cc-avatar:has(img),
+#screen-sohbetler .conv-avatar:has(img),
+.contact-avatar:has(img) { background: transparent !important; border-color: transparent; }
+
+/* Rehberde kayıtlı olmayan kişi: baş harf yerine kişi simgesi (küçük değil) */
+.sb-av-icon {
+  font-size: 1.5rem !important;
+  line-height: 1;
+  color: var(--app-avatar-fg);
+  opacity: .95;
+}
+
+/* Gece modunda vurgu paleti — swatch'lar */
+#screen-tema .color-swatch { border: 1px solid var(--app-card-border); }
+#screen-tema .color-swatch.active { outline: 2px solid var(--primary-green); outline-offset: 2px; }
+
+/* Sohbet balonlarında tarayıcı metin seçimi / "Kopyala" bağlam balonu çıkmasın.
+   Kopyalama uygulamanın kendi mesaj menüsünden yapılır. */
+#chatMessages,
+#chatMessages .msg,
+#chatMessages .msg-bubble,
+#chatMessages .msg-text,
+#chatMessages .msg-sender,
+#chatMessages .msg-meta {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}

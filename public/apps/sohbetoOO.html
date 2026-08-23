@@ -1919,13 +1919,17 @@
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
-                        <div id="quietHoursRow" style="flex-basis:100%; display:flex; align-items:center; gap:10px; margin-top:10px;">
-                            <label style="font-size:.8rem; color:var(--app-text-2,#6b7280);">Başlangıç</label>
-                            <input type="time" id="quietStart" value="22:00"
-                                style="flex:1; min-width:0; padding:8px 10px; border-radius:12px; border:1px solid var(--app-card-border,rgba(15,23,42,.08)); background:var(--app-field,rgba(15,23,42,.045)); color:var(--app-text-1,#111); font-family:inherit;">
-                            <label style="font-size:.8rem; color:var(--app-text-2,#6b7280);">Bitiş</label>
-                            <input type="time" id="quietEnd" value="07:00"
-                                style="flex:1; min-width:0; padding:8px 10px; border-radius:12px; border:1px solid var(--app-card-border,rgba(15,23,42,.08)); background:var(--app-field,rgba(15,23,42,.045)); color:var(--app-text-1,#111); font-family:inherit;">
+                        <div id="quietHoursRow" style="flex-basis:100%; display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <label for="quietStart" style="font-size:.8rem; color:var(--app-text-2,#6b7280);">Başlangıç</label>
+                                <input type="time" id="quietStart" value="22:00"
+                                    style="width:100%; min-width:0; padding:10px 12px; border-radius:12px; border:1px solid var(--app-card-border,rgba(15,23,42,.08)); background:var(--app-field,rgba(15,23,42,.045)); color:var(--app-text-1,#111); font-family:inherit;">
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <label for="quietEnd" style="font-size:.8rem; color:var(--app-text-2,#6b7280);">Bitiş</label>
+                                <input type="time" id="quietEnd" value="07:00"
+                                    style="width:100%; min-width:0; padding:10px 12px; border-radius:12px; border:1px solid var(--app-card-border,rgba(15,23,42,.08)); background:var(--app-field,rgba(15,23,42,.045)); color:var(--app-text-1,#111); font-family:inherit;">
+                            </div>
                         </div>
                     </div>
 
@@ -2270,6 +2274,9 @@
     <script src="./sohbeto-card-anim.js"></script>
     <!-- Adım 15: Mesaj eylem menüsü — balon yanı bağlam menüsü + emoji tepki barı (motora dokunmaz) -->
     <script src="./sohbeto-ui-sheets.js"></script>
+    <!-- Adım 16: Sağa kaydırarak yanıtlama + balon içi alıntı (motora dokunmaz) -->
+    <script src="./sohbeto-reply-ui.js"></script>
+    <script src="./sohbeto-daysep-ui.js"></script>
     <!-- Durum çubuğu rengi: aktif tema / sohbet duvar kağıdı ile eşleşir -->
     <script src="./sohbeto-statusbar.js"></script>
     <script src="./sohbeto-prcn.js"></script>

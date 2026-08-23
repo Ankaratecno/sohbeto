@@ -129,7 +129,8 @@ const Sohbeto: React.FC = () => {
         src={src}
         onLoad={handleLoad}
         className="relative w-full h-full border-0 bg-[#0e1621]"
-        allow="camera; microphone; clipboard-write; clipboard-read; autoplay"
+        allow="camera; microphone; clipboard-write; clipboard-read; autoplay; fullscreen"
+        allowFullScreen
       />
     </div>
   );

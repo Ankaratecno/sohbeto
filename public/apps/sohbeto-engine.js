@@ -1508,6 +1508,7 @@ function buildChatDom(id, msgs) {
             el = buildIncomingMsgEl(m.sender || 'Bilinmiyor', m.text, m.isP2P, m.isPrivate, timeStr, m.msgId);
         }
         if (m.deleted) markMsgElDeleted(el);
+        if (m.ts) el.dataset.ts = m.ts;
         el.style.animation = 'none'; // giriş animasyonu yok → anında görünür
         return el;
     });

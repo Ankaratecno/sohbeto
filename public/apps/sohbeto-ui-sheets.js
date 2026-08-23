@@ -212,12 +212,10 @@
       var act = ib.dataset.ui;
       if (act === 'copy') { if (have.copy) have.copy.click(); else { try { navigator.clipboard.writeText(text); toast('Kopyalandı'); } catch (e) {} } return; }
       if (act === 'reply') {
-        var ta = document.getElementById('chatInput');
-        if (ta) {
-          var q = text ? text.split('\n').map(function (l) { return '> ' + l; }).join('\n') + '\n' : '';
-          ta.value = q + ta.value;
-          try { ta.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
-          setTimeout(function () { ta.focus(); }, 100);
+        if (window.SohbetoReply && msgEl) { window.SohbetoReply.start(msgEl); }
+        else {
+          var ta = document.getElementById('chatInput');
+          if (ta) { setTimeout(function () { ta.focus(); }, 100); }
         }
         closeMenu(); return;
       }
