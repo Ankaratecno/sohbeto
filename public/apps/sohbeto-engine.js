@@ -3464,3 +3464,13 @@ async function init() {
     setTimeout(finishSplash, wait);
 }
 init();
+
+/* ==== GLOBAL KÖPRÜ ====
+   state/CONFIG/contactsState `const` ile tanımlı olduğundan window üzerinde
+   görünmüyorlar. Eklenti dosyaları (official/registry/extras) bunlara
+   window.* üzerinden eriştiği için aynı referansları burada yayınlıyoruz. */
+try {
+    window.state = state;
+    window.CONFIG = CONFIG;
+    window.contactsState = contactsState;
+} catch (e) {}

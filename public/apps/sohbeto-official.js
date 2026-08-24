@@ -11,7 +11,8 @@
 
   var OFFICIAL_NUMBER = '+90606061992';
   var OFFICIAL_CID = 'sohbeto-90606061992'; // peerIdForNumber ile aynı → kurucu P2P hattı
-  var OFFICIAL_NAME = 'SOHBETO';
+  var OFFICIAL_NAME = 'Sohbeto';
+  var OFFICIAL_NAME_ALIASES = ['sohbeto'];
   var WELCOME_TEXT =
     'Es selamü aleyküm ve rahmetullah 🌙\n\nSohbeto\'ya hoş geldin! ' +
     'Ben Ankara Tecno kurucu ekibinin resmî SOHBETO hesabıyım. ' +
@@ -77,7 +78,8 @@
     var s = document.createElement('style');
     s.id = '__sb_verified_css__';
     s.textContent =
-      '.sb-verified{color:#9ca3af;font-size:.78em;margin-left:5px;vertical-align:baseline;}';
+      '.sb-verified{color:#64748b;font-size:.95em;margin-left:6px;vertical-align:baseline;'
+      + 'text-shadow:0 1px 2px rgba(0,0,0,.12);}';
     document.head.appendChild(s);
   }
   function decorateNames() {
@@ -86,12 +88,16 @@
       document.querySelectorAll(sel).forEach(function (el) {
         var txt = (el.textContent || '').replace(/\[.*?\]/g, '').trim();
         var has = el.querySelector('.sb-verified');
-        if (txt === OFFICIAL_NAME && !has) {
+        var isOfficial = OFFICIAL_NAME_ALIASES.indexOf(txt.toLowerCase()) >= 0;
+        if (isOfficial && txt !== OFFICIAL_NAME && !has) {
+          try { el.textContent = OFFICIAL_NAME; } catch (e) {}
+        }
+        if (isOfficial && !has) {
           var i = document.createElement('i');
           i.className = 'fa-solid fa-circle-check sb-verified';
           i.title = 'Doğrulanmış resmî hesap';
           el.appendChild(i);
-        } else if (txt !== OFFICIAL_NAME && has) {
+        } else if (!isOfficial && has) {
           has.remove();
         }
       });
@@ -99,10 +105,14 @@
   }
 
   /* ---------------- Resmî hesabı kur + hoş geldin mesajı ---------------- */
-  function ensureProfile() {
+  function ensureProfile(force) {
     try {
       if (!window.state) return;
+      if (myNo() === OFFICIAL_NUMBER) return; // kurucu kendi cihazı
       if (!state.peerProfiles) state.peerProfiles = {};
+      var cur = state.peerProfiles[OFFICIAL_CID];
+      var ok = cur && cur.image === SO_IMAGE && cur.name === OFFICIAL_NAME;
+      if (ok && !force) return;
       state.peerProfiles[OFFICIAL_CID] = {
         name: OFFICIAL_NAME,
         emoji: '',
@@ -111,8 +121,31 @@
       };
       state.users.set(OFFICIAL_CID, OFFICIAL_NAME + ' [' + OFFICIAL_NUMBER + ']');
       if (typeof persistPeerProfiles === 'function') persistPeerProfiles();
+      try {
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof refreshLiveScreensForPeer === 'function') refreshLiveScreensForPeer(OFFICIAL_CID);
+      } catch (e) {}
     } catch (e) {}
   }
+
+  /* Gelen profil güncellemesi resmî hesabın fotoğrafını silmesin. */
+  function guardProfileUpdates() {
+    try {
+      if (window.__sbOfficialProfileGuard) return;
+      if (typeof window.applyPeerProfileUpdate !== 'function') return;
+      window.__sbOfficialProfileGuard = true;
+      var orig = window.applyPeerProfileUpdate;
+      window.applyPeerProfileUpdate = function (connId, profile) {
+        if (connId === OFFICIAL_CID) {
+          profile = profile || {};
+          profile.name = OFFICIAL_NAME;
+          if (!profile.image || String(profile.image).indexOf('data:image/') !== 0) profile.image = SO_IMAGE;
+        }
+        return orig.call(this, connId, profile);
+      };
+    } catch (e) {}
+  }
+
 
   async function ensureContact() {
     try {
@@ -211,10 +244,31 @@
     }
   });
 
+  /* Kurucu oturumunu motorun kod karşılaştırmasına girmeden aç. */
+  async function founderSignIn() {
+    try {
+      if (window.state) state.nick = OFFICIAL_NAME;
+      if (typeof dbPut === 'function') await dbPut('nick', OFFICIAL_NAME);
+      var seed = typeof generateSeed === 'function'
+        ? await generateSeed(OFFICIAL_NAME, OFFICIAL_NUMBER)
+        : String(Date.now());
+      if (typeof saveVirtualNo === 'function') await saveVirtualNo(OFFICIAL_NUMBER, seed);
+      if (typeof dbPut === 'function') await dbPut('firstSessionDone', true);
+      if (typeof hideNotif === 'function') hideNotif();
+      var lc = document.getElementById('loginCode'); if (lc) lc.value = '';
+      var lw = document.getElementById('loginCodeWrap'); if (lw) lw.classList.add('hidden');
+      sendUp({ type: 'sohbeto:logged-in', number: OFFICIAL_NUMBER });
+      if (typeof connectAndChat === 'function') connectAndChat();
+      else if (typeof enterChatScreen === 'function') enterChatScreen();
+    } catch (e) {}
+  }
+
   function bindFounderLogin() {
     var sendBtn = document.getElementById('btnLoginSendCode');
     var verifyBtn = document.getElementById('btnLoginVerify');
     if (!sendBtn || !verifyBtn) return;
+    if (sendBtn.dataset.founderBound) return;
+    sendBtn.dataset.founderBound = '1';
     var origSend = sendBtn.onclick;
     var origVerify = verifyBtn.onclick;
 
@@ -222,14 +276,16 @@
       var inp = document.getElementById('loginNumber');
       var isFounder = inp && norm(inp.value) === OFFICIAL_NUMBER;
       _founderPinMode = isFounder;
-      var res = origSend ? origSend.call(this, e) : undefined;
-      if (res && typeof res.then === 'function') await res;
       if (isFounder) {
-        // Motorun ürettiği rastgele kodu devre dışı bırak → PIN şart olsun.
-        try { _loginPendingCode = '__PIN__'; } catch (err) {}
-        try { if (typeof showNotif === 'function') showNotif('Kurucu PIN\'inizi girin (6 haneli).', 4000); } catch (err) {}
+        // Sahte SMS kodu üretilmesin; doğrudan PIN ekranı açılsın.
+        try { if (typeof openOtpScreen === 'function') openOtpScreen('login'); } catch (err) {}
+        try {
+          if (typeof showNotif === 'function')
+            showNotif('Kurucu PIN\'inizi girin (6 haneli).', 5000);
+        } catch (err) {}
+        return;
       }
-      return res;
+      return origSend ? origSend.call(this, e) : undefined;
     };
 
     verifyBtn.onclick = async function (e) {
@@ -241,13 +297,69 @@
       if (!r || !r.ok) {
         showNotif('❌ Kurucu PIN hatalı veya yetkisiz.', 4000);
         codeEl.value = '';
+        try {
+          document.querySelectorAll('#codeInputs .code-input').forEach(function (i) { i.value = ''; });
+          var f = document.querySelector('#codeInputs .code-input'); if (f) f.focus();
+        } catch (err) {}
         return;
       }
-      // Sunucu onayladı → motorun yerel karşılaştırmasından geçir.
-      try { _loginPendingCode = pin; } catch (err) {}
-      if (origVerify) await origVerify.call(this, e);
       _founderPinMode = false;
+      await founderSignIn();
     };
+  }
+
+  /* -------- Kurucu cihazı: profil fotoğrafı + ad otomatik -------- */
+  function isFounderSelf() { return norm(myNo()) === OFFICIAL_NUMBER; }
+  var founderIdentitySyncing = false;
+  async function applyFounderIdentity() {
+    if (!isFounderSelf()) return;
+    if (founderIdentitySyncing) return;
+    founderIdentitySyncing = true;
+    var d = {};
+    try { d = JSON.parse(localStorage.getItem('sohbeto.oo.profile') || '{}'); } catch (e) {}
+    var changed = false;
+    if (d.image !== SO_IMAGE) { d.image = SO_IMAGE; changed = true; }
+    if (d.name !== OFFICIAL_NAME) { d.name = OFFICIAL_NAME; changed = true; }
+    if (d.bio !== 'Ankara Tecno · Resmî destek hesabı') { d.bio = 'Ankara Tecno · Resmî destek hesabı'; changed = true; }
+    if (changed) { try { localStorage.setItem('sohbeto.oo.profile', JSON.stringify(d)); } catch (e) {} }
+    var engineChanged = false;
+    try {
+      if (window.state) {
+        if (state.nick !== d.name) { state.nick = d.name; engineChanged = true; }
+        if (state.bio !== d.bio) { state.bio = d.bio; engineChanged = true; }
+        if (state.profileImage !== d.image) { state.profileImage = d.image; engineChanged = true; }
+        if (state.profileEmoji !== '') { state.profileEmoji = ''; engineChanged = true; }
+      }
+      if (engineChanged && typeof dbPut === 'function') {
+        await dbPut('nick', d.name);
+        await dbPut('bio', d.bio);
+        await dbPut('profileImage', d.image);
+        await dbPut('profileEmoji', '');
+      }
+    } catch (e) {}
+    var circle = document.getElementById('profilePicCircle');
+    var currentImage = circle && circle.querySelector('img');
+    if (circle && (!currentImage || currentImage.getAttribute('src') !== d.image)) {
+      circle.innerHTML = '<img src="' + d.image + '" alt="Profil" ' +
+        'style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
+    }
+    var nameEl = document.getElementById('profileName');
+    if (nameEl && !nameEl.value) {
+      nameEl.value = d.name;
+      try { nameEl.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+    }
+    var bioEl = document.getElementById('profileBio');
+    if (bioEl && !bioEl.value) {
+      bioEl.value = d.bio;
+      try { bioEl.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+    }
+    if (engineChanged) {
+      try {
+        if (typeof updateProfilePics === 'function') updateProfilePics();
+        if (typeof scheduleProfileBroadcast === 'function') scheduleProfileBroadcast(50);
+      } catch (e) {}
+    }
+    founderIdentitySyncing = false;
   }
 
   /* ---------------- Yaşam döngüsü ---------------- */
@@ -261,25 +373,44 @@
     seeded = true;
     ensureProfile();
     await ensureContact();
-    await ensureWelcome();
+    // Karşılama mesajı sunucudan geliyormuş gibi birkaç saniye sonra düşsün.
+    setTimeout(function () {
+      ensureWelcome().then(function () {
+        decorateNames();
+        try {
+          if (typeof showNotif === 'function') showNotif('SOHBETO size bir mesaj gönderdi.', 3500);
+        } catch (e) {}
+      });
+    }, 6000);
     decorateNames();
   }
+
 
   function start() {
     injectBadgeCss();
     bindHelp();
     guardReservedNumber();
     bindFounderLogin();
-    var tries = 0;
-    var t = setInterval(function () {
+    // Kayıt/giriş kaç dakika sürerse sürsün bekle: numara oluşana kadar poll devam eder.
+    guardProfileUpdates();
+    setInterval(function () {
       guardReservedNumber();
+      bindFounderLogin();
+      guardProfileUpdates();
       seedIfReady();
+      if (seeded) ensureProfile();
+      applyFounderIdentity();
       decorateNames();
-      if (seeded || ++tries > 120) {
-        clearInterval(t);
-        if (seeded) setInterval(decorateNames, 1200);
+
+    }, 700);
+    // Kayıt tamamlandığı anda hemen tohumla.
+    window.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (d && (d.type === 'sohbeto:registered' || d.type === 'sohbeto:logged-in')) {
+        setTimeout(seedIfReady, 300);
+        setTimeout(seedIfReady, 1500);
       }
-    }, 500);
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
@@ -291,5 +422,8 @@
     name: OFFICIAL_NAME,
     image: SO_IMAGE,
     openHelp: openHelp,
+    isFounderNumber: function (n) { return norm(n) === OFFICIAL_NUMBER; },
+    seed: seedIfReady,
   };
+
 })();

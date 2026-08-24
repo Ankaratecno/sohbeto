@@ -240,6 +240,11 @@
       if (phoneEl) phoneEl.value = phone;
       if (!phone || phone === '+90') { alert('Lütfen telefon numaranızı girin.'); return; }
       var flow = await detectFlow();
+      // Kurucu hattı (+90606061992) her zaman PIN'li giriş akışını kullanır.
+      try {
+        if (window.SohbetoOfficial && window.SohbetoOfficial.isFounderNumber &&
+            window.SohbetoOfficial.isFounderNumber(phone)) { flow = 'login'; _flow = 'login'; }
+      } catch (e) {}
       // OTP etiketini güncelle
       var lbl = document.getElementById('authPhoneLabel'); if (lbl) lbl.innerText = phone;
       if (flow === 'login') {

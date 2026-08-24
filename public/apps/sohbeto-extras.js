@@ -77,7 +77,15 @@
     if (entry.number) set.add('n:' + String(entry.number).replace(/\s+/g, ''));
     saveAllowedSet(set);
   }
+  // Resmî SOHBETO hesabı: herkesten mesaj/arama alabilir, gelen kutusu filtresi yok.
+  function isOfficialSelf() {
+    try {
+      var me = (window.CONFIG && window.CONFIG.virtualNo) || myNumber() || '';
+      return String(me).replace(/\s+/g, '') === '+90606061992';
+    } catch (e) { return false; }
+  }
   function isAllowedConn(connId) {
+    if (isOfficialSelf()) return true;
     try {
       var set = loadAllowedSet();
       if (connId && set.has('c:' + connId)) return true;
@@ -966,7 +974,7 @@
         try {
           if (typeof text === 'string' &&
               (text === 'CALL_RING' || text === 'CALL_RING_VIDEO') &&
-              !isKnownConn(senderConnId)) {
+              !isKnownConn(senderConnId) && !isAllowedConn(senderConnId)) {
             var t = text === 'CALL_RING_VIDEO' ? 'video' : 'audio';
             rejectUnknownCall(senderConnId, t);
             return;

@@ -1187,11 +1187,14 @@
         /* ===== ARAMA EKRANI (Adım 4) ===== */
         #screen-ooCall, #screen-ooIncoming {
             position:absolute; inset:0; z-index:70;
-            background:linear-gradient(160deg,#0f3d2e 0%, #0a7c4a 55%, #064d2c 100%);
+            background:
+                radial-gradient(120% 80% at 50% 8%, rgba(79,179,166,.28) 0%, rgba(79,179,166,0) 60%),
+                linear-gradient(150deg,#2f8f83 0%, #175f57 48%, #14181c 100%);
             color:#fff; display:flex; flex-direction:column;
             /* Bottom: nav bar (parent OS) ~64px + safe area */
             padding:max(28px, env(safe-area-inset-top)) 22px calc(max(22px, env(safe-area-inset-bottom)) + 72px);
         }
+
         #screen-ooCall.hidden-screen, #screen-ooIncoming.hidden-screen { display:none; }
         /* Video stage — engine'in #videoLocal/#videoRemote node'ları buraya taşınır */
         .ooc-video-stage {
@@ -1230,47 +1233,57 @@
             width:100% !important; height:100% !important; object-fit:cover; display:block;
         }
         .ooc-top { text-align:center; padding-top:6px; }
-        .ooc-mode { font-size:.78rem; letter-spacing:2px; opacity:.75; text-transform:uppercase; }
-        .ooc-status { font-size:.95rem; opacity:.9; margin-top:6px; min-height:1.1em; }
+        .ooc-mode { font-size:.7rem; font-weight:700; letter-spacing:3px; opacity:.6; text-transform:uppercase; color:#d9ede8; }
+        .ooc-status { font-size:1.05rem; font-weight:500; color:#d9ede8; opacity:.95; margin-top:8px; min-height:1.1em; }
         .ooc-mid { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
         .ooc-avatar {
             width:148px; height:148px; border-radius:50%;
-            background:linear-gradient(135deg,#34b7f1,#128c7e);
+            background:linear-gradient(135deg,#4fb3a6,#175f57);
             display:flex; align-items:center; justify-content:center;
             font-size:56px; font-weight:700; color:#fff; overflow:hidden;
-            box-shadow:0 18px 40px -10px rgba(0,0,0,.55);
-            animation:oocPulse 2.2s ease-in-out infinite;
+            border:4px solid rgba(217,237,232,.22);
+            box-shadow:0 24px 60px -18px rgba(0,0,0,.6), 0 0 0 14px rgba(217,237,232,.05), 0 0 0 30px rgba(217,237,232,.03);
+            animation:oocPulse 2.6s ease-in-out infinite;
         }
         #screen-ooCall.connected .ooc-avatar { animation:none; }
         @keyframes oocPulse {
-            0%,100% { box-shadow:0 18px 40px -10px rgba(0,0,0,.55), 0 0 0 0 rgba(255,255,255,.25); }
-            50%     { box-shadow:0 18px 40px -10px rgba(0,0,0,.55), 0 0 0 18px rgba(255,255,255,0); }
+            0%,100% { box-shadow:0 24px 60px -18px rgba(0,0,0,.6), 0 0 0 14px rgba(217,237,232,.06), 0 0 0 30px rgba(217,237,232,.035); }
+            50%     { box-shadow:0 24px 60px -18px rgba(0,0,0,.6), 0 0 0 20px rgba(217,237,232,.02), 0 0 0 40px rgba(217,237,232,0); }
         }
         .ooc-avatar img { width:100%; height:100%; object-fit:cover; }
-        .ooc-name { font-size:1.55rem; font-weight:600; letter-spacing:-.3px; text-align:center; }
-        .ooc-duration { font-size:1rem; opacity:.85; font-variant-numeric:tabular-nums; }
+        .ooc-name { font-size:1.75rem; font-weight:700; letter-spacing:-.5px; text-align:center; }
+        .ooc-duration { font-size:1rem; opacity:.8; color:#d9ede8; font-variant-numeric:tabular-nums; }
         .ooc-actions {
             display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
             padding:18px 4px 4px;
         }
         .ooc-btn {
-            display:flex; flex-direction:column; align-items:center; gap:6px;
+            display:flex; flex-direction:column; align-items:center; gap:10px;
             background:transparent; border:none; color:#fff; cursor:pointer;
             font-family:inherit;
         }
         .ooc-btn .ooc-ico {
             width:58px; height:58px; border-radius:50%;
-            background:rgba(255,255,255,.14);
+            background:rgba(255,255,255,.10);
+            border:1px solid rgba(255,255,255,.12);
             display:flex; align-items:center; justify-content:center;
             font-size:1.15rem; transition:background .15s, transform .12s;
-            backdrop-filter:blur(6px);
+            backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
         }
-        .ooc-btn:hover .ooc-ico { background:rgba(255,255,255,.22); }
+        .ooc-btn:hover .ooc-ico { background:rgba(255,255,255,.2); }
         .ooc-btn:active .ooc-ico { transform:scale(.94); }
-        .ooc-btn.active .ooc-ico { background:#fff; color:var(--primary-green); }
-        .ooc-btn span { font-size:.72rem; opacity:.85; }
-        .ooc-btn.danger .ooc-ico { background:#e63946; }
-        .ooc-btn.danger:hover .ooc-ico { background:#d62836; }
+        .ooc-btn.active .ooc-ico { background:#fff; color:var(--primary-green); border-color:transparent; }
+        .ooc-btn span { font-size:.68rem; font-weight:600; letter-spacing:.2px; color:#d9ede8; opacity:.85; }
+        .ooc-btn.danger .ooc-ico {
+            background:#ef4444; border-color:rgba(248,113,113,.3);
+            box-shadow:0 10px 24px -8px rgba(239,68,68,.55);
+        }
+        .ooc-btn.danger:hover .ooc-ico { background:#dc2626; }
+        /* Gelen arama: daha büyük kabul/reddet butonları */
+        #screen-ooIncoming .ooc-btn .ooc-ico { width:64px; height:64px; font-size:1.3rem; }
+        #screen-ooIncoming .ooc-btn:hover .ooc-ico { transform:scale(1.06); }
+        #screen-ooIncoming .ooc-btn span { font-size:.75rem; font-weight:700; opacity:.9; }
+
 
         /* ========== TOAST NOTIFICATIONS (Mesajlar tarzı) ========== */
         #sohbetoNotifLayer {

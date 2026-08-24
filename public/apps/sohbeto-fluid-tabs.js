@@ -234,10 +234,17 @@
   function anySubscreenOpen() {
     for (var i = 0; i < SUBSCREEN_IDS.length; i++) {
       var el = document.getElementById(SUBSCREEN_IDS[i]);
-      if (el && !el.classList.contains('hidden-screen')) return true;
+      if (!el) continue;
+      // Bu alt sayfalar "active" sınıfıyla açılır. Dinamik oluşturulan
+      // fs-screen'ler (notlar/aramalar/gelen kutusu) baştan 'hidden-screen'
+      // taşımadığı için eskiden hep "açık" sayılıp ilk açılışta swipe'ı
+      // kilitliyordu. Artık yalnızca gerçekten görünür olanı sayıyoruz.
+      var hidden = el.classList.contains('hidden-screen');
+      if (!hidden && el.classList.contains('active')) return true;
     }
     return false;
   }
+
 
   function isFluidMode() {
     return appContainer && appContainer.classList.contains('fluid-mode') && !anySubscreenOpen();
