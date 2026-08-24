@@ -18,7 +18,12 @@
   var LSK = 'sohbeto-prcn-v1';
 
   // ---------------------------------------------------------------- yardımcılar
-  function st() { try { return window.state || null; } catch (e) { return null; } }
+  function st() {
+    // Motor `state`'i dosya üstünde `const` ile tanımlar; window.state oluşmaz.
+    // Adapter'ın yaptığı gibi önce global sözcüksel bağlamdan oku.
+    try { if (typeof state !== 'undefined' && state) return state; } catch (e) {}
+    try { return window.state || null; } catch (e) { return null; }
+  }
   function activeConn() { var s = st(); return (s && s.activeChat) || ''; }
   function esc(v) { return String(v == null ? '' : v).replace(/[<>&"]/g, function (c) {
     return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]; }); }
@@ -392,7 +397,7 @@
   // 5) Canlı ileti + ekran paylaşımı
   function openLive(cid) {
     var l = sheet('Canlı ileti + ekran',
-      '<div class="prcn-note">Canlı yazma modu <b>kapalı</b> başlar. Açtığında sohbet ekranında yeşil bir baloncuk belirir; sen yazdıkça hem sen hem karşı taraf harfleri ve imleci anında görür.</div>' +
+      '<div class="prcn-note">Canlı yazma modu <b>kapalı</b> gelir. Açtığında sohbet ekranında yeşil bir baloncuk belirir; sen yazdıkça hem sen hem karşı taraf harfleri ve imleci anında görür.</div>' +
       '<label class="prcn-check"><input id="prcnLiveOn" type="checkbox"' + (live.on ? ' checked' : '') + '>' +
       '<span>Canlı yazma modu</span></label>' +
       '<div class="prcn-actions col">' +
@@ -406,7 +411,11 @@
   }
 
   // ---- canlı yazma: yeşil baloncuk (kendi + karşı taraf) ----
-  var live = { on: false, timer: null, last: '' };
+  var LIVE_KEY = 'sohbeto-live-typing';
+  function liveDefault() {
+    try { return localStorage.getItem(LIVE_KEY) === '1'; } catch (e) { return false; }
+  }
+  var live = { on: liveDefault(), timer: null, last: '' };
 
   function msgBox() { return document.getElementById('chatMessages'); }
   function liveBubble(kind) {
@@ -419,6 +428,8 @@
       el.className = 'prcn-live' + (kind === 'me' ? ' me' : '');
       el.innerHTML = '<div class="prcn-live-b"><span class="prcn-live-t"></span><i class="prcn-caret"></i></div>';
       box.appendChild(el);
+    } else if (el.parentNode !== box) {
+      box.appendChild(el);
     }
     return el;
   }
@@ -427,30 +438,40 @@
     var el = liveBubble(kind); if (!el) return;
     el.querySelector('.prcn-live-t').textContent = text;
     var box = msgBox();
-    if (box) box.scrollTop = box.scrollHeight;
+    // Yukarıda geçmişi okuyorsa sayfayı zorla aşağı çekme.
+    if (box && (box.scrollHeight - box.clientHeight - box.scrollTop) <= 200) box.scrollTop = box.scrollHeight;
   }
   function dropLive(kind) {
     var el = document.getElementById('prcnLive-' + kind);
     if (el) try { el.remove(); } catch (e) {}
   }
 
+  /** Motor, karşı taraftan gelen LIVE### paketini buraya verir. */
+  window.__prcnLive = function (senderConnId, text) {
+    if (senderConnId && senderConnId !== activeConn()) return;
+    paintLive('peer', String(text || '').slice(0, 300));
+  };
+
   function setLive(on) {
     live.on = !!on;
+    try { localStorage.setItem(LIVE_KEY, live.on ? '1' : '0'); } catch (e) {}
     var inp = document.getElementById('chatInput');
     if (inp) {
       inp.removeEventListener('input', liveTick);
       if (on) inp.addEventListener('input', liveTick);
     }
-    if (on) { toast('Canlı yazma modu açık'); paintLive('me', (inp && inp.value) || ''); }
+    if (on) { paintLive('me', (inp && inp.value) || ''); }
     else {
       dropLive('me'); sendLive('');
-      toast('Canlı yazma modu kapalı');
     }
   }
   function sendLive(text) {
+    var cid = activeConn();
+    if (!cid || cid === 'genel') return;
     try {
-      var p = window.SohbetoPeer, cid = activeConn();
-      if (p && cid && cid !== 'genel') p.send(MARK_LIVE + text, cid);
+      if (typeof window.sendLiveText === 'function') { window.sendLiveText(cid, text); return; }
+      var p = window.SohbetoPeer;
+      if (p) p.send(MARK_LIVE + text, cid);
     } catch (e) {}
   }
   function liveTick() {
@@ -461,13 +482,27 @@
     if (v === live.last) return;
     live.last = v;
     if (live.timer) clearTimeout(live.timer);
-    live.timer = setTimeout(function () { sendLive(v); }, 90);
+    live.timer = setTimeout(function () { sendLive(v); }, 70);
   }
+
+  /** Giriş kutusu her sohbette aynı olduğu için tek sefer bağlanır. */
+  function bindLiveInput() {
+    var inp = document.getElementById('chatInput');
+    if (!inp) { setTimeout(bindLiveInput, 600); return; }
+    if (inp.dataset.prcnLive === '1') return;
+    inp.dataset.prcnLive = '1';
+    inp.addEventListener('input', liveTick);
+  }
+
 
   // ---- ekran paylaşımı: gerçek görüntü aktarımı ----
   var shareStream = null, shareCalls = [];
   async function startShare(video) {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        toast('Bu cihaz/tarayıcı ekran paylaşımını desteklemiyor');
+        return;
+      }
       shareStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       if (video) { video.srcObject = shareStream; try { await video.play(); } catch (e) {} }
       var cid = activeConn();
@@ -478,7 +513,12 @@
       sendRaw(MARK_SCREEN + '1');
       shareStream.getVideoTracks()[0].addEventListener('ended', stopShare);
       toast('Ekran paylaşılıyor');
-    } catch (e) { toast('Ekran paylaşımı başlatılamadı'); }
+    } catch (e) {
+      var n = (e && e.name) || '';
+      if (n === 'NotAllowedError') toast('Ekran paylaşımına izin verilmedi');
+      else if (n === 'NotSupportedError' || n === 'TypeError') toast('Bu tarayıcı ekran paylaşımını desteklemiyor');
+      else toast('Ekran paylaşımı başlatılamadı');
+    }
   }
   function stopShare() {
     shareCalls.forEach(function (c) { try { c.close(); } catch (e) {} });
@@ -531,6 +571,7 @@
     var orig = window.openChat;
     if (typeof orig !== 'function' || orig.__prcn) { setTimeout(hookOpenChat, 500); return; }
     var wrapped = async function (id) {
+      dropLive('me'); dropLive('peer'); live.last = '';
       var d = get(id);
       if (d.lock) { var ok = await askUnlock(id); if (!ok) return; }
       return orig.apply(this, arguments);
@@ -542,7 +583,7 @@
   window.SohbetoPRCN = { openMenu: openMenu, sendKey: sendKey, boxes: BOXES };
   window.chatMore = openMenu;
 
-  function boot() { watch(); hookOpenChat(); hookTransport(); hookSend(); }
+  function boot() { watch(); hookOpenChat(); hookTransport(); hookSend(); bindLiveInput(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();

@@ -165,6 +165,17 @@
       + '.cg-name-input:focus{border-color:var(--primary-green,#0a7c4a);}'
       + '.cg-save{display:block;width:100%;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--primary-green,#0a7c4a),#12b981);color:#fff;font-weight:700;font-size:.95rem;cursor:pointer;margin-top:8px;}'
       + '.cg-save:disabled{opacity:.5;cursor:not-allowed;}'
+      // Group detail & manage
+      + '.gd-head{display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 0 6px;}'
+      + '.gd-photo{width:86px;height:86px;border-radius:26px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--primary-green,#0a7c4a),#12b981);color:#fff;font-size:1.8rem;}'
+      + '.gd-photo span{width:100%;height:100%;background-size:cover;background-position:center;display:block;}'
+      + '.gd-name{text-align:center;font-weight:700;max-width:260px;margin:0;}'
+      + '.gd-name:disabled{border-color:transparent;background:transparent;}'
+      + '.gd-sub{font-size:.75rem;color:var(--text-secondary,#6b7280);}'
+      + '.gd-sec{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary,#6b7280);margin:16px 2px 6px;}'
+      + '.gd-mdel{border:none;background:none;color:#ef4444;padding:6px 10px;border-radius:10px;font-size:.9rem;cursor:pointer;}'
+      + '.gd-outline{background:#fff!important;color:var(--primary-green,#0a7c4a)!important;border:1.5px solid var(--primary-green,#0a7c4a)!important;}'
+      + '.gd-danger{background:linear-gradient(135deg,#ef4444,#f87171)!important;}'
       ;
     var s = document.createElement('style');
     s.id = '__sohbeto_extras_css__';
@@ -251,6 +262,58 @@
 
       app.appendChild(g);
     }
+    if (!document.getElementById('screen-group-detail')) {
+      var gd = document.createElement('div');
+      gd.id = 'screen-group-detail';
+      gd.className = 'fs-screen';
+      gd.innerHTML =
+        '<div class="fs-header">' +
+        '  <div class="fs-back" data-fs-close="screen-group-detail" aria-label="Geri"><i class="fa-solid fa-arrow-left"></i></div>' +
+        '  <div class="fs-title">Grup Bilgisi</div>' +
+        '  <div style="width:38px"></div>' +
+        '</div>' +
+        '<div class="fs-body">' +
+        '  <div class="gd-head">' +
+        '    <div class="gd-photo" id="gd-photo"><i class="fa-solid fa-users"></i></div>' +
+        '    <input class="cg-name-input gd-name" id="gd-name" maxlength="60" placeholder="Grup adı">' +
+        '    <div class="gd-sub" id="gd-sub">—</div>' +
+        '  </div>' +
+        '  <div class="gd-sec">Üyeler</div>' +
+        '  <div id="gd-members" style="display:flex;flex-direction:column;gap:6px;"></div>' +
+        '  <button type="button" class="cg-save gd-outline" id="gd-add"><i class="fa-solid fa-user-plus"></i>&nbsp;Üye Davet Et</button>' +
+        '  <button type="button" class="cg-save gd-danger" id="gd-leave">Gruptan Ayrıl</button>' +
+        '</div>';
+      app.appendChild(gd);
+    }
+    if (!document.getElementById('screen-group-add')) {
+      var ga = document.createElement('div');
+      ga.id = 'screen-group-add';
+      ga.className = 'fs-screen';
+      ga.innerHTML =
+        '<div class="fs-header">' +
+        '  <div class="fs-back" data-fs-close="screen-group-add" aria-label="Geri"><i class="fa-solid fa-arrow-left"></i></div>' +
+        '  <div class="fs-title">Üye Davet Et</div>' +
+        '  <div style="width:38px"></div>' +
+        '</div>' +
+        '<div class="fs-body">' +
+        '  <div class="cg-list" id="ga-list"></div>' +
+        '  <button type="button" class="cg-save" id="ga-send" disabled>Kişi Seç</button>' +
+        '</div>';
+      app.appendChild(ga);
+    }
+    if (!document.getElementById('screen-group-pick')) {
+      var gp = document.createElement('div');
+      gp.id = 'screen-group-pick';
+      gp.className = 'fs-screen';
+      gp.innerHTML =
+        '<div class="fs-header">' +
+        '  <div class="fs-back" data-fs-close="screen-group-pick" aria-label="Geri"><i class="fa-solid fa-arrow-left"></i></div>' +
+        '  <div class="fs-title">Gruba Davet Et</div>' +
+        '  <div style="width:38px"></div>' +
+        '</div>' +
+        '<div class="fs-body"><div class="cg-list" id="gp-list"></div></div>';
+      app.appendChild(gp);
+    }
   }
 
   // ----------------- Sohbetler başlığı: 3 ikon -----------------
@@ -326,7 +389,8 @@
     }
   }
   function closeAllFsScreens() {
-    ['screen-inbox', 'screen-calls', 'screen-notes', 'screen-create-group'].forEach(closeScreen);
+    ['screen-inbox', 'screen-calls', 'screen-notes', 'screen-create-group',
+     'screen-group-detail', 'screen-group-add', 'screen-group-pick'].forEach(closeScreen);
   }
 
   // ----------------- NOTLAR -----------------
@@ -773,6 +837,8 @@
         saveInbox([]).then(renderInbox);
       });
     }
+    var gas = document.getElementById('ga-send');
+    if (gas && !gas.__bound) { gas.__bound = 1; gas.addEventListener('click', sendGroupAdds); }
     // Tüm fs-back butonları
     document.querySelectorAll('[data-fs-close]').forEach(function (b) {
       if (b.__bound) return; b.__bound = 1;
@@ -914,9 +980,11 @@
     if (typeof window.renderIncomingMsg === 'function' && !window.renderIncomingMsg.__extrasWrapped) {
       var origMsg = window.renderIncomingMsg;
       window.renderIncomingMsg = function (senderConnId, targetConnId, text, isP2P, msgId) {
-        try {
-          // GROUP_INVITE protokolü: text "GROUP_INVITE_V2###groupId###name###members"
-          var txt = String(text || '');
+         try {
+           var txt = String(text || '');
+           // Grup eşitleme sinyalleri (JOIN/LEAVE/REMOVE) — sohbet balonu oluşturma
+           try { if (handleGroupSync(senderConnId, txt)) return; } catch (e) {}
+           // GROUP_INVITE protokolü: text "GROUP_INVITE_V2###groupId###name###members"
           if (txt.indexOf('GROUP_INVITE_V2###') === 0) {
             var parts = txt.split('###');
             var nm0 = peerDisplayName(senderConnId).replace(/\[.*?\]/g, '').trim();
@@ -1105,7 +1173,7 @@
 
       createdAt: Date.now(),
       ownerNumber: myNumber(),
-      members: memberObjs.map(function (c) { return { number: c.number, name: c.name, connId: c.connId }; })
+      members: memberObjs.map(function (c) { return { number: c.number, name: c.name, connId: c.connId, joined: false, invited: !!c.connId }; })
     };
     loadGroups().then(function (arr) {
       arr.unshift(group);
@@ -1161,23 +1229,450 @@
           }).then(renderGroups);
         });
       });
+      list.querySelectorAll('.group-card').forEach(function (card) {
+        card.addEventListener('click', function () {
+          var gid2 = card.getAttribute('data-gid');
+          if (gid2) openGroupDetail(gid2);
+        });
+      });
     });
   }
   function joinGroupFromInvite(entry, idx) {
+    var joinedGroup = null;
     loadGroups().then(function (arr) {
-      if (entry.groupId && arr.some(function (g) { return g.id === entry.groupId; })) return arr;
-      arr.unshift({
+      var existing = entry.groupId ? arr.filter(function (g) { return g.id === entry.groupId; })[0] : null;
+      if (existing) { joinedGroup = existing; return arr; }
+      joinedGroup = {
         id: entry.groupId || ('g_' + Date.now()),
         name: entry.groupName || 'Grup',
         createdAt: Date.now(),
         ownerNumber: entry.number || '',
+        ownerConnId: entry.connId || '',
         members: (entry.members || []).map(function (n) { return { number: n, name: n, connId: '' }; }),
         joinedFromInvite: true
-      });
+      };
+      arr.unshift(joinedGroup);
       return saveGroups(arr).then(function () { return arr; });
     }).then(function () {
+      // Kurucuya katılım bildirimi gönder (üye listesi gerçek connId ile güncellensin)
+      try {
+        if (joinedGroup && joinedGroup.ownerConnId) {
+          var payload = 'GROUP_JOIN_V2###' + joinedGroup.id + '###' + myNumber() + '###' + myDisplayName();
+          if (typeof sendToPeer === 'function') sendToPeer(joinedGroup.ownerConnId, payload);
+          else if (typeof window.sendToPeer === 'function') window.sendToPeer(joinedGroup.ownerConnId, payload);
+        }
+      } catch (e) {}
+      renderGroups();
       return removeInboxAt(idx);
     });
+  }
+
+  // ----------------- GRUP DETAY & YÖNETİM -----------------
+  var _detailGid = null;
+  var _detailOwner = false;
+  var _gaGid = null;
+  var _gaSelected = {};
+  var _pickConnId = null;
+
+  function myDisplayName() {
+    try { if (typeof state !== 'undefined' && state && state.username) return state.username; } catch (e) {}
+    return '';
+  }
+  function isGroupOwner(g) { return !!g && g.ownerNumber === myNumber(); }
+
+  function openGroupDetail(gid) {
+    loadGroups().then(function (arr) {
+      var g = null;
+      arr.forEach(function (x) { if (x.id === gid) g = x; });
+      if (!g) { toast('Grup bulunamadı'); return; }
+      _detailGid = gid;
+      renderGroupDetail(g);
+      openScreen('screen-group-detail');
+    });
+  }
+
+  function withCurrentGroup(cb) {
+    loadGroups().then(function (arr) {
+      var g = null;
+      arr.forEach(function (x) { if (x.id === _detailGid) g = x; });
+      cb(g, arr);
+    });
+  }
+
+  function renderGroupDetail(g) {
+    _detailOwner = isGroupOwner(g);
+    var photo = document.getElementById('gd-photo');
+    if (photo) {
+      photo.innerHTML = g.photo
+        ? '<span style="background-image:url(' + g.photo + ')"></span>'
+        : '<i class="fa-solid fa-users"></i>';
+      photo.style.cursor = _detailOwner ? 'pointer' : 'default';
+      if (!photo.__bound) {
+        photo.__bound = 1;
+        photo.addEventListener('click', function () {
+          if (!_detailOwner) { toast('Yalnızca kurucu fotoğrafı değiştirebilir'); return; }
+          var inp = document.createElement('input');
+          inp.type = 'file'; inp.accept = 'image/*';
+          inp.onchange = function () {
+            var f = inp.files && inp.files[0]; if (!f) return;
+            var rd = new FileReader();
+            rd.onload = function () { gdUpdate({ photo: rd.result }); };
+            rd.readAsDataURL(f);
+          };
+          inp.click();
+        });
+      }
+    }
+    var nameIn = document.getElementById('gd-name');
+    if (nameIn) {
+      nameIn.value = g.name || '';
+      nameIn.disabled = !_detailOwner;
+      if (!nameIn.__bound) {
+        nameIn.__bound = 1;
+        nameIn.addEventListener('change', function () {
+          var v = (nameIn.value || '').trim();
+          if (!v) { renderGroupDetail; return; }
+          gdUpdate({ name: v });
+        });
+      }
+    }
+    var sub = document.getElementById('gd-sub');
+    if (sub) sub.textContent = ((g.members ? g.members.length : 0) + 1) + ' üye · ' + fmtDT(g.createdAt);
+    renderGdMembers(g);
+    var addBtn = document.getElementById('gd-add');
+    if (addBtn) {
+      addBtn.style.display = _detailOwner ? '' : 'none';
+      if (!addBtn.__bound) {
+        addBtn.__bound = 1;
+        addBtn.addEventListener('click', function () { if (_detailGid) openGroupAdd(_detailGid); });
+      }
+    }
+    var leaveBtn = document.getElementById('gd-leave');
+    if (leaveBtn) {
+      leaveBtn.textContent = _detailOwner ? 'Grubu Sil' : 'Gruptan Ayrıl';
+      if (!leaveBtn.__bound) {
+        leaveBtn.__bound = 1;
+        leaveBtn.addEventListener('click', gdLeaveOrDelete);
+      }
+    }
+  }
+
+  function gdUpdate(patch) {
+    withCurrentGroup(function (g, arr) {
+      if (!g) return;
+      for (var k in patch) g[k] = patch[k];
+      saveGroups(arr).then(function () {
+        renderGroupDetail(g);
+        renderGroups();
+        toast('Kaydedildi');
+      });
+    });
+  }
+
+  function renderGdMembers(g) {
+    var wrap = document.getElementById('gd-members');
+    if (!wrap) return;
+    var html = '';
+    var ownerLabel = _detailOwner ? 'Sen' : escapeHtml(String(g.ownerNumber || 'Bilinmiyor'));
+    html += '<div class="cg-row" style="cursor:default">' +
+            '  <div class="cg-av"><i class="fa-solid fa-crown"></i></div>' +
+            '  <div style="flex:1;min-width:0">' +
+            '    <div class="cg-nm">' + ownerLabel + '</div>' +
+            '    <div class="cg-num">Kurucu</div>' +
+            '  </div>' +
+            '</div>';
+    (g.members || []).forEach(function (m) {
+      var nm = m.name || m.number || '?';
+      var status = m.joined ? 'Katıldı' : (m.invited ? 'Davet gönderildi' : 'Davet beklemede');
+      html += '<div class="cg-row" style="cursor:default">' +
+              '  <div class="cg-av">' + escapeHtml(String(nm).charAt(0).toUpperCase() || '?') + '</div>' +
+              '  <div style="flex:1;min-width:0">' +
+              '    <div class="cg-nm">' + escapeHtml(String(nm)) + '</div>' +
+              '    <div class="cg-num">' + escapeHtml(String(m.number || '')) + ' · ' + status + '</div>' +
+              '  </div>' +
+              (_detailOwner ? '  <button type="button" class="gd-mdel" data-mnum="' + escapeHtml(String(m.number || '')) + '" title="Çıkar"><i class="fa-solid fa-user-minus"></i></button>' : '') +
+              '</div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.gd-mdel').forEach(function (b) {
+      b.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var num = b.getAttribute('data-mnum');
+        if (!confirm('Bu üye gruptan çıkarılsın mı?')) return;
+        removeGroupMember(_detailGid, num);
+      });
+    });
+  }
+
+  function removeGroupMember(gid, number) {
+    loadGroups().then(function (arr) {
+      var g = null;
+      arr.forEach(function (x) { if (x.id === gid) g = x; });
+      if (!g) return;
+      var removed = null;
+      g.members = (g.members || []).filter(function (m) {
+        if (m.number === number) { removed = m; return false; }
+        return true;
+      });
+      saveGroups(arr).then(function () {
+        try {
+          if (removed && removed.connId) {
+            if (typeof sendToPeer === 'function') sendToPeer(removed.connId, 'GROUP_REMOVE_V2###' + gid);
+            else if (typeof window.sendToPeer === 'function') window.sendToPeer(removed.connId, 'GROUP_REMOVE_V2###' + gid);
+          }
+        } catch (e) {}
+        renderGroupDetail(g);
+        renderGroups();
+        toast('Üye çıkarıldı');
+      });
+    });
+  }
+
+  function gdLeaveOrDelete() {
+    withCurrentGroup(function (g, arr) {
+      if (!g) return;
+      if (isGroupOwner(g)) {
+        if (!confirm('"' + g.name + '" kalıcı olarak silinsin mi?')) return;
+        var filtered = arr.filter(function (x) { return x.id !== g.id; });
+        saveGroups(filtered).then(function () {
+          try {
+            (g.members || []).forEach(function (m) {
+              if (!m.connId) return;
+              if (typeof sendToPeer === 'function') sendToPeer(m.connId, 'GROUP_REMOVE_V2###' + g.id);
+              else if (typeof window.sendToPeer === 'function') window.sendToPeer(m.connId, 'GROUP_REMOVE_V2###' + g.id);
+            });
+          } catch (e) {}
+          closeScreen('screen-group-detail');
+          renderGroups();
+          toast('Grup silindi');
+        });
+      } else {
+        if (!confirm('"' + g.name + '" grubundan ayrılmak istiyor musun?')) return;
+        var filtered2 = arr.filter(function (x) { return x.id !== g.id; });
+        saveGroups(filtered2).then(function () {
+          try {
+            if (g.ownerConnId) {
+              var payload = 'GROUP_LEAVE_V2###' + g.id + '###' + myNumber();
+              if (typeof sendToPeer === 'function') sendToPeer(g.ownerConnId, payload);
+              else if (typeof window.sendToPeer === 'function') window.sendToPeer(g.ownerConnId, payload);
+            }
+          } catch (e) {}
+          closeScreen('screen-group-detail');
+          renderGroups();
+          toast('Gruptan ayrıldın');
+        });
+      }
+    });
+  }
+
+  // ----------------- MEVCUT GRUBA ÜYE DAVETİ -----------------
+  function openGroupAdd(gid) {
+    _gaGid = gid;
+    _gaSelected = {};
+    renderGaList();
+    openScreen('screen-group-add');
+  }
+  function renderGaList() {
+    var list = document.getElementById('ga-list');
+    if (!list) return;
+    list.innerHTML = '';
+    loadGroups().then(function (arr) {
+      var g = null;
+      arr.forEach(function (x) { if (x.id === _gaGid) g = x; });
+      if (!g) return;
+      var existing = {};
+      (g.members || []).forEach(function (m) { existing[m.number] = 1; });
+      var rows = 0;
+      listMyContacts().forEach(function (c) {
+        if (existing[c.number]) return;
+        rows++;
+        var row = document.createElement('div');
+        row.className = 'cg-row';
+        row.innerHTML =
+          '<div class="cg-av">' + escapeHtml(String(c.name || c.number).charAt(0).toUpperCase() || '?') + '</div>' +
+          '<div style="flex:1;min-width:0">' +
+          '  <div class="cg-nm">' + escapeHtml(String(c.name || c.number)) + '</div>' +
+          '  <div class="cg-num">' + escapeHtml(String(c.number)) + '</div>' +
+          '</div>' +
+          '<div class="cg-ck"><i class="fa-solid fa-check" style="opacity:0"></i></div>';
+        row.addEventListener('click', function () {
+          if (_gaSelected[c.number]) { delete _gaSelected[c.number]; row.classList.remove('checked'); row.querySelector('.cg-ck i').style.opacity = '0'; }
+          else { _gaSelected[c.number] = true; row.classList.add('checked'); row.querySelector('.cg-ck i').style.opacity = '1'; }
+          updateGaBtn();
+        });
+        list.appendChild(row);
+      });
+      if (!rows) {
+        list.innerHTML = '<div class="call-empty"><i class="fa-regular fa-circle-check"></i><p>Tüm kişiler zaten grupta.</p></div>';
+      }
+      updateGaBtn();
+    });
+  }
+  function updateGaBtn() {
+    var btn = document.getElementById('ga-send');
+    if (!btn) return;
+    var n = Object.keys(_gaSelected).length;
+    btn.disabled = n === 0;
+    btn.textContent = n ? ('Davet Gönder (' + n + ')') : 'Kişi Seç';
+  }
+  function sendGroupAdds() {
+    var nums = Object.keys(_gaSelected);
+    if (!_gaGid || !nums.length) return;
+    loadGroups().then(function (arr) {
+      var g = null;
+      arr.forEach(function (x) { if (x.id === _gaGid) g = x; });
+      if (!g) return;
+      var contacts = listMyContacts();
+      nums.forEach(function (number) {
+        var c = null;
+        contacts.forEach(function (x) { if (x.number === number) c = x; });
+        g.members = g.members || [];
+        g.members.push({
+          number: number,
+          name: c ? c.name : number,
+          connId: c ? (c.connId || '') : '',
+          joined: false,
+          invited: !!(c && c.connId)
+        });
+      });
+      var allNumbers = [g.ownerNumber].concat(g.members.map(function (m) { return m.number; }));
+      var sent = 0;
+      g.members.forEach(function (m) {
+        if (nums.indexOf(m.number) === -1 || !m.connId) return;
+        try {
+          var payload = 'GROUP_INVITE_V2###' + g.id + '###' + g.name + '###' + allNumbers.join(',');
+          var ok = false;
+          if (typeof sendToPeer === 'function') ok = !!sendToPeer(m.connId, payload);
+          else if (typeof window.sendToPeer === 'function') ok = !!window.sendToPeer(m.connId, payload);
+          if (ok) sent++;
+        } catch (e) {}
+      });
+      return saveGroups(arr).then(function () {
+        _gaSelected = {};
+        closeScreen('screen-group-add');
+        renderGroupDetail(g);
+        renderGroups();
+        toast(sent ? sent + ' kişiye davet gönderildi' : 'Üyeler eklendi (çevrimdışı)');
+        if (sent && typeof showNotif === 'function') showNotif(sent + ' kişiye grup daveti gönderildi');
+      });
+    });
+  }
+
+  // ----------------- KİŞİYİ GRUBA DAVET (kişi kartından) -----------------
+  function inviteToGroupFlow(connId) {
+    _pickConnId = connId;
+    loadGroups().then(function (arr) {
+      var mine = arr.filter(function (g) { return isGroupOwner(g); });
+      var list = document.getElementById('gp-list');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!mine.length) {
+        list.innerHTML = '<div class="call-empty"><i class="fa-solid fa-users"></i><p>Kurucusu olduğun grup yok.<br>Önce Gruplar sekmesinden grup oluştur.</p></div>';
+      } else {
+        mine.forEach(function (g) {
+          var row = document.createElement('div');
+          row.className = 'cg-row';
+          row.innerHTML =
+            '<div class="cg-av"><i class="fa-solid fa-users"></i></div>' +
+            '<div style="flex:1;min-width:0">' +
+            '  <div class="cg-nm">' + escapeHtml(String(g.name)) + '</div>' +
+            '  <div class="cg-num">' + ((g.members ? g.members.length : 0) + 1) + ' üye</div>' +
+            '</div>' +
+            '<div class="cg-ck" style="border:none"><i class="fa-solid fa-chevron-right" style="color:#94a3b8;font-size:.8rem"></i></div>';
+          row.addEventListener('click', function () { inviteContactToGroup(g.id); });
+          list.appendChild(row);
+        });
+      }
+      openScreen('screen-group-pick');
+    });
+  }
+  function inviteContactToGroup(gid) {
+    var connId = _pickConnId;
+    if (!connId) return;
+    var c = (typeof getContactByConnId === 'function') ? getContactByConnId(connId) : null;
+    var number = c ? c.number : connId;
+    loadGroups().then(function (arr) {
+      var g = null;
+      arr.forEach(function (x) { if (x.id === gid) g = x; });
+      if (!g) { toast('Grup bulunamadı'); return; }
+      g.members = g.members || [];
+      var exists = g.members.some(function (m) { return m.number === number; });
+      if (exists) { toast('Bu kişi zaten grupta'); return; }
+      g.members.push({ number: number, name: c ? (c.name || number) : number, connId: connId, joined: false, invited: true });
+      var allNumbers = [g.ownerNumber].concat(g.members.map(function (m) { return m.number; }));
+      var ok = false;
+      try {
+        var payload = 'GROUP_INVITE_V2###' + g.id + '###' + g.name + '###' + allNumbers.join(',');
+        if (typeof sendToPeer === 'function') ok = !!sendToPeer(connId, payload);
+        else if (typeof window.sendToPeer === 'function') ok = !!window.sendToPeer(connId, payload);
+      } catch (e) {}
+      saveGroups(arr).then(function () {
+        closeScreen('screen-group-pick');
+        renderGroups();
+        if (typeof showNotif === 'function') showNotif(ok ? 'Grup daveti gönderildi' : 'Davet eklendi (çevrimdışı)');
+        else toast(ok ? 'Grup daveti gönderildi' : 'Davet eklendi (çevrimdışı)');
+      });
+    });
+  }
+
+  // ----------------- GRUP EŞİTLEME SİNYALLERİ -----------------
+  // Katılım / ayrılma / çıkarılma bildirimleri — true dönerse mesaj tüketildi
+  function handleGroupSync(senderConnId, text) {
+    if (!text || typeof text !== 'string') return false;
+    var parts = text.split('###');
+    var tag = parts[0];
+    if (tag === 'GROUP_JOIN_V2' && parts.length >= 4) {
+      var gid = parts[1], number = parts[2], name = parts.slice(3).join('###');
+      loadGroups().then(function (arr) {
+        var g = null;
+        arr.forEach(function (x) { if (x.id === gid) g = x; });
+        if (!g || !isGroupOwner(g)) return;
+        g.members = g.members || [];
+        var m = null;
+        g.members.forEach(function (x) { if (x.number === number) m = x; });
+        if (!m) { m = { number: number }; g.members.push(m); }
+        m.name = name || m.name || number;
+        m.connId = senderConnId;
+        m.joined = true;
+        saveGroups(arr).then(function () {
+          renderGroups();
+          if (_detailGid === gid) renderGroupDetail(g);
+          if (typeof showNotif === 'function') showNotif((m.name || number) + ' "' + g.name + '" grubuna katıldı');
+        });
+      });
+      return true;
+    }
+    if (tag === 'GROUP_LEAVE_V2' && parts.length >= 3) {
+      var gid2 = parts[1], number2 = parts[2];
+      loadGroups().then(function (arr) {
+        var g = null;
+        arr.forEach(function (x) { if (x.id === gid2) g = x; });
+        if (!g || !isGroupOwner(g)) return;
+        g.members = (g.members || []).filter(function (m) { return m.number !== number2; });
+        saveGroups(arr).then(function () {
+          renderGroups();
+          if (_detailGid === gid2) renderGroupDetail(g);
+          if (typeof showNotif === 'function') showNotif(number2 + ' gruptan ayrıldı');
+        });
+      });
+      return true;
+    }
+    if (tag === 'GROUP_REMOVE_V2' && parts.length >= 2) {
+      var gid3 = parts[1];
+      loadGroups().then(function (arr) {
+        var g = null;
+        arr.forEach(function (x) { if (x.id === gid3) g = x; });
+        if (!g) return;
+        var filtered = arr.filter(function (x) { return x.id !== gid3; });
+        saveGroups(filtered).then(function () {
+          renderGroups();
+          if (_detailGid === gid3) closeScreen('screen-group-detail');
+          if (typeof showNotif === 'function') showNotif('"' + g.name + '" grubundan çıkarıldın');
+        });
+      });
+      return true;
+    }
+    return false;
   }
 
   // ----------------- Public API -----------------
@@ -1186,6 +1681,8 @@
     openCalls:  function () { openScreen('screen-calls');  renderCalls(); },
     openNotes:  function () { openScreen('screen-notes');  renderNotes(); },
     openCreateGroup: openCreateGroup,
+    openGroupDetail: openGroupDetail,
+    inviteToGroupFlow: inviteToGroupFlow,
     renderGroups: renderGroups,
     closeAll:   closeAllFsScreens,
     appendInbox: appendInbox,

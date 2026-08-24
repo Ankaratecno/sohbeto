@@ -649,10 +649,10 @@
       if (msgs) {
         var prev = msgs.style.scrollBehavior;
         msgs.style.scrollBehavior = 'auto';
-        if (typeof window.ooPinChatBottom === 'function') window.ooPinChatBottom(msgs);
+        if (typeof window.ooPinChatBottom === 'function') window.ooPinChatBottom(msgs, true);
         else msgs.scrollTop = msgs.scrollHeight;
         requestAnimationFrame(function () {
-          if (typeof window.ooPinChatBottom === 'function') window.ooPinChatBottom(msgs);
+          if (typeof window.ooPinChatBottom === 'function') window.ooPinChatBottom(msgs, true);
           else msgs.scrollTop = msgs.scrollHeight;
           msgs.style.scrollBehavior = prev || '';
         });

@@ -21,8 +21,11 @@
 
   function myNumber() {
     try {
-      return (window.myNumber) ||
+      // Motorun kayıtlı sanal numarası (asıl kaynak): CONFIG.virtualNo
+      return (window.CONFIG && window.CONFIG.virtualNo) ||
+        (typeof window.myNumber === 'string' ? window.myNumber : '') ||
         (window.state && window.state.myNumber) ||
+        localStorage.getItem('sohbeto_push_phone') ||
         localStorage.getItem('sohbeto.oo.profile.number') ||
         localStorage.getItem('sohbet_my_number_v1') || '';
     } catch (e) { return ''; }
@@ -131,7 +134,7 @@
     if (!tg || tg.dataset.bound) return;
     tg.dataset.bound = '1';
 
-    function paintPush(enabled, unsupported) {
+    function paintPush(enabled, unsupported, permission) {
       if (!sub) return;
       if (unsupported) {
         sub.textContent = 'Bu cihaz desteklemiyor';
@@ -142,6 +145,9 @@
       if (enabled) {
         sub.textContent = 'Açık — yeni mesajlar bildirimle gelir';
         tg.checked = true;
+      } else if (permission === 'denied') {
+        sub.textContent = 'Tarayıcı izni reddedildi — site ayarlarından açın';
+        tg.checked = false;
       } else {
         sub.textContent = 'Kapalı — yeni mesajlar için izin ver';
         tg.checked = false;
@@ -151,7 +157,7 @@
     function onMessage(ev) {
       var d = ev.data || {};
       if (d.type !== 'sohbeto:push-status') return;
-      paintPush(d.enabled, d.unsupported);
+      paintPush(d.enabled, d.unsupported, d.permission);
     }
     window.addEventListener('message', onMessage);
 
@@ -162,9 +168,13 @@
     window.parent.postMessage({ type: 'sohbeto:query-push-status' }, '*');
   }
 
+  var _numTries = 0;
   function refresh() {
     var num = document.getElementById('accPhoneNumber');
-    if (num) num.textContent = myNumber() || 'Kayıtlı numara yok';
+    var mine = myNumber();
+    if (num) num.textContent = mine || 'Kayıtlı numara yok';
+    // Motor numarayı IndexedDB'den asenkron yüklüyor: boşsa kısa süre tekrar dene.
+    if (!mine && _numTries < 10) { _numTries++; setTimeout(refresh, 600); }
     var cr = document.getElementById('accCreatedAt');
     if (cr) cr.textContent = formatDate(createdAt());
     bindUsername();

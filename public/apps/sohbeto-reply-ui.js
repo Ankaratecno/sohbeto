@@ -15,6 +15,7 @@
   'use strict';
 
   var TOP = '\u250C', MID = '\u2502', END = '\u2514';
+  var IDSEP = '\u2063'; // görünmez ayraç: alıntılanan mesajın kimliği
   var pending = null; // { name, text }
 
   // ---------- yardımcılar ----------
@@ -100,6 +101,12 @@
     return scan(true) || scan(false);
   }
 
+  function byId(id) {
+    if (!id) return null;
+    try { return document.querySelector('#chatMessages .msg[data-msg-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]'); }
+    catch (e) { return null; }
+  }
+
   function thumbOf(msgEl) {
     if (!msgEl) return '';
     var img = msgEl.querySelector('.msg-media-img');
@@ -141,7 +148,7 @@
   function startReply(msgEl) {
     var txt = textOf(msgEl);
     if (!txt) txt = 'Medya';
-    pending = { name: senderOf(msgEl) || 'Mesaj', text: txt };
+    pending = { name: senderOf(msgEl) || 'Mesaj', text: txt, id: (msgEl && msgEl.dataset && msgEl.dataset.msgId) || '' };
     var b = ensureBar();
     if (!b) return;
     b.querySelector('.rq-name').textContent = pending.name;
@@ -159,7 +166,8 @@
   function quoteBlock() {
     if (!pending) return '';
     var lines = String(pending.text).split('\n').slice(0, 4).map(function (l) { return MID + ' ' + l; });
-    return TOP + ' ' + pending.name + '\n' + lines.join('\n') + '\n' + END + '\n';
+    var head = TOP + ' ' + pending.name + (pending.id ? IDSEP + pending.id : '');
+    return head + '\n' + lines.join('\n') + '\n' + END + '\n';
   }
 
   // ---------- gönderimi sar ----------
@@ -198,7 +206,11 @@
         continue;
       }
       var lines = raw.split('\n');
-      var name = cleanName(lines[0].slice(1));
+      var head = lines[0].slice(1);
+      var qid = '';
+      var ip = head.indexOf(IDSEP);
+      if (ip >= 0) { qid = head.slice(ip + 1).trim(); head = head.slice(0, ip); }
+      var name = cleanName(head);
       var q = [], k = 1;
       for (; k < lines.length; k++) {
         var ln = lines[k].replace(/^\s+/, '');
@@ -215,7 +227,7 @@
       quote.querySelector('.rq-q-name').textContent = name;
       var qtext = q.join(' ');
       quote.querySelector('.rq-q-text').textContent = clip(qtext, 140);
-      var src = findSource(el, name, qtext);
+      var src = byId(qid) || findSource(el, name, qtext);
       var thumb = thumbOf(src);
       if (thumb) {
         var im = document.createElement('img');
@@ -224,11 +236,12 @@
         im.alt = '';
         quote.appendChild(im);
       }
+      quote.dataset.qid = qid;
       quote.dataset.qname = name;
       quote.dataset.qtext = qtext;
       quote.addEventListener('click', function (ev) {
         ev.stopPropagation();
-        var target = findSource(this, this.dataset.qname, this.dataset.qtext);
+        var target = byId(this.dataset.qid) || findSource(this, this.dataset.qname, this.dataset.qtext);
         jumpTo(target);
       });
       el.parentNode.insertBefore(quote, el);

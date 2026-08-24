@@ -173,7 +173,7 @@
   // .active kalıp ana sekmenin üstünü kaplıyordu. Tab geçişinden ÖNCE her zaman
   // bu sub-screen overlay'lerini kapatıyoruz ki Sohbetler/Kişiler/Gruplar/Ayarlar'a
   // tıklamak her durumda doğrudan o sekmeye götürsün.
-  var SUBSCREEN_IDS = ['screen-tema', 'screen-hesap', 'screen-gizlilik', 'screen-notes', 'screen-calls', 'screen-inbox'];
+  var SUBSCREEN_IDS = ['screen-tema', 'screen-hesap', 'screen-gizlilik', 'screen-yardim', 'screen-notes', 'screen-calls', 'screen-inbox'];
   function closeSettingsSubscreens() {
     SUBSCREEN_IDS.forEach(function (id) {
       var el = document.getElementById(id);
@@ -229,9 +229,20 @@
     return false;
   }
 
-  function isFluidMode() {
-    return appContainer && appContainer.classList.contains('fluid-mode');
+  // Ayarlar > Hesap / Tema / Gizlilik / Yardım gibi alt sayfalar açıkken swipe
+  // ile arka plandaki sekme değişmesin: sadece geri oku çalışsın.
+  function anySubscreenOpen() {
+    for (var i = 0; i < SUBSCREEN_IDS.length; i++) {
+      var el = document.getElementById(SUBSCREEN_IDS[i]);
+      if (el && !el.classList.contains('hidden-screen')) return true;
+    }
+    return false;
   }
+
+  function isFluidMode() {
+    return appContainer && appContainer.classList.contains('fluid-mode') && !anySubscreenOpen();
+  }
+
 
   function getX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
   function getY(e) { return e.touches ? e.touches[0].clientY : e.clientY; }

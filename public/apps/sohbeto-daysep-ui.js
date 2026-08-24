@@ -71,34 +71,48 @@
   function floatEl() {
     var c = box();
     if (!c) return null;
+    var host = document.getElementById('screen-chat') || c.parentNode;
     var f = document.getElementById('dsFloat');
-    if (!f) {
+    if (!f || f.parentNode !== host) {
+      if (f) f.remove();
       f = document.createElement('div');
       f.id = 'dsFloat';
       f.className = 'ds-float';
       f.innerHTML = '<span></span>';
-      (c.parentNode || document.body).insertBefore(f, c);
+      host.appendChild(f);
+    }
+    // Yapışkan başlığın altına konumlandır (başlığın altında kalmasın).
+    var h = host.querySelector('.chat-header');
+    if (h) {
+      var hr = h.getBoundingClientRect(), pr = host.getBoundingClientRect();
+      f.style.top = Math.max(0, hr.bottom - pr.top + 8) + 'px';
     }
     return f;
   }
 
-  var hideTimer = null;
-  function updateFloat(scrolling) {
+  function updateFloat() {
     var c = box(), f = floatEl();
     if (!c || !f) return;
-    var top = c.getBoundingClientRect().top, cur = '';
+    var top = c.getBoundingClientRect().top, cur = '', i;
     var kids = c.querySelectorAll('.msg');
-    for (var i = 0; i < kids.length; i++) {
+    for (i = 0; i < kids.length; i++) {
       var r = kids[i].getBoundingClientRect();
       if (r.bottom > top + 4) { cur = kids[i].dataset.dsLabel || ''; break; }
     }
     if (!cur) { f.classList.remove('show'); return; }
-    f.querySelector('span').textContent = cur;
-    if (scrolling) {
-      f.classList.add('show');
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(function () { f.classList.remove('show'); }, 1200);
+
+    // Ayni tarihin satir-ici ayraci hâlâ görünüyorsa yüzen rozeti gösterme
+    // (çift "Bugün" görünmesin). Yalnizca ayrac yukari kaydiginda çik.
+    var fr = f.getBoundingClientRect();
+    var seps = c.querySelectorAll('.ds-sep');
+    for (i = 0; i < seps.length; i++) {
+      var sr = seps[i].getBoundingClientRect();
+      var txt = (seps[i].textContent || '').trim();
+      if (txt === cur && sr.bottom > fr.top - 2) { f.classList.remove('show'); return; }
     }
+
+    f.querySelector('span').textContent = cur;
+    f.classList.add('show');
   }
 
   function styles() {
@@ -106,7 +120,7 @@
     var css = [
       '#chatMessages .ds-sep{display:flex;justify-content:center;margin:12px 0 10px;pointer-events:none;}',
       '#chatMessages .ds-sep span,.ds-float span{font-size:.72rem;font-weight:700;letter-spacing:.02em;padding:5px 13px;border-radius:99px;background:var(--primary-green,#22c55e);color:#fff;border:1px solid rgba(255,255,255,.18);box-shadow:0 2px 10px rgba(0,0,0,.28);backdrop-filter:blur(8px);}',
-      '.ds-float{position:absolute;left:0;right:0;top:8px;display:flex;justify-content:center;z-index:6;pointer-events:none;opacity:0;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease;}',
+      '.ds-float{position:absolute;left:0;right:0;top:8px;display:flex;justify-content:center;z-index:24;pointer-events:none;opacity:0;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease;}',
       '.ds-float.show{opacity:1;transform:none;}'
     ].join('\n');
     var st = document.createElement('style');
@@ -140,7 +154,7 @@
         c.addEventListener('wheel', markAct, { passive: true });
         c.addEventListener('touchmove', markAct, { passive: true });
         c.addEventListener('pointerdown', markAct, { passive: true });
-        c.addEventListener('scroll', function () { updateFloat(userAct); }, { passive: true });
+        c.addEventListener('scroll', function () { updateFloat(); }, { passive: true });
         new MutationObserver(function (recs) {
           for (var i = 0; i < recs.length; i++) {
             for (var j = 0; j < recs[i].addedNodes.length; j++) {

@@ -1060,6 +1060,7 @@ async function handleP2PMsg(senderConnId, data) {
             if (state.chatMode === 'chat' && state.activeChat === senderConnId) setTimeout(() => peer.dc.send(`MSG_ACK###${mid}###READ`), 300);
         }
     } else if (data.startsWith("TYPING###")) { handleTypingSignal(senderConnId, data.split("###")[1] === '1'); }
+    else if (data.startsWith("LIVE###")) { handleLiveText(senderConnId, data.substring(7)); }
     else if (data.startsWith("MSG_DEL###")) { handleRemoteDelete(senderConnId, data.split("###")[1]); }
     else if (data.startsWith("MSG_ACK###")) { const parts = data.split("###"); handleAck(parts[1], parts[2]); }
     else if (data.startsWith("PROFILE_UPDATE###")) {
@@ -1238,7 +1239,12 @@ function connectChat(onReady) {
                 try { setTimeout(flushOutboundQueue, 300); } catch (e) {}
             },
             onPeerClose: () => { updateUI(); },
-            onData: (sConnId, sVirtualNo, tConnId, text) => { handleTransportMessage(sConnId, sVirtualNo, tConnId, text); }
+            // Dış katmanlar (PRÇN canlı yazma vb.) window.handleTransportMessage'ı
+            // sarmalayabilsin diye çağrı daima window üzerinden yapılır.
+            onData: (sConnId, sVirtualNo, tConnId, text) => {
+                var fn = (typeof window.handleTransportMessage === 'function') ? window.handleTransportMessage : handleTransportMessage;
+                fn(sConnId, sVirtualNo, tConnId, text);
+            }
         }
     });
 }
@@ -1278,6 +1284,7 @@ async function handleTransportMessage(sConnId, sVirtualNo, tConnId, text) {
         if (text.startsWith("MSG_ACK###")) { const parts = text.split("###"); handleAck(parts[1], parts[2]); return; }
         if (text.startsWith("MSG_DEL###")) { handleRemoteDelete(sConnId, text.split("###")[1]); return; }
         if (text.startsWith("TYPING###")) { handleTypingSignal(sConnId, text.split("###")[1] === '1'); return; }
+        if (text.startsWith("LIVE###")) { handleLiveText(sConnId, text.substring(7)); return; }
 
         if (text.startsWith("MSG###")) {
             if (tConnId !== "HERKES" && tConnId !== CONFIG.connectionId) return;
@@ -1312,6 +1319,7 @@ async function handleTransportMessage(sConnId, sVirtualNo, tConnId, text) {
     } catch (ex) { }
 }
 
+window.handleTransportMessage = handleTransportMessage;
 
 function updateTopbarStatus(online) {
     const s = document.getElementById('topbarStatus');
@@ -1333,17 +1341,27 @@ function shouldRenderInActiveChat(chatId) {
 
 function appendMsgToDOM(div) {
     const container = document.getElementById('chatMessages');
+    const own = !!(div && div.classList && div.classList.contains('msg-own'));
+    const wasNear = isNearBottom(container);
     container.appendChild(div);
-    pinChatToBottom(container);
+    if (own || wasNear) pinChatToBottom(container, true);
+}
+
+/** Kullanıcı yukarıda geçmişi okuyorsa (eşik dışı) otomatik aşağı kaydırma yapılmaz. */
+function isNearBottom(box, slack) {
+    if (!box) return true;
+    return (box.scrollHeight - box.clientHeight - box.scrollTop) <= (slack == null ? 160 : slack);
 }
 
 // Sohbet açılırken ve fotoğraf/video boyutu sonradan belli olduğunda son mesajı
 // giriş çubuğunun hemen üstünde tut. Tek bir scrollTop ataması medya yüklenince
 // geçersiz kaldığı için iki frame ve medya load olayı birlikte izlenir.
-function pinChatToBottom(container) {
+function pinChatToBottom(container, force) {
     const box = container || document.getElementById('chatMessages');
     if (!box) return;
+    if (!force && !isNearBottom(box)) return;
     const pin = () => { box.scrollTop = Math.max(0, box.scrollHeight - box.clientHeight); };
+    const softPin = () => { if (isNearBottom(box, 400)) pin(); };
     pin();
     requestAnimationFrame(() => {
         pin();
@@ -1352,9 +1370,9 @@ function pinChatToBottom(container) {
     box.querySelectorAll('img,video').forEach(media => {
         if (media.dataset.bottomPinBound) return;
         media.dataset.bottomPinBound = '1';
-        media.addEventListener('load', pin, { once: true });
-        media.addEventListener('loadedmetadata', pin, { once: true });
-        media.addEventListener('error', pin, { once: true });
+        media.addEventListener('load', softPin, { once: true });
+        media.addEventListener('loadedmetadata', softPin, { once: true });
+        media.addEventListener('error', softPin, { once: true });
     });
 }
 window.ooPinChatBottom = pinChatToBottom;
@@ -1625,7 +1643,7 @@ async function openChat(id) {
         Number(container.dataset.messageCount || '-1') === msgs.length &&
         container.querySelectorAll(':scope > .msg').length === msgs.length;
     if (canReuse) {
-        pinChatToBottom(container);
+        pinChatToBottom(container, true);
         container.style.scrollBehavior = prevBehavior || '';
     } else if (msgs.length === 0) {
         // Boş sohbette placeholder/baloncuk gösterilmez — sohbet tamamen temiz açılır.
@@ -1641,8 +1659,8 @@ async function openChat(id) {
         container.dataset.chatId = id;
         container.dataset.messageCount = String(msgs.length);
         // Medya ölçüleri sonradan oluşsa bile son mesajı tabanda tut.
-        pinChatToBottom(container);
-        requestAnimationFrame(() => { pinChatToBottom(container); container.style.scrollBehavior = prevBehavior || ''; });
+        pinChatToBottom(container, true);
+        requestAnimationFrame(() => { pinChatToBottom(container, true); container.style.scrollBehavior = prevBehavior || ''; });
     }
 
 
@@ -1931,7 +1949,7 @@ function renderTypingUI() {
         el.classList.toggle('show', isTyping);
         if (isTyping) {
             const box = document.getElementById('chatMessages');
-            if (box) box.scrollTop = box.scrollHeight;
+            if (box && isNearBottom(box)) box.scrollTop = box.scrollHeight;
         }
     }
     const stEl = document.getElementById('chatHStatus');
@@ -2009,6 +2027,22 @@ try {
 window.handleTypingSignal = handleTypingSignal;
 window.initTypingIndicator = initTypingIndicator;
 window.renderTypingUI = renderTypingUI;
+
+/** Canlı yazma metni (harf harf) — TYPING ile aynı kanal, ayrı protokol. */
+async function sendLiveText(targetConnId, text) {
+    if (!targetConnId || targetConnId === 'HERKES' || targetConnId === 'genel' || targetConnId === CONFIG.connectionId) return false;
+    try {
+        const sealed = await secureEncode(`LIVE###${text == null ? '' : text}`, targetConnId);
+        const peer = peers[targetConnId];
+        if (peer?.dc?.readyState === 'open') { peer.dc.send(sealed); return true; }
+        return wsSend(sealed, targetConnId);
+    } catch (e) { return false; }
+}
+function handleLiveText(senderConnId, text) {
+    try { if (typeof window.__prcnLive === 'function') window.__prcnLive(senderConnId, text); } catch (e) {}
+}
+window.sendLiveText = sendLiveText;
+
 
 // ==================== SEND ====================
 
@@ -2285,6 +2319,11 @@ function cardAutoAdd(){
 function cardSendGroupInvite(){
     closeCardMoreMenu();
     var connId = cardTargetConnId; if(!connId) return;
+    // Yeni akış: kullanıcı kendi gruplarından birini seçer ve GROUP_INVITE_V2 gönderilir.
+    if (window.SohbetoExtras && typeof window.SohbetoExtras.inviteToGroupFlow === 'function') {
+        window.SohbetoExtras.inviteToGroupFlow(connId);
+        return;
+    }
     try {
         var payload = 'GROUP_INVITE###' + (state.virtualNo||'') + '###' + Date.now();
         if (typeof sendToPeer === 'function') sendToPeer(connId, payload);
@@ -2292,6 +2331,7 @@ function cardSendGroupInvite(){
         log('Grup daveti gönderildi', '#6366f1');
     } catch(e){ log('Grup daveti gönderilemedi: '+e.message, '#f87171'); }
 }
+
 
 // ==================== VOICE MESSAGES (P2P) ====================
 // Sesli mesaj: opus/webm base64 chunk halinde (P2P data channel) iletilir.

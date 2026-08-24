@@ -1957,12 +1957,13 @@
                         <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
                     </div>
 
-                    <div class="settings-item">
+                    <div class="settings-item" onclick="app.openHelp && app.openHelp()">
                         <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-circle-question"></i></div>
                         <div class="settings-text">
                             <span class="settings-item-title">Yardım & Topluluk</span>
-                            <span class="settings-item-subtitle">SSS, geri bildirim</span>
+                            <span class="settings-item-subtitle">Ankara Tecno · kurucu desteği</span>
                         </div>
+
                         <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
                     </div>
 
@@ -2171,7 +2172,23 @@
                             <span class="settings-item-subtitle">AES-256-GCM · P2P kanal · Her zaman açık</span>
                         </div>
                     </div>
+                    <div class="settings-item" style="cursor:default; align-items:flex-start;">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-table-cells"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">PRÇN 571 Ek Koruma</span>
+                            <span class="settings-item-subtitle">571 kutulu parola katmanı · AES üstüne ikinci kilit</span>
+                        </div>
+                    </div>
+                    <div class="settings-item" style="cursor:default; flex-wrap:wrap;">
+                        <div style="flex-basis:100%; font-size:.83rem; line-height:1.6; color:var(--app-text-2,#6b7280);">
+                            PRÇN 571 mantığı: tek bir parola tohumundan <b>571 kutu</b> deterministik olarak üretilir; her kutuda 1–4 karakter bulunur.
+                            Mesaj önce AES-256-GCM ile şifrelenir, ardından bu 571 kutulu dizilim ile ikinci kez maskelenir.
+                            Anahtarı karşı tarafa sohbet içinde <b>anahtar rozeti</b> olarak gönderirsin, o onaylar — parola hiçbir zaman sunucuya gitmez,
+                            aynı parola her cihazda aynı 571 kutuyu üretir. Kutu dizilimi bilinmeden şifreli metin çözülemez.
+                        </div>
+                    </div>
                 </div>
+
 
                 <div class="settings-section" style="margin-top:32px;">
                     <h3>Verilerim</h3>
@@ -2188,6 +2205,50 @@
                 </div>
             </div>
         </div>
+
+        <!-- 9. YARDIM & TOPLULUK -->
+        <div id="screen-yardim" class="screen hidden-screen" style="z-index: 15;">
+            <div class="theme-header">
+                <i class="fa-solid fa-arrow-left" onclick="app.closeHelp && app.closeHelp()"></i>
+                <div class="main-title" style="font-size: 1.2rem;">Yardım &amp; Topluluk</div>
+            </div>
+
+            <div class="content-area">
+                <div class="settings-section" style="margin-top:32px;">
+                    <h3>Kuruluş</h3>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-item" style="cursor:default;">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-building"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Ankara Tecno</span>
+                            <span class="settings-item-subtitle">Sohbeto'nun kurucu kuruluşu</span>
+                        </div>
+                    </div>
+                    <div class="settings-item" id="helpFounderRow" style="cursor:pointer;">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-headset"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Kurucudan yardım</span>
+                            <span class="settings-item-subtitle">+90 606 06 1992 · SOHBETO resmî hattı</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right" style="opacity:.45;"></i></div>
+                    </div>
+                </div>
+
+                <div class="settings-section" style="margin-top:32px;">
+                    <h3>Topluluk</h3>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-item" style="cursor:default; flex-wrap:wrap;">
+                        <div style="flex-basis:100%; font-size:.85rem; line-height:1.6; color:var(--app-text-2,#6b7280);">
+                            Soru, hata bildirimi ve öneriler için resmî <b>SOHBETO</b> hesabına yaz. Doğrulanmış hesap
+                            (gri tik) yalnızca kurucu ekibe aittir; başka kimse bu numarayı alamaz.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 
         <!-- Veri Saklama Bilgi Modali -->
         <div id="dataInfoModal" class="hidden-screen" style="position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); display:flex; align-items:flex-end; justify-content:center;" onclick="if(event.target===this)app.closeDataInfo()">
@@ -2276,10 +2337,18 @@
     <script src="./sohbeto-ui-sheets.js"></script>
     <!-- Adım 16: Sağa kaydırarak yanıtlama + balon içi alıntı (motora dokunmaz) -->
     <script src="./sohbeto-reply-ui.js"></script>
+    <!-- Sola kaydırarak toplu seçim + toplu silme/arşivleme -->
+    <script src="./sohbeto-select-ui.js"></script>
     <script src="./sohbeto-daysep-ui.js"></script>
+
     <!-- Durum çubuğu rengi: aktif tema / sohbet duvar kağıdı ile eşleşir -->
     <script src="./sohbeto-statusbar.js"></script>
     <script src="./sohbeto-prcn.js"></script>
+    <!-- Resmî SOHBETO hesabı + Yardım & Topluluk ekranı -->
+    <script src="./sohbeto-official.js"></script>
+    <script src="./sohbeto-registry.js"></script>
+
+
 
 
 
@@ -2523,8 +2592,11 @@
         var box = document.getElementById('chatMessages');
         if (box && document.getElementById('screen-chat') &&
             !document.getElementById('screen-chat').classList.contains('hidden-screen')) {
-          if (typeof window.ooPinChatBottom === 'function') window.ooPinChatBottom(box);
-          else box.scrollTop = box.scrollHeight;
+          var nearBottom = (box.scrollHeight - box.clientHeight - box.scrollTop) <= 160;
+          if (nearBottom) {
+            if (typeof window.ooPinChatBottom === 'function') window.ooPinChatBottom(box, true);
+            else box.scrollTop = box.scrollHeight;
+          }
         }
       }
       applyH();

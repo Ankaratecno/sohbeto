@@ -1,5 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { enablePush, disablePush } from "@/pwa/push";
+import {
+  registerNumber,
+  isUsernameAvailable,
+  touchPresence,
+  pendingFounderMessages,
+  markFounderMessageDelivered,
+  verifyFounderLogin,
+} from "@/pwa/registry";
+
 
 /**
  * Sohbeto tam ekran kabuğu.
@@ -26,12 +35,19 @@ const Sohbeto: React.FC = () => {
   };
   const iframeReadyRef = useRef(false);
 
+  const [askPush, setAskPush] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
   function getPushStatus() {
-    if (typeof window === "undefined") return { unsupported: true, enabled: false };
+    if (typeof window === "undefined") return { unsupported: true, enabled: false, permission: "unsupported" };
     if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
-      return { unsupported: true, enabled: false };
+      return { unsupported: true, enabled: false, permission: "unsupported" };
     }
-    return { unsupported: false, enabled: Notification.permission === "granted" };
+    return {
+      unsupported: false,
+      enabled: Notification.permission === "granted",
+      permission: Notification.permission,
+    };
   }
 
   function notifyPushStatus() {
@@ -39,6 +55,21 @@ const Sohbeto: React.FC = () => {
     if (!win || !iframeReadyRef.current) return;
     win.postMessage({ type: "sohbeto:push-status", ...getPushStatus() }, "*");
   }
+
+  // Tarayıcı izin penceresi yalnızca gerçek bir tıklama (user gesture) ile açılır.
+  // iframe'den gelen postMessage bu jesti taşımadığı için burada küçük bir onay
+  // katmanı gösterip izni o tıklamayla istiyoruz; izin verilirse abonelik
+  // Supabase'e (push_subscriptions) yazılır.
+  const askPermissionAndSubscribe = async () => {
+    setPushBusy(true);
+    try {
+      await enablePush();
+    } finally {
+      setPushBusy(false);
+      setAskPush(false);
+      notifyPushStatus();
+    }
+  };
 
   useEffect(() => {
     // 1) Soğuk açılış: adres satırındaki ?from=&kind=&act= parametreleri.
@@ -91,8 +122,22 @@ const Sohbeto: React.FC = () => {
 
   useEffect(() => {
     const onMessage = async (ev: MessageEvent) => {
-      const d = ev.data as { type?: string; color?: string; dark?: boolean } | null;
+      const d = ev.data as
+        | {
+            type?: string;
+            color?: string;
+            dark?: boolean;
+            phone?: string;
+            username?: string | null;
+            displayName?: string | null;
+            online?: boolean;
+            id?: string;
+            rid?: string;
+            pin?: string;
+          }
+        | null;
       if (!d) return;
+      const win = frameRef.current?.contentWindow;
       if (d.type === "sohbeto:theme-color") {
         if (typeof d.color === "string" && d.color) setBarColor(d.color);
         return;
@@ -100,16 +145,40 @@ const Sohbeto: React.FC = () => {
       if (d.type === "sohbeto:query-push-status") {
         notifyPushStatus();
       } else if (d.type === "sohbeto:enable-push") {
+        const perm = "Notification" in window ? Notification.permission : "denied";
+        if (perm === "default") {
+          // İzin hiç istenmemiş: gesture gerektiği için onay katmanını göster.
+          setAskPush(true);
+          return;
+        }
         await enablePush();
         notifyPushStatus();
       } else if (d.type === "sohbeto:disable-push") {
         await disablePush();
         notifyPushStatus();
+      } else if (d.type === "sohbeto:register-number") {
+        // Alınan numara + kullanıcı adı kalıcı kayıt defterine yazılır.
+        const res = await registerNumber(String(d.phone || ""), d.username ?? null, d.displayName ?? null);
+        win?.postMessage({ type: "sohbeto:register-result", ...res }, "*");
+      } else if (d.type === "sohbeto:check-username") {
+        const available = await isUsernameAvailable(String(d.username || ""));
+        win?.postMessage({ type: "sohbeto:username-result", username: d.username, available }, "*");
+      } else if (d.type === "sohbeto:presence") {
+        await touchPresence(d.online !== false);
+      } else if (d.type === "sohbeto:poll-founder") {
+        const list = await pendingFounderMessages();
+        win?.postMessage({ type: "sohbeto:founder-messages", list }, "*");
+      } else if (d.type === "sohbeto:founder-delivered") {
+        if (d.id) await markFounderMessageDelivered(String(d.id));
+      } else if (d.type === "sohbeto:verify-founder") {
+        const res = await verifyFounderLogin(String(d.phone || ""), String(d.pin || ""));
+        win?.postMessage({ type: "sohbeto:founder-verified", rid: d.rid, ...res }, "*");
       }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, []);
+
 
 
   return (
@@ -129,9 +198,41 @@ const Sohbeto: React.FC = () => {
         src={src}
         onLoad={handleLoad}
         className="relative w-full h-full border-0 bg-[#0e1621]"
-        allow="camera; microphone; clipboard-write; clipboard-read; autoplay; fullscreen"
+        allow="camera; microphone; display-capture; clipboard-write; clipboard-read; autoplay; fullscreen"
         allowFullScreen
       />
+      {askPush && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-2xl bg-[#17212b] p-5 text-[#e7eef6] shadow-2xl">
+            <h2 className="text-base font-semibold">Bildirimlere izin ver</h2>
+            <p className="mt-2 text-sm text-[#a8b8c8]">
+              Yeni mesaj ve aramaları uygulama kapalıyken de alabilmek için tarayıcı bildirim
+              iznine ihtiyacımız var. Devam edince tarayıcının izin penceresi açılacak.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                className="flex-1 rounded-xl bg-[#2b5278] px-4 py-2.5 text-sm font-medium disabled:opacity-60"
+                disabled={pushBusy}
+                onClick={askPermissionAndSubscribe}
+              >
+                {pushBusy ? "Bekleyin…" : "İzin ver"}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl bg-white/10 px-4 py-2.5 text-sm"
+                disabled={pushBusy}
+                onClick={() => {
+                  setAskPush(false);
+                  notifyPushStatus();
+                }}
+              >
+                Şimdi değil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

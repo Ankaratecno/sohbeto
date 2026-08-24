@@ -200,30 +200,6 @@ html.sb-dark .sb-pick.active { background: rgba(255, 255, 255, 0.08); }
 .screen.sb-search-open .header-icon { display: none; }
 .hdr-icon.sb-search-btn { cursor: pointer; }
 
-/* --------------------- Arka plan: Manzara (mockup) --------------------- */
-html.sb-bg-aurora {
-  --app-bg: transparent;
-  --app-surface: rgba(255, 255, 255, 0.42);
-  --app-surface-solid: rgba(255, 255, 255, 0.6);
-  --app-card-border: rgba(255, 255, 255, 0.55);
-  --app-card-shadow: 0 12px 28px -18px rgba(15, 23, 42, 0.45);
-  --app-field: rgba(255, 255, 255, 0.45);
-  --app-text-1: #12211f;
-  --app-text-2: #4b5a58;
-  --app-text-3: #6b7b79;
-}
-html.sb-bg-aurora body { background: #f6d9ae; }
-html.sb-bg-aurora .app-container {
-  background:
-    radial-gradient(120% 80% at 10% 0%, #ffe7bb 0%, rgba(255,231,187,0) 60%),
-    radial-gradient(110% 70% at 95% 18%, #ffcfa6 0%, rgba(255,207,166,0) 62%),
-    linear-gradient(170deg, #ffdfae 0%, #f8c8a6 34%, #d8d6bd 58%, #9fcfc6 80%, #6dbcb4 100%);
-}
-html.sb-bg-aurora .conv-item,
-html.sb-bg-aurora .contact-row,
-html.sb-bg-aurora .settings-item,
-html.sb-bg-aurora .search-box { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-html.sb-bg-aurora .nav-item.active { background: rgba(255, 255, 255, 0.45); color: #0f5f57; }
 .screen.sb-search-open .hdr-icons { margin-left: auto; }
 
 /* =====================================================================
@@ -245,7 +221,7 @@ html.sb-bg-aurora .nav-item.active { background: rgba(255, 255, 255, 0.45); colo
   pointer-events: none;
   z-index: -1;
 }
-html.sb-bg-aurora .bottom-nav::before { display: none; }
+
 .nav-item { margin: 0 !important; }
 
 /* 2) Sohbetler ve Kişiler satırları birebir aynı ölçüde */
@@ -385,6 +361,18 @@ html.sb-dark .sb-pick.active { border-color: var(--app-accent); color: var(--app
 }
 .sb-field input::placeholder, .sb-input::placeholder { color: var(--app-text-3); }
 .sb-field input:focus, .sb-input:focus { border-color: var(--primary-green); }
+
+/* Hesap · Profil alanları (Ad / Biyografi / Kullanıcı adı) — gece modunda
+   beyaz zemin + beyaz yazı sorununu giderir. */
+html.sb-dark .profile-field input,
+html.sb-dark .profile-field textarea {
+  background: var(--app-field) !important;
+  border-color: var(--app-card-border) !important;
+  color: var(--app-text-1) !important;
+}
+html.sb-dark .profile-field input::placeholder,
+html.sb-dark .profile-field textarea::placeholder { color: var(--app-text-3); }
+html.sb-dark .profile-field label { color: var(--app-text-1); }
 .sb-sheet-actions { display: flex; gap: 10px; margin-top: 20px; }
 .sb-btn-ghost {
   flex: 1; padding: 14px; border-radius: 14px; cursor: pointer;
@@ -765,4 +753,21 @@ html.sb-dark {
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* ===== Native his: tarayıcı metin seçimi / "arama sonuçları" balonu çıkmasın =====
+   Sadece gerçek giriş alanlarında seçim serbest. */
+html, body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+input, textarea, [contenteditable="true"], .allow-select {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }

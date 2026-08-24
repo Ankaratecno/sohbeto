@@ -7,7 +7,6 @@
 
   var LS_MODE = 'sohbeto.ui.mode';   // 'light' | 'dark'
   var LS_FONT = 'sohbeto.ui.font';   // 'manrope' | 'inter'
-  var LS_BG   = 'sohbeto.ui.bg';     // 'plain' | 'aurora'
 
   function get(key, def) {
     try { return localStorage.getItem(key) || def; } catch (e) { return def; }
@@ -28,19 +27,10 @@
     syncButtons();
   }
 
-  function applyBg(bg) {
-    document.documentElement.classList.toggle('sb-bg-aurora', bg === 'aurora');
-    set(LS_BG, bg);
-    syncButtons();
-  }
 
   function syncButtons() {
     var mode = get(LS_MODE, 'light');
     var font = get(LS_FONT, 'manrope');
-    var bg = get(LS_BG, 'plain');
-    document.querySelectorAll('.sb-pick[data-bg]').forEach(function (b) {
-      b.classList.toggle('active', b.dataset.bg === bg);
-    });
     document.querySelectorAll('.sb-pick[data-mode]').forEach(function (b) {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
@@ -67,8 +57,7 @@
       '<button type="button" class="sb-pick" data-font="inter" style="font-family:Inter,sans-serif">Inter</button>' +
       '</div></div>' +
       '<div class="settings-section"><h3>Arka Plan</h3><div class="sb-pick-row">' +
-      '<button type="button" class="sb-pick" data-bg="plain">Düz</button>' +
-      '<button type="button" class="sb-pick" data-bg="aurora">Manzara</button>' +
+      '<button type="button" class="sb-pick active">Standart</button>' +
       '</div></div>';
 
     // Vurgu Rengi bölümünden hemen sonra yerleştir
@@ -84,7 +73,6 @@
       if (!btn) return;
       if (btn.dataset.mode) applyMode(btn.dataset.mode);
       if (btn.dataset.font) applyFont(btn.dataset.font);
-      if (btn.dataset.bg) applyBg(btn.dataset.bg);
     });
     syncButtons();
   }
@@ -92,7 +80,6 @@
   // Tercihleri olabildiğince erken uygula (FOUC olmasın)
   applyMode(get(LS_MODE, 'light'));
   applyFont(get(LS_FONT, 'manrope'));
-  applyBg(get(LS_BG, 'plain'));
 
   // ---------------- Açılır arama (büyüteç) ----------------
   function searchIcon(open) {
@@ -320,4 +307,19 @@
 
   // İlk yüklemede moda uygun temayı uygula
   setTimeout(syncModeTheme, 300);
+})();
+
+/* Native his: giriş alanları dışında metin seçimi ve bağlam menüsü kapalı. */
+(function () {
+  'use strict';
+  function editable(t) {
+    if (!t || !t.closest) return false;
+    return !!t.closest('input, textarea, [contenteditable="true"], .allow-select');
+  }
+  document.addEventListener('selectstart', function (e) {
+    if (!editable(e.target)) e.preventDefault();
+  }, true);
+  document.addEventListener('contextmenu', function (e) {
+    if (!editable(e.target)) e.preventDefault();
+  }, true);
 })();
