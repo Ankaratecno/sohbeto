@@ -83,16 +83,34 @@ const Sohbeto: React.FC = () => {
       window.history.replaceState({}, "", url.pathname + url.search + url.hash);
     }
 
-    // 2) Uygulama açıkken: service worker'ın gönderdiği tıklama mesajı.
+    // 2) Uygulama açıkken: service worker'ın gönderdiği mesajlar.
     const onSwMessage = (ev: MessageEvent) => {
-      const d = ev.data as { type?: string; action?: string; data?: Record<string, unknown> } | null;
-      if (!d || d.type !== "SOHBETO_PUSH_CLICK") return;
+      const d = ev.data as
+        | { type?: string; action?: string; kind?: string; title?: string; body?: string; data?: Record<string, unknown> }
+        | null;
+      if (!d) return;
+      // Uygulama ön plandayken sistem bildirimi gösterilmez; olay iframe'e iletilir.
+      if (d.type === "SOHBETO_PUSH_FOREGROUND") {
+        frameRef.current?.contentWindow?.postMessage(
+          {
+            type: "sohbeto:push-foreground",
+            kind: d.kind,
+            title: d.title,
+            body: d.body,
+            from: (d.data?.["from"] as string) || undefined,
+          },
+          "*",
+        );
+        return;
+      }
+      if (d.type !== "SOHBETO_PUSH_CLICK") return;
       deliver({
         from: (d.data?.["from"] as string) || undefined,
         kind: (d.data?.["kind"] as string) || undefined,
         act: d.action || "open",
       });
     };
+
     navigator.serviceWorker?.addEventListener("message", onSwMessage);
     return () => navigator.serviceWorker?.removeEventListener("message", onSwMessage);
     // eslint-disable-next-line react-hooks/exhaustive-deps

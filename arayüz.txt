@@ -1,0 +1,250 @@
+SOHBETO — PROJE KONUŞMA GEÇMİŞİ (EN BAŞTAN EN SONA)
+====================================================
+Kayıt tarihi: 28 Ağustos 2026
+
+--------------------------------------------------
+[1] KULLANICI (19:42)
+--------------------------------------------------
+"merhaba lovable bu zip dosyasını olduğu gibi oluştur hiçbir kod ekleme
+sonra geliştirmeye devam edeceğiz seninle"  (ek: sohbeto009.zip)
+
+--------------------------------------------------
+[2] LOVABLE (19:44)
+--------------------------------------------------
+Zip açıldı; eski sürüm bir Lovable Vite SPA projesi olduğu tespit edildi
+(main.tsx + index.html, src/routes yok). Klasör olduğu gibi (.git hariç)
+projeye kopyalandı, bağımlılıklar kuruldu, Playwright ile önizleme test
+edildi: Sohbeto arayüzü açılıyor, konsolda hata yok. Hiçbir kod eklenmedi.
+
+--------------------------------------------------
+[3] KULLANICI (19:47)
+--------------------------------------------------
+"öncelikle çevrimiçi çevrimdışı sorunu çok büyük çünkü web push bildirimi
+uygulamadayken gelebiliyor bu olmamalı sohbet penceresi içinde bazen
+görüntülü sesli arama butonuna basınca donma yaşanıyor bir kere çalıyor
+sonra donuyor gibi bunları analiz edip düzeltirmisin"
+
+--------------------------------------------------
+[4] LOVABLE (19:52)
+--------------------------------------------------
+İki sorun düzeltildi:
+
+1) Uygulama açıkken web push:
+   - public/sw.js push işleyicisine ön plan (foreground) kontrolü eklendi.
+     Görünür/odaklı pencere varsa sistem bildirimi gösterilmez; olay
+     SOHBETO_PUSH_FOREGROUND mesajıyla uygulamaya iletilir.
+   - src/components/Sohbeto.tsx bu olayı iframe'e "sohbeto:push-foreground"
+     olarak aktarır.
+   - SW sürümü v1.0.7'ye çıkarıldı.
+
+2) Arama butonunda "bir kere çalıp donma":
+   - Her aramada yeni AudioContext açılıyordu (tarayıcı limiti ~6). Tek
+     paylaşılan context'e geçildi (window.__SOHBETO_RINGBACK_CTX__).
+   - Mobilde context suspended başlıyordu; her tonda resume() ediliyor ve
+     butona basıldığı an primeRingbackAudio ile uyandırılıyor.
+   - Sohbet içi arama 3.5 sn LOOKUP bekliyordu → ekran artık anında
+     "Bağlanılıyor…" ile açılıyor.
+   - 45 sn zaman aşımı eklendi ("Cevap yok" → arama kapanır).
+   - Çift tıklama kilidi + hata durumunda ringback/timeout temizliği.
+
+--------------------------------------------------
+[5] KULLANICI (20:04)
+--------------------------------------------------
+"çevrimiçi çevrimdışı hala sorunlu gibi uygulamaya girer girmez neden yeşil
+olmuyor profil altındaki küçük çevrimiçi durum rengi gri de orada bir sorun
+var... arama butonları düzelmiş fakat çevrimiçi çevrimdışı sorunu anlık
+yakalanamıyor gibi ve bu yüzden uygulama açıkken hala web push geliyor"
+
+--------------------------------------------------
+[6] LOVABLE (20:07)
+--------------------------------------------------
+Düzenlenen dosyalar:
+- public/apps/sohbeto-adapter.js → warmKnownContactPeers tüm kişileri ısıtır,
+  repaintPresenceDots() eklendi, 2 sn'lik presenceTick, açılışta 1.5 sn
+  sonra ısıtma, visibilitychange ile öne gelince yenileme.
+- public/apps/sohbeto-engine.js → onPeerClose artık connId'yi state.users'tan
+  siliyor ve updateUI() çağırıyor (yanlış "yeşil" kalmıyor).
+- public/apps/sohbeto-peer.js → pushNotify kanal kapalıysa önce bağlanmayı
+  dener, 2.5–4 sn bekler; kişi çevrimiçi olursa push hiç gitmez.
+- public/sw.js → lastAliveAt (20 sn penceresi) ile "uygulama açık" tespiti,
+  SOHBETO_ALIVE / SOHBETO_HIDDEN, sürüm v1.0.8.
+- src/main.tsx → 5 sn'de bir SW'ye kalp atışı (pingSw), visibilitychange ve
+  focus olaylarında tetikleniyor.
+
+--------------------------------------------------
+[7] KULLANICI (20:13)
+--------------------------------------------------
+"önceden çevrimiçi sorgulama durumu nasıldı yani kaç saniyede bir deniyordu...
+sonra bana pwa uygulaması için giriş ekranı nasıl olmalı fikir ve görsel ver...
+o giriş süresi kaç saniye sence nasıl olmalı sadece cevapla"
+
+--------------------------------------------------
+[8] LOVABLE (20:14)
+--------------------------------------------------
+- Önceden periyodik sorgu YOKTU. warmKnownContactPeers sadece açılışta ve
+  en fazla 6 kişi için çalışıyordu; durum noktaları liste yeniden çizilince
+  boyanıyordu. onPeerClose kullanıcıyı state.users'tan silmediği için
+  "yeşil" yanlış kalabiliyordu.
+- Splash/giriş ekranı önerisi: en fazla 2,5–3 saniye. Sohbet listesinin geç
+  gelmesi splash'tan değil, P2P/PeerJS'in listeden SONRA ısınmasından.
+  Önerilen akış: giriş ekranı → anında ana ekran (skeleton) → arka planda
+  P2P ısınması.
+- 3 giriş ekranı yönü önerildi: Minimalist marka splash, Glass & Pulse,
+  Immersive Glassmorphism.
+
+--------------------------------------------------
+[9-10] (Görsel seçim atlandı)
+--------------------------------------------------
+
+--------------------------------------------------
+[11] KULLANICI (20:18)
+--------------------------------------------------
+"giriş görselini bir kenara bırakalım... A2 arayüzünü bağlamak çok mu zor,
+kullanıcıya kayıt aşamasında mı soralım, ayarlar tema kısmına arayüz bölümü
+mü açalım, A2'yi en kolay nasıl bağlarız, ufacık kod satırı mı gerekir"
+
+--------------------------------------------------
+[12] LOVABLE (20:20)
+--------------------------------------------------
+1) A2 bağlamak "hafif" yoldan kolay. A2 kendi başına çalışan bir HTML ama
+   motor (engine/peer/adapter) yüklü değil.
+   - Hafif yol (~40 satır): Sohbeto.tsx localStorage'dan "arayüz: a2" okur,
+     iframe src'i değişir. A2'nin postMessage köprüsü (sendCode, verifyCode,
+     checkAuth, logout) için ~20 satır dinleyici. Sohbetler localStorage'da
+     demo kalır.
+   - Tam entegrasyon (~300+ satır, riskli): A2'nin DOM'unu motora bağlamak.
+2) Nerede sorulmalı: Ayarlar > Tema > Arayüz. Kayıt akışını uzatmaz,
+   sanal tur ekstra maliyet.
+3) Motor dosyalarına dokunulmaz.
+
+--------------------------------------------------
+[13] KULLANICI (20:28)
+--------------------------------------------------
+"neden a2'yi bağlamakta güçlük çekiyoruz, mevcut hiçbir kod dosyasına
+dokunmadan OO dışında arayüz.js oluşturup a2 ve daha çok arayüz ekleyip
+çalıştırmak neden bu kadar zor olsun ki"
+
+--------------------------------------------------
+[14] LOVABLE (20:29)
+--------------------------------------------------
+- A2 sadece görsel; içinde P2P motor yok.
+- Motor şu an sohbetoOO.html'in kendi JS belleğinde yaşıyor (PeerJS,
+  IndexedDB, SW köprüsü, presence).
+- İki yol: (1) motoru her arayüze ayrı yüklemek, (2) OO ile A2 arasında
+  mesaj köprüsü.
+- Motor bazı DOM ID'lerine bağlı; A2'de isimler farklıysa adaptör gerekir.
+- "Arayüz eklemek" kolay, "arayüzü çalıştırmak" motor bağlantısı ister.
+
+--------------------------------------------------
+[15] KULLANICI (20:32)
+--------------------------------------------------
+"tamam işte OO bozulmayacaksa yol haritası ne olacak"
+
+--------------------------------------------------
+[16] LOVABLE (20:32) — YOL HARİTASI
+--------------------------------------------------
+1. Arayüz seçim mekanizması (Ayarlar > Tema > Arayüz); OO varsayılan kalır.
+2. A2'yi önce sadece görsel olarak bağla (kendi localStorage'ı ile).
+3. A2'ye motoru ulaştır:
+   - Hızlı yol: arka planda gizli OO iframe + postMessage köprüsü.
+   - Temiz yol: motoru DOM'dan bağımsız engine-host.js'e çıkar; OO ve A2
+     ince UI katmanı olur.
+4. Test ve kararlılaştırma; hatalar A2 + köprüde kalır, OO bozulmaz.
+5. Yeni arayüzler için şablon: yeni HTML + motor köprüsü.
+
+--------------------------------------------------
+[17] KULLANICI (20:36)
+--------------------------------------------------
+"ilerde doğa, bisiklet, neon, futbol takımı logoları yapıp satacağım...
+mevcut diğer dosyaların içine yeni arayüzlerle ilgili kod yazılacak mı,
+bozulacak diye korkuyorum... a2.html > yeniengine.js gibi mi ilerleyeceğiz,
+net ol"
+
+--------------------------------------------------
+[18] LOVABLE (20:36) — NET MİMARİ
+--------------------------------------------------
+Hedef yapı:
+  sohbetoOO.html        → mevcut motor + arayüz (dokunulmaz)
+  sohbetoA2.html        → akvaryum arayüzü
+  sohbeto-bisiklet.html → bisiklet teması
+  sohbeto-neon.html     → neon teması
+  sohbeto-futbol.html   → futbol teması
+  motor.js              → ORTAK motor (tüm arayüzler bunu kullanır)
+
+Mevcut dosyalara yazılacak kod: neredeyse hiç. Sadece React kabuğundaki
+iframe satırı (3-5 satır). OO, engine.js, peer.js, adapter.js, sw.js →
+sıfır dokunuş. Her yeni tema = yepyeni ayrı dosya.
+
+Akış:
+1. Bir kereye mahsus motoru OO'dan koparıp ortak motor.js yap (yedekli).
+2. Her tema tek HTML dosyası; aynı motor.js'i yükler, kendi görselini çizer.
+3. Satış: kullanıcı Ayarlar'dan tema seçer/satın alır; sistem sadece
+   "hangi dosya yüklensin" bilgisini değiştirir.
+
+--------------------------------------------------
+[19] KULLANICI (20:43)
+--------------------------------------------------
+"bu projedeki en baştan en sona kadar olan konuşmalarımızı arayüz.txt
+dosyasına yaz... biz şu an css ile arayüz yapıyoruz, arayüzleri daha stabil
+ve Telegram/WhatsApp hızında yapma şansı var mı? basılı tut geç algılıyor,
+duvar kağıtları sonradan yükleniyor. En iyi kütüphane nedir? İlerde
+Bubblewrap ile TWA/APK alıp gerçek arama ekranı tetiklemek istiyorum,
+mümkün mü? Diğer arayüzler para kazandırır mı?"
+
+--------------------------------------------------
+[20] LOVABLE (20:43) — CEVAPLAR
+--------------------------------------------------
+A) HIZ / STABİLİTE
+Sorun dilde değil, mimaride. Şu an: vanilla HTML + CSS + JS, tek dosyada
+iframe içinde. Bu aslında en hızlı temeldir; yavaşlığın gerçek sebepleri:
+  1. Duvar kağıtları JPG olarak geç yükleniyor → WebP/AVIF'e çevir,
+     boyutları küçült, service worker'da precache et, CSS'te
+     background-image yerine önceden yüklenmiş <img>/decode() kullan.
+  2. "Basılı tut" gecikmesi → touch olaylarında 300-500 ms timer + browser
+     scroll/gesture çekişmesi. Çözüm: pointerdown/pointerup ile
+     touch-action: manipulation, passive:false, 250 ms eşik ve
+     transform tabanlı görsel geri bildirim.
+  3. Liste render'ı → çok DOM düğümü yeniden çiziliyor.
+     content-visibility: auto + contain: layout paint, ve uzun listelerde
+     sanal liste (virtual list).
+  4. Animasyonlarda sadece transform/opacity kullan (top/left/width değil),
+     will-change dikkatli kullan.
+  5. Iframe katmanı bir miktar maliyet ekler; ileride temalar doğrudan React
+     altında yüklenirse bu da kalkar.
+
+Kütüphane önerisi (hafiften ağıra):
+  - Motion One veya GSAP → 60 fps animasyon (Framer Motion'dan hafif)
+  - virtua / @tanstack/virtual → uzun sohbet listesi
+  - idb-keyval → hızlı IndexedDB
+  - Hammer.js yerine Pointer Events API (yerleşik, en hızlısı)
+  - Duvar kağıtları için sharp/squoosh ile WebP üretimi (build adımı)
+Yani "yeni bir framework"e geçmek gerekmiyor; asıl kazanç görsel varlık
+optimizasyonu + doğru event handling + precache.
+
+B) BUBBLEWRAP / TWA / GERÇEK ARAMA EKRANI
+  - Bubblewrap ile PWA'yı APK'ya çevirmek MÜMKÜN ve mantıklı.
+  - Ancak saf TWA = Chrome kabuğu. Android'in GERÇEK sistem arama ekranı
+    (tam ekran, kilit ekranı üzerinde, ConnectionService/Telecom entegre)
+    saf TWA ile TETİKLENEMEZ.
+  - Yapılabilecekler:
+      * FCM data mesajı + high-priority notification ile tam ekran benzeri
+        "Cevapla / Reddet" bildirimi (fullScreenIntent) → bu bir miktar
+        native kod ister (TWA'ya küçük bir Android modülü eklenerek).
+      * Gerçek telefon arama deneyimi için ConnectionService + Telecom API
+        → native Android kodu şart (Kotlin/Java), Capacitor ya da özel
+        TWA fork ile.
+  - Pratik yol: Bubblewrap ile TWA üret, sonra projeye küçük bir native
+    modül ekleyip fullScreenIntent + ConnectionService bağla. Web tarafı
+    aynen kalır.
+  - Alternatif: Capacitor'a geçmek (web kodu değişmez) ve hazır
+    callkeep benzeri eklentileri kullanmak — en hızlı yol budur.
+
+C) ARAYÜZLER PARA KAZANDIRIR MI?
+  - Evet, mantıklı bir gelir modeli: tema/arayüz mağazası.
+  - Çalışan örnek: Telegram (ücretsiz tema, Premium'da özel efektler),
+    LINE (tema satışı ciddi gelir kalemi), WhatsApp'ta yok — burası boşluk.
+  - Öneri: 3-4 ücretsiz tema + premium paketler (doğa, bisiklet, neon,
+    futbol takımı). Futbol takımı temaları lisans gerektirebilir; taraftar
+    renkleri/desenleri logosuz kullanılırsa risk azalır.
+  - En iyi model: tek seferlik tema satışı yerine "Sohbeto Plus" aylık
+    abonelik → tüm temalar + ekstra özellikler. Tekrarlayan gelir.

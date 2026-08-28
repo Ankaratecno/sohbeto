@@ -151,19 +151,41 @@
             if (now - (lastPush.get(key) || 0) < gap) return;
             lastPush.set(key, now);
 
-            var from = myNumber || 'Sohbeto';
-            emitLog('[PUSH] Çevrimdışı kişiye bildirim → ' + toNumber, '#fbbf24');
-            notify(
-                toNumber,
-                isCall ? 'Gelen arama' : 'Yeni mesaj',
-                isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi',
-                isCall ? 'call' : 'message',
-                undefined,
-                undefined,
-                { from: from }
-            );
+            // Kanal henüz AÇILMAMIŞ olabilir (kişi uygulamayı yeni açtı ya da
+            // bağlantı el sıkışması sürüyor). Hemen push atmak "uygulama
+            // açıkken bildirim geliyor" sorununu doğuruyordu. Önce bağlanmayı
+            // deneyip kısa bir süre bekliyoruz; kanal açılırsa push GÖNDERİLMEZ.
+            try { ensure(connId); } catch (e) {}
+            var waited = 0;
+            var graceMs = isCall ? 2500 : 4000;
+            var iv = setInterval(function () {
+                waited += 250;
+                var c = conns.get(connId);
+                if (c && c.open) {
+                    // Kişi çevrimiçi çıktı → uygulama içi teslim yeterli.
+                    clearInterval(iv);
+                    lastPush.delete(key);
+                    return;
+                }
+                if (waited < graceMs) return;
+                clearInterval(iv);
+                var again = conns.get(connId);
+                if (again && again.open) { lastPush.delete(key); return; }
+                var from = myNumber || 'Sohbeto';
+                emitLog('[PUSH] Çevrimdışı kişiye bildirim → ' + toNumber, '#fbbf24');
+                notify(
+                    toNumber,
+                    isCall ? 'Gelen arama' : 'Yeni mesaj',
+                    isCall ? from + ' seni arıyor' : from + ' sana mesaj gönderdi',
+                    isCall ? 'call' : 'message',
+                    undefined,
+                    undefined,
+                    { from: from }
+                );
+            }, 250);
         } catch (e) {}
     }
+
 
     function sendTo(connId, text, target) {
         var payload = envelope(text, target || connId);

@@ -8,7 +8,7 @@
  * scope ile uyumlu bir path'ten servis edilmelidir.
  * Örn: /sohbeto/sw.js  → register('/sohbeto/sw.js', { scope: '/sohbeto/' })
  */
-const VERSION = "v1.0.6";
+const VERSION = "v1.0.8";
 const PRECACHE = `sohbeto-precache-${VERSION}`;
 const RUNTIME_HTML = `sohbeto-html-${VERSION}`;
 const RUNTIME_ASSETS = `sohbeto-assets-${VERSION}`;
@@ -57,9 +57,17 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Uygulama açık ve ekrandayken sayfa her 5 sn'de bir "SOHBETO_ALIVE" yollar.
+// Bazı tarayıcılarda client.visibilityState güvenilmez olduğu için bu kalp
+// atışı, push geldiğinde "uygulama ön planda mı" kararının yedeğidir.
+let lastAliveAt = 0;
+
 self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
+  else if (event.data === "SOHBETO_ALIVE") lastAliveAt = Date.now();
+  else if (event.data === "SOHBETO_HIDDEN") lastAliveAt = 0;
 });
+
 
 // -------------------------------------------- REHBER ADI (IndexedDB okuma)
 // Gönderen numarası bildirimde ham "+90..." olarak görünmesin: alıcının kendi
@@ -128,8 +136,38 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     (async () => {
+      // ---- ÖN PLAN KONTROLÜ ----
+      // Uygulama ekranda açık ve görünürken sistem bildirimi GÖSTERİLMEZ.
+      // Bunun yerine olay açık sekmeye iletilir; uygulama kendi iç bildirimini
+      // (mesaj balonu / gelen arama ekranı) gösterir. Böylece kullanıcı
+      // uygulamanın içindeyken çift bildirim/çift zil yaşamaz.
+      try {
+        const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        const scopeHref = new URL(SCOPE, self.location.origin).href;
+        const alive = Date.now() - lastAliveAt < 20000; // sayfadan gelen kalp atışı
+        const foreground = clientsList.filter(
+          (c) => c.url.startsWith(scopeHref) && (c.visibilityState === "visible" || c.focused || alive),
+        );
+        if (foreground.length) {
+          for (const c of foreground) {
+            c.postMessage({
+              type: "SOHBETO_PUSH_FOREGROUND",
+              kind: payload.kind || "message",
+              title: payload.title || "",
+              body: payload.body || "",
+              data: payload.data || {},
+            });
+          }
+          return; // sistem bildirimi yok
+        }
+      } catch (e) {
+        /* noop → normal bildirim akışına devam */
+      }
+
+
       let count = 1;
       let body = payload.body || "";
+
 
       // Gövde/başlıkta geçen ham numarayı rehberdeki adla değiştir.
       try {

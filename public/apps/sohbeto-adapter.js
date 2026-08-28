@@ -1664,17 +1664,71 @@
 
     function warmKnownContactPeers() {
       try {
-        if (typeof initP2P !== 'function' || typeof contactsState === 'undefined' || !contactsState.byNumber) return;
+        if (typeof contactsState === 'undefined' || !contactsState.byNumber) return;
         var warmed = 0;
         contactsState.byNumber.forEach(function (c) {
-          if (warmed >= 6 || !c) return;
+          if (warmed >= 20 || !c || !c.number) return;
+          // PeerJS'te "kim online" yayını yok: bağlanmayı denemeden kişinin
+          // çevrimiçi olduğu anlaşılmaz. Bu yüzden canlı olup olmadığına
+          // bakmadan tüm rehbere bağlantı denemesi yapıyoruz (idempotent).
           var connId = findLiveConnIdByNumber(c.number) || c.connId;
-          if (!connId || !isLiveConnId(connId) || hasOpenP2P(connId)) return;
+          if (connId && hasOpenP2P(connId)) return;
           warmed += 1;
-          try { initP2P(connId); } catch (e) {}
+          try {
+            if (window.SohbetoPeer) window.SohbetoPeer.connectToNumber(c.number);
+            else if (typeof initP2P === 'function' && connId) initP2P(connId);
+          } catch (e) {}
         });
       } catch (e) {}
     }
+
+    // ---------- ANLIK ÇEVRİMİÇİ DURUM TAZELEME ----------
+    // Durum noktaları eskiden sadece liste yeniden çizilirken boyanıyordu →
+    // kişi çevrimiçi olduğunda nokta dakikalarca gri kalıyordu. Artık kısa
+    // aralıklarla hem bağlantılar ısıtılıyor hem noktalar yeniden boyanıyor.
+    function repaintPresenceDots() {
+      try {
+        document.querySelectorAll('#screen-sohbetler .conv-item').forEach(function (item) {
+          var cid = item.dataset ? item.dataset.connId : '';
+          var av = item.querySelector('.conv-avatar');
+          if (cid && av) paintAvatarPresence(av, isConnOnline(cid));
+        });
+      } catch (e) {}
+      try {
+        document.querySelectorAll('.oo-contact-status').forEach(function (el) {
+          var card = el.closest('[data-conn-id]');
+          var cid = card && card.dataset ? card.dataset.connId : '';
+          if (!cid) return;
+          var on = isConnOnline(cid);
+          if (el.dataset.online === (on ? '1' : '0')) return;
+          el.dataset.online = on ? '1' : '0';
+          el.textContent = on ? 'Çevrimiçi' : 'Çevrimdışı';
+          var d = el.querySelector('.dot');
+          if (d) d.style.background = on ? 'var(--primary-green)' : '#a8b3c7';
+        });
+      } catch (e) {}
+    }
+
+    var presenceTick = 0;
+    setInterval(function () {
+      presenceTick++;
+      if (document.hidden) return;
+      // Her ~6 sn'de bir bağlantıları ısıt, her 2 sn'de bir noktaları boya.
+      if (presenceTick % 3 === 1) warmKnownContactPeers();
+      repaintPresenceDots();
+    }, 2000);
+
+    // Uygulama öne geldiğinde durum ANINDA tazelensin (gri nokta kalmasın).
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) return;
+      warmKnownContactPeers();
+      setTimeout(repaintPresenceDots, 400);
+      setTimeout(repaintPresenceDots, 1500);
+    });
+    // Açılışta da hemen dene.
+    setTimeout(warmKnownContactPeers, 1500);
+    setTimeout(warmKnownContactPeers, 4000);
+
 
     // Motor state.users değerini "Ad [number]" formatında tutar; numaradan canlı connId bul.
     function findLiveConnIdByNumber(number) {
@@ -1803,7 +1857,9 @@
     }
 
     async function startCallFromCard(c, kind) {
+      primeRingbackAudio();
       // Aramada eski connId'ye güvenme: P2P açıksa kullan, değilse numaradan taze LOOKUP iste.
+
       var connId = hasOpenP2P(c.connId) ? c.connId : null;
       if (!connId && !c.number && isLiveConnId(c.connId)) connId = c.connId;
       if (!connId && c.number) {
@@ -1825,6 +1881,7 @@
       var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Çalıyor…';
       // Caller: yerel ringback başlat, mikrofon trafiğini accept'e kadar sustur
       startRingbackTone();
+      armRingTimeout(45000);
       muteOutgoingTracksUntilAccepted(connId);
 
       try {
@@ -1833,9 +1890,16 @@
       } catch (e) { console.error('[adapter] arama başlatılamadı:', e); }
     }
 
+
     async function startCallForActiveChat(kind) {
       var st = getEngineState() || {};
       if (!st.activeChat || st.activeChat === 'genel') { alert('Önce bir kişi sohbeti açın.'); return; }
+      // Aynı anda ikinci bir arama başlatma (butona iki kez basınca donma yaşanıyordu).
+      if (window.__SOHBETO_CALL_STARTING__) return;
+      window.__SOHBETO_CALL_STARTING__ = true;
+      // Sesi kullanıcı jesti içinde hazırla: 3sn sonra açılan AudioContext
+      // askıya alınmış başlıyor ve ringback tek "tık"tan sonra susuyordu.
+      primeRingbackAudio();
       var connId = st.activeChat;
       // Kişi adını topbar'dan al
       var name = (document.getElementById('chatHName') || {}).textContent || '';
@@ -1846,35 +1910,68 @@
           contactsState.byNumber.forEach(function (rec) { if (rec.connId === connId) number = rec.number; });
         }
       } catch (e) {}
-      if (number && !hasOpenP2P(connId)) {
-        var freshForCall = await lookupAndWait(number, 3500, { forceFresh: true });
-        if (!freshForCall) {
-          markConnOffline(connId, 'active-chat-fresh-lookup-timeout');
-          await ringOfflinePeer({ name: name, number: number, connId: connId }, kind);
-          return;
-        }
-        connId = freshForCall;
-        try { await window.openChat(connId); } catch (e) {}
-      } else if (!isConnOnline(connId)) {
-        markConnOffline(connId, 'active-chat-stale-before-call');
-        var refreshed = number ? (findLiveConnIdByNumber(number) || await lookupAndWait(number, 3500)) : null;
-        if (!refreshed) {
-          await ringOfflinePeer({ name: name, number: number, connId: connId }, kind);
-          return;
-        }
-        connId = refreshed;
-        try { await window.openChat(connId); } catch (e) {}
-      }
-      var c = { name: name, number: number, connId: connId, engineIndex: -1 };
-      openOOCallScreen(c, kind);
-      var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Çalıyor…';
-      startRingbackTone();
-      muteOutgoingTracksUntilAccepted(connId);
+      // Ekranı HEMEN aç: arama öncesi LOOKUP beklemesi (3.5sn) sırasında
+      // arayüz donmuş gibi görünüyordu.
+      openOOCallScreen({ name: name, number: number, connId: connId, engineIndex: -1 }, kind);
+      var st0 = document.getElementById('oocStatus'); if (st0) st0.textContent = 'Bağlanılıyor…';
       try {
-        if (kind === 'video' && typeof window.startVideoCall === 'function') window.startVideoCall(connId, false);
-        else if (typeof window.startAudioCall === 'function') window.startAudioCall(connId, false);
-      } catch (e) { console.error('[adapter] arama başlatılamadı:', e); }
+        if (number && !hasOpenP2P(connId)) {
+          var freshForCall = await lookupAndWait(number, 3500, { forceFresh: true });
+          if (!freshForCall) {
+            markConnOffline(connId, 'active-chat-fresh-lookup-timeout');
+            await ringOfflinePeer({ name: name, number: number, connId: connId }, kind);
+            return;
+          }
+          connId = freshForCall;
+          try { await window.openChat(connId); } catch (e) {}
+        } else if (!isConnOnline(connId)) {
+          markConnOffline(connId, 'active-chat-stale-before-call');
+          var refreshed = number ? (findLiveConnIdByNumber(number) || await lookupAndWait(number, 3500)) : null;
+          if (!refreshed) {
+            await ringOfflinePeer({ name: name, number: number, connId: connId }, kind);
+            return;
+          }
+          connId = refreshed;
+          try { await window.openChat(connId); } catch (e) {}
+        }
+        var c = { name: name, number: number, connId: connId, engineIndex: -1 };
+        openOOCallScreen(c, kind);
+        var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Çalıyor…';
+        startRingbackTone();
+        armRingTimeout(45000);
+        muteOutgoingTracksUntilAccepted(connId);
+        try {
+          if (kind === 'video' && typeof window.startVideoCall === 'function') await window.startVideoCall(connId, false);
+          else if (typeof window.startAudioCall === 'function') await window.startAudioCall(connId, false);
+        } catch (e) {
+          console.error('[adapter] arama başlatılamadı:', e);
+          try { stopRingbackTone(); } catch (e2) {}
+          clearRingTimeout();
+          var stErr = document.getElementById('oocStatus');
+          if (stErr) stErr.textContent = 'Arama başlatılamadı';
+          setTimeout(function () { try { closeOOCallScreen(); } catch (e3) {} }, 1500);
+        }
+      } finally {
+        window.__SOHBETO_CALL_STARTING__ = false;
+      }
     }
+
+    // Kullanıcı jesti anında AudioContext'i oluştur/uyandır. Aksi halde
+    // mobil tarayıcılarda context "suspended" başlıyor, ringback bir kez
+    // duyulup sonrası sessiz kalıyor ve arama donmuş gibi hissettiriyor.
+    function primeRingbackAudio() {
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!window.__SOHBETO_RINGBACK_CTX__ || window.__SOHBETO_RINGBACK_CTX__.state === 'closed') {
+          window.__SOHBETO_RINGBACK_CTX__ = new AC();
+        }
+        var ctx = window.__SOHBETO_RINGBACK_CTX__;
+        if (ctx.state === 'suspended') ctx.resume();
+      } catch (e) { /* noop */ }
+    }
+    try { window.__sohbetoPrimeAudio = primeRingbackAudio; } catch (e) {}
+
 
     function showNotif(msg) {
       try { if (typeof window.showNotif === 'function') return; } catch (e) {}
@@ -1898,32 +1995,81 @@
         stopRingbackTone();
         var AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
-        ringbackCtx = new AC();
+        // Tek bir AudioContext'i yeniden kullan: her aramada yenisini açmak
+        // tarayıcı limitine (~6) takılıp ikinci aramada sesi tamamen kesiyordu.
+        if (!window.__SOHBETO_RINGBACK_CTX__ || window.__SOHBETO_RINGBACK_CTX__.state === 'closed') {
+          window.__SOHBETO_RINGBACK_CTX__ = new AC();
+        }
+        ringbackCtx = window.__SOHBETO_RINGBACK_CTX__;
         var ctx = ringbackCtx;
-        // Avrupa ringback: 425Hz, 1s on / 4s off (kısaltılmış 1s on / 2s off)
+        var stopped = false;
+        // Askıya alınmış context'te currentTime ilerlemez → tek "tık" sesi
+        // duyulup sonrası susuyordu. Her çalmadan önce resume ediyoruz.
+        var ensureRunning = function () {
+          try { if (ctx.state === 'suspended') return ctx.resume(); } catch (e) {}
+          return Promise.resolve();
+        };
+        // Avrupa ringback: 440Hz, ~1s on / 2s off
         var play = function () {
-          if (!ringbackCtx) return;
-          var osc = ctx.createOscillator(); var g = ctx.createGain();
-          osc.type = 'sine'; osc.frequency.value = 440;
-          g.gain.setValueAtTime(0.0001, ctx.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.05);
-          g.gain.setValueAtTime(0.18, ctx.currentTime + 0.95);
-          g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.0);
-          osc.connect(g); g.connect(ctx.destination);
-          osc.start(); osc.stop(ctx.currentTime + 1.05);
-          ringbackOsc = osc; ringbackGain = g;
+          if (stopped || ringbackCtx !== ctx) return;
+          ensureRunning().then(function () {
+            if (stopped || ringbackCtx !== ctx || ctx.state !== 'running') return;
+            try {
+              var t0 = ctx.currentTime;
+              var osc = ctx.createOscillator(); var g = ctx.createGain();
+              osc.type = 'sine'; osc.frequency.value = 440;
+              g.gain.setValueAtTime(0.0001, t0);
+              g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.05);
+              g.gain.setValueAtTime(0.18, t0 + 0.95);
+              g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.0);
+              osc.connect(g); g.connect(ctx.destination);
+              osc.start(t0); osc.stop(t0 + 1.05);
+              osc.onended = function () { try { osc.disconnect(); g.disconnect(); } catch (e) {} };
+              ringbackOsc = osc; ringbackGain = g;
+            } catch (e) { /* sessizce yut */ }
+          }).catch(function () {});
         };
         play();
         ringbackTimer = setInterval(play, 3000);
+        ringbackStopFlag = function () { stopped = true; };
       } catch (e) { /* sessizce yut */ }
     }
+    var ringbackStopFlag = null;
     function stopRingbackTone() {
+      try { if (ringbackStopFlag) ringbackStopFlag(); } catch (e) {}
+      ringbackStopFlag = null;
       try { if (ringbackTimer) clearInterval(ringbackTimer); } catch (e) {}
       ringbackTimer = null;
       try { if (ringbackOsc) ringbackOsc.stop(); } catch (e) {}
-      try { if (ringbackCtx) ringbackCtx.close(); } catch (e) {}
+      try { if (ringbackOsc) ringbackOsc.disconnect(); } catch (e) {}
+      try { if (ringbackGain) ringbackGain.disconnect(); } catch (e) {}
+      // Context'i KAPATMA: yeniden kullanılıyor, sadece boşta bırak.
       ringbackCtx = null; ringbackOsc = null; ringbackGain = null;
     }
+
+    // ====== Cevapsız arama zaman aşımı ======
+    // Karşı taraf açmazsa arama sonsuza kadar "Çalıyor…" durumunda kalıyor,
+    // ringback + mikrofon polling'i sürüyor ve ekran donmuş gibi görünüyordu.
+    var ooRingTimeout = null;
+    function armRingTimeout(ms) {
+      clearRingTimeout();
+      ooRingTimeout = setTimeout(function () {
+        ooRingTimeout = null;
+        if (isCallAccepted()) return;
+        try { stopRingbackTone(); } catch (e) {}
+        var st = document.getElementById('oocStatus');
+        if (st) st.textContent = 'Cevap yok';
+        try {
+          if (typeof window.endActiveCall === 'function') window.endActiveCall();
+          else if (typeof window.endVideoCall === 'function') window.endVideoCall();
+        } catch (e) {}
+        setTimeout(function () { try { closeOOCallScreen(); } catch (e) {} }, 1200);
+      }, ms || 45000);
+    }
+    function clearRingTimeout() {
+      if (ooRingTimeout) { clearTimeout(ooRingTimeout); ooRingTimeout = null; }
+    }
+
 
     // ====== Outgoing track mute (accept'e kadar mikrofon kapalı) ======
     var outgoingMutePoll = null;
@@ -2256,8 +2402,10 @@
       ooEngineActiveSeen = false;
       stopOOCallTimer();
       stopRingbackTone();
+      clearRingTimeout();
       clearOutgoingMute();
     }
+
 
     // Motorun stub #activeCallScreen / #activeCallStatus / #activeCallDuration değişimlerini OO'ya yansıt
     function bridgeEngineCallToOO() {
@@ -2289,10 +2437,12 @@
           oo.classList.add('connected');
           if (oD) oD.style.visibility = 'visible';
           // Caller pending bekliyorduysa: ringback'i durdur, timer'ı kabul anından başlat
+          clearRingTimeout();
           if (ooOutgoingPending || !ooCallTimer) {
             stopRingbackTone();
             if (!ooCallTimer) startOOCallTimer(acceptedAt);
           }
+
         }
       }, 500);
 
@@ -2505,6 +2655,8 @@
               var oD = document.getElementById('oocDuration'); if (oD) oD.style.visibility = 'visible';
               oo.classList.add('connected');
               stopRingbackTone();
+              clearRingTimeout();
+
               ooOutgoingPending = false;
               ooEngineActiveSeen = true;
               if (!ooCallTimer) {

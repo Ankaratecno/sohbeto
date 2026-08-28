@@ -1238,7 +1238,13 @@ function connectChat(onReady) {
                 // Kişi çevrimiçi oldu → bekleyen mesajlar hemen teslim edilsin.
                 try { setTimeout(flushOutboundQueue, 300); } catch (e) {}
             },
-            onPeerClose: () => { updateUI(); },
+            onPeerClose: (connId) => {
+                // Kanal kapandıysa kişi ARTIK çevrimiçi değil: state.users'tan
+                // düşürülmezse durum noktası yeşil kalıp yanlış bilgi veriyordu.
+                try { if (connId && state.users.has(connId)) state.users.delete(connId); } catch (e) {}
+                updateUI();
+            },
+
             // Dış katmanlar (PRÇN canlı yazma vb.) window.handleTransportMessage'ı
             // sarmalayabilsin diye çağrı daima window üzerinden yapılır.
             onData: (sConnId, sVirtualNo, tConnId, text) => {
