@@ -30,6 +30,78 @@
     var reconnectTimer = null;
     var reconnectAttempts = 0;
 
+    // ---- Çevrimiçi/çevrimdışı kararlılığı ----------------------------------
+    // watch: durumu izlenen kişiler (rehber). onlineSet: "yeşil" kabul edilenler.
+    // graceTimers: kanal koptuğunda hemen gri yapma; kısa süre yeniden bağlanmayı dene.
+    var watch = new Set();
+    var onlineSet = new Set();
+    var graceTimers = new Map();
+    var sweepTimer = null;
+    var pingTimer = null;
+    var GRACE_MS = 6000;
+    var SWEEP_MS = 10000;
+    var PING_MS = 8000;
+
+    function markOnline(connId) {
+        var t = graceTimers.get(connId);
+        if (t) { clearTimeout(t); graceTimers.delete(connId); }
+        if (onlineSet.has(connId)) return;
+        onlineSet.add(connId);
+        try { if (handlers.onPeerOpen) handlers.onPeerOpen(connId); } catch (e) {}
+    }
+
+    function markOfflineNow(connId) {
+        var t = graceTimers.get(connId);
+        if (t) { clearTimeout(t); graceTimers.delete(connId); }
+        if (!onlineSet.has(connId)) return;
+        onlineSet.delete(connId);
+        try { if (handlers.onPeerClose) handlers.onPeerClose(connId); } catch (e) {}
+    }
+
+    /** Kanal koptu: hemen gri yapma — yeniden bağlanmayı dene, olmazsa çevrimdışı. */
+    function markOfflineSoon(connId) {
+        if (graceTimers.has(connId)) return;
+        try { ensure(connId); } catch (e) {}
+        var t = setTimeout(function () {
+            graceTimers.delete(connId);
+            var c = conns.get(connId);
+            if (c && c.open) return;
+            markOfflineNow(connId);
+        }, GRACE_MS);
+        graceTimers.set(connId, t);
+    }
+
+    /** Rehberdeki kişiyi izlemeye al: periyodik olarak bağlanmayı dener. */
+    function watchPeer(connId) {
+        if (!connId || connId === 'HERKES' || connId === myId) return;
+        watch.add(connId);
+    }
+
+    function startTimers() {
+        if (!sweepTimer) {
+            sweepTimer = setInterval(function () {
+                if (!peer || peer.destroyed || peer.disconnected) return;
+                watch.forEach(function (id) {
+                    var c = conns.get(id);
+                    if (c && c.open) return;
+                    // Kapanmış/yarım kalmış bağlantıyı temizleyip tekrar dene:
+                    // kişi uygulamayı yeniden açtığında otomatik yeşile döner.
+                    if (c && !c.open) { try { c.close(); } catch (e) {} conns.delete(id); }
+                    try { ensure(id); } catch (e) {}
+                });
+            }, SWEEP_MS);
+        }
+        if (!pingTimer) {
+            pingTimer = setInterval(function () {
+                conns.forEach(function (c, id) {
+                    if (!c.open) return;
+                    try { c.send(JSON.stringify({ s: myId, v: myNumber, t: id, c: 'ping' })); } catch (e) { markOfflineSoon(id); }
+                });
+            }, PING_MS);
+        }
+    }
+
+
     function digits(v) { return String(v == null ? '' : v).replace(/[^0-9]/g, ''); }
     function idForNumber(number) { var d = digits(number); return d ? 'sohbeto-' + d : ''; }
     function numberFromId(id) {
@@ -56,11 +128,20 @@
     function handlePayload(conn, raw) {
         var env = null;
         try { env = (typeof raw === 'string') ? JSON.parse(raw) : raw; } catch (e) { return; }
-        if (!env || typeof env.x !== 'string') return;
+        if (!env) return;
         var sConnId = env.s || conn.peer;
+        offline.delete(sConnId);
+        watchPeer(sConnId);
+        markOnline(sConnId);
+        // Kontrol paketleri (ping/pong) motora iletilmez.
+        if (env.c === 'ping') {
+            try { conn.send(JSON.stringify({ s: myId, v: myNumber, t: sConnId, c: 'pong' })); } catch (e) {}
+            return;
+        }
+        if (env.c === 'pong') return;
+        if (typeof env.x !== 'string') return;
         var sVirtualNo = env.v || numberFromId(sConnId);
         var tConnId = env.t || 'HERKES';
-        offline.delete(sConnId);
         try { if (handlers.onData) handlers.onData(sConnId, sVirtualNo, tConnId, env.x); } catch (e) {}
     }
 
@@ -68,32 +149,50 @@
         conns.set(conn.peer, conn);
         conn.on('open', function () {
             offline.delete(conn.peer);
+            watchPeer(conn.peer);
             emitLog('[PEER] Bağlantı açıldı → ' + conn.peer, '#22c55e');
             flush(conn.peer);
-            try { if (handlers.onPeerOpen) handlers.onPeerOpen(conn.peer); } catch (e) {}
+            markOnline(conn.peer);
         });
         conn.on('data', function (raw) { handlePayload(conn, raw); });
+        // Kapanan bağlantı zaten yenisiyle değiştirildiyse "çevrimdışı" deme.
         conn.on('close', function () {
-            if (conns.get(conn.peer) === conn) conns.delete(conn.peer);
-            try { if (handlers.onPeerClose) handlers.onPeerClose(conn.peer); } catch (e) {}
+            if (conns.get(conn.peer) !== conn) return;
+            conns.delete(conn.peer);
+            markOfflineSoon(conn.peer);
         });
         conn.on('error', function () {
-            if (conns.get(conn.peer) === conn) conns.delete(conn.peer);
+            if (conns.get(conn.peer) !== conn) return;
+            conns.delete(conn.peer);
+            markOfflineSoon(conn.peer);
         });
     }
 
     function ensure(connId) {
         if (!connId || connId === 'HERKES' || connId === myId) return null;
         var existing = conns.get(connId);
-        if (existing) return existing;
+        if (existing) {
+            if (existing.open) return existing;
+            // Kapanmış/ölü bağlantı nesnesi elde kalırsa yeni bağlantı hiç kurulmuyordu.
+            var pcState = existing.peerConnection && existing.peerConnection.connectionState;
+            if (pcState === 'failed' || pcState === 'closed' || pcState === 'disconnected') {
+                try { existing.close(); } catch (e) {}
+                conns.delete(connId);
+            } else {
+                return existing;
+            }
+        }
+
         if (!peer || peer.destroyed || peer.disconnected) return null;
         var conn;
         try { conn = peer.connect(connId, { reliable: true, serialization: 'json', metadata: { v: myNumber } }); }
         catch (e) { return null; }
         if (!conn) return null;
+        watchPeer(connId);
         attach(conn);
         return conn;
     }
+
 
     function queue(connId, text) {
         var q = queues.get(connId) || [];
@@ -235,6 +334,7 @@
                 emitLog('Ağ ID: ' + id, '#a855f7');
                 emitLog('Sunucuya bağlandı', '#22c55e');
                 setReady(true);
+                startTimers();
                 try { if (handlers.onReady) handlers.onReady(id); } catch (e) {}
             });
             peer.on('connection', function (conn) { attach(conn); });
@@ -260,7 +360,14 @@
                 if (type === 'peer-unavailable') {
                     var m = /Could not connect to peer (\S+)/.exec(String(err && err.message || ''));
                     var pid = m ? m[1] : null;
-                    if (pid) { offline.set(pid, Date.now()); conns.delete(pid); }
+                    if (pid) {
+                        offline.set(pid, Date.now());
+                        var dead = conns.get(pid);
+                        if (dead) { try { dead.close(); } catch (e2) {} }
+                        conns.delete(pid);
+                        // Kişi gerçekten ulaşılamıyor → durum noktası griye dönsün.
+                        markOfflineNow(pid);
+                    }
                     return;
                 }
                 if (type === 'unavailable-id') {
@@ -286,6 +393,17 @@
         setNumber: function (n) { myNumber = n || ''; },
 
         isPeerOnline: function (connId) { var c = conns.get(connId); return !!(c && c.open); },
+        /** Rehberdeki kişiyi izlemeye al (periyodik yeniden bağlanma + presence). */
+        watch: function (connId) { watchPeer(connId); if (peer && !peer.destroyed) { try { ensure(connId); } catch (e) {} } },
+        watchNumber: function (number) { this.watch(idForNumber(number)); },
+        /** Bir kişiyle bağlantıyı hemen tazele (arama öncesi stabilite). */
+        refresh: function (connId) {
+            if (!connId) return null;
+            var c = conns.get(connId);
+            if (c && c.open) return c;
+            if (c) { conns.delete(connId); try { c.close(); } catch (e) {} }
+            return ensure(connId);
+        },
         openPeers: function () { var out = []; conns.forEach(function (c, id) { if (c.open) out.push(id); }); return out; },
 
         connectTo: function (connId) { return ensure(connId); },
@@ -322,6 +440,10 @@
 
         destroy: function () {
             if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+            if (sweepTimer) { clearInterval(sweepTimer); sweepTimer = null; }
+            if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+            graceTimers.forEach(function (t) { clearTimeout(t); });
+            graceTimers.clear(); onlineSet.clear();
             conns.forEach(function (c) { try { c.close(); } catch (e) {} });
             conns.clear(); queues.clear(); offline.clear();
             if (peer) { try { peer.destroy(); } catch (e) {} }

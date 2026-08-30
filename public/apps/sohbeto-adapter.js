@@ -1895,8 +1895,20 @@
       var st = getEngineState() || {};
       if (!st.activeChat || st.activeChat === 'genel') { alert('Önce bir kişi sohbeti açın.'); return; }
       // Aynı anda ikinci bir arama başlatma (butona iki kez basınca donma yaşanıyordu).
-      if (window.__SOHBETO_CALL_STARTING__) return;
+      // Bayrak takılı kalırsa butonlar bir daha hiç çalışmıyordu: hem zaman aşımı
+      // hem de arama ekranı kapalıysa otomatik sıfırlama ekli.
+      var startingAt = window.__SOHBETO_CALL_STARTING_AT__ || 0;
+      var scrOpen = (function () {
+        var s = document.getElementById('screen-ooCall');
+        return !!(s && !s.classList.contains('hidden-screen'));
+      })();
+      if (window.__SOHBETO_CALL_STARTING__) {
+        if (scrOpen && Date.now() - startingAt < 60000) return;
+        window.__SOHBETO_CALL_STARTING__ = false;
+      }
       window.__SOHBETO_CALL_STARTING__ = true;
+      window.__SOHBETO_CALL_STARTING_AT__ = Date.now();
+      try {
       // Sesi kullanıcı jesti içinde hazırla: 3sn sonra açılan AudioContext
       // askıya alınmış başlıyor ve ringback tek "tık"tan sonra susuyordu.
       primeRingbackAudio();
@@ -1910,11 +1922,20 @@
           contactsState.byNumber.forEach(function (rec) { if (rec.connId === connId) number = rec.number; });
         }
       } catch (e) {}
+      // connId ↔ numara eşleşmesi bozuksa (kişi çevrimdışı görünürken connId
+      // eskimiş olabilir) numarayı peer ID'sinden türet: arama yine kurulsun.
+      if (!number) {
+        try {
+          if (typeof window.numberFromPeerId === 'function') number = window.numberFromPeerId(connId) || '';
+          else if (window.SohbetoPeer && SohbetoPeer.numberFromId) number = SohbetoPeer.numberFromId(connId) || '';
+        } catch (e) {}
+      }
       // Ekranı HEMEN aç: arama öncesi LOOKUP beklemesi (3.5sn) sırasında
       // arayüz donmuş gibi görünüyordu.
       openOOCallScreen({ name: name, number: number, connId: connId, engineIndex: -1 }, kind);
       var st0 = document.getElementById('oocStatus'); if (st0) st0.textContent = 'Bağlanılıyor…';
       try {
+
         if (number && !hasOpenP2P(connId)) {
           var freshForCall = await lookupAndWait(number, 3500, { forceFresh: true });
           if (!freshForCall) {
@@ -1954,7 +1975,15 @@
       } finally {
         window.__SOHBETO_CALL_STARTING__ = false;
       }
+      } catch (eOuter) {
+        console.error('[adapter] arama akışı hatası:', eOuter);
+      } finally {
+        // Hangi yoldan çıkarsak çıkalım bayrak kesin temizlenir:
+        // aksi halde arama düğmeleri kalıcı olarak tepkisiz kalıyordu.
+        window.__SOHBETO_CALL_STARTING__ = false;
+      }
     }
+
 
     // Kullanıcı jesti anında AudioContext'i oluştur/uyandır. Aksi halde
     // mobil tarayıcılarda context "suspended" başlıyor, ringback bir kez
@@ -2358,7 +2387,10 @@
       var durEl = document.getElementById('oocDuration');
 
       if (modeEl) modeEl.textContent = kind === 'video' ? 'Görüntülü Arama' : 'Sesli Arama';
-      if (statusEl) statusEl.textContent = 'Çalıyor…';
+      // Kabul eden tarafta bu ekran doğrudan bağlı durumda açılır. Önce
+      // "Çalıyor…" yazıp 500 ms'lik köprü turunda düzeltmek kısa bir parlamaya
+      // neden oluyordu.
+      if (statusEl) statusEl.textContent = (opts && opts.startedAt) ? 'Bağlandı' : 'Çalıyor…';
       if (nmEl) nmEl.textContent = (c && c.name) || '—';
       if (durEl) {
         durEl.textContent = '00:00';
@@ -2672,7 +2704,27 @@
     window.ooiAccept = function () {
       // Motor: acceptCall() → startAudioCall/startVideoCall(callerConnId, true) →
       // #activeCallScreen açılır → bridgeEngineCallToOO OO ekranını da açar.
+      // Önceki giden aramadan kalan zaman damgası, yeni gelen aramanın kabul
+      // damgasını bayat sayıp durumu tekrar "Çalıyor…" yapmamalı.
+      clearOutgoingMute();
+      ooOutgoingStartedAt = 0;
       ooAcceptedIncomingStartedAt = Date.now();
+      // Gelen ekran motor tarafından hemen kapanıyor; kamera/mikrofon izni
+      // beklenirken alttaki sohbet arayüzünün görünmemesi için aktif arama
+      // ekranını kabul tıklamasıyla aynı anda aç. startedAt ayrıca kabul eden
+      // tarafta tek kare bile "Çalıyor…" yazılmasını önler.
+      var incomingName = (document.getElementById('ooiName') || {}).textContent || '—';
+      var incomingMode = (document.getElementById('ooiMode') || {}).textContent || '';
+      var incomingKind = /görüntü|video/i.test(incomingMode) ? 'video' : 'audio';
+      openOOCallScreen({ name: incomingName }, incomingKind, { startedAt: ooAcceptedIncomingStartedAt });
+      var activeScreen = document.getElementById('screen-ooCall');
+      if (activeScreen) {
+        activeScreen.classList.add('connected');
+        activeScreen.classList.toggle('video-on', incomingKind === 'video');
+      }
+      var acceptedStatus = document.getElementById('oocStatus');
+      if (acceptedStatus) acceptedStatus.textContent = 'Bağlandı';
+      closeOOIncomingScreen();
       var incomingDur = document.getElementById('ooiDuration');
       if (incomingDur) {
         incomingDur.textContent = '00:00';

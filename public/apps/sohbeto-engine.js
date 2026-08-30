@@ -845,6 +845,9 @@ function playBeep(isPrivate) {
 
 // ==================== CALL SCREEN ====================
 function showIncomingCall(senderConnId, type = "audio") {
+    // Az önce biten bir aramadan kalan gecikmeli P2P yeniden kurulumu, gelen
+    // aramanın teklifiyle çakışıp ekranı dondurabiliyordu.
+    try { cancelPendingP2PReinit(senderConnId); } catch (e) {}
     state.incomingCallFrom = senderConnId;
     state.incomingCallType = type;
     const nick = getDisplayName(senderConnId);
@@ -885,6 +888,9 @@ async function acceptCall() {
 
 function rejectCall() {
     if (state.incomingCallFrom) { sendCallSignal(state.incomingCallFrom, "CALL_REJECT"); }
+    // Zil sırasında gelen OFFER ile bizde de P2P kanalı kurulmuş olabilir;
+    // kapatılmazsa bayat kalıp kişiyi çevrimdışı gösteriyordu.
+    teardownCallPeer(state.incomingCallFrom);
     document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
 }
 
@@ -897,6 +903,7 @@ async function quickReply(msg) {
         sendSecureP2PWhenReady(target, payload, 'Hızlı yanıt');
         // Aramayı reddet (CALL_REJECT sadece P2P üzerinden gider)
         sendCallSignal(target, "CALL_REJECT");
+        teardownCallPeer(target);
     }
     document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
 }
@@ -1010,14 +1017,27 @@ function setPeerAudioSendEnabled(connId, enabled) {
 }
 
 
+/* "Perfect negotiation": üst üste arama yapıldığında iki taraf da aynı anda
+   OFFER üretebiliyor (glare). Eskiden bu durumda setRemoteDescription hata
+   atıyor, ANSWER hiç gönderilmiyor ve arama donuyordu. Artık kim "polite"
+   (geri adım atacak taraf) olduğu iki kimliğin karşılaştırmasıyla sabitlenir. */
+function isPoliteWith(connId) {
+    try { return String(CONFIG.connectionId || '') < String(connId || ''); } catch (e) { return true; }
+}
+
 async function renegotiatePeer(connId) {
-    const pc = peers[connId]?.pc;
-    if (!pc || pc.signalingState !== 'stable') return;
+    const peer = peers[connId];
+    const pc = peer?.pc;
+    if (!pc || pc.signalingState === 'closed') return;
+    if (peer.makingOffer || pc.signalingState !== 'stable') return;
+    peer.makingOffer = true;
     try {
         const offer = await pc.createOffer();
+        if (pc.signalingState !== 'stable') return;
         await pc.setLocalDescription(offer);
-        sendSignaling(connId, "OFFER", JSON.stringify(offer));
+        sendSignaling(connId, "OFFER", JSON.stringify(pc.localDescription));
     } catch (e) { log("P2P yenileme hatası: " + e.message, "#ef4444"); }
+    finally { peer.makingOffer = false; }
 }
 
 async function initP2P(targetConnId) {
@@ -1030,16 +1050,22 @@ async function initP2P(targetConnId) {
     }
     const existingQueue = existing?.iceQueue || [];
     const pc = new RTCPeerConnection({ iceServers: CONFIG.iceServers });
-    peers[targetConnId] = { pc, dc: null, iceQueue: existingQueue };
+    const peer = { pc, dc: null, iceQueue: existingQueue, makingOffer: false, ignoreOffer: false };
+    peers[targetConnId] = peer;
     configurePeerConnection(targetConnId, pc);
     const dc = pc.createDataChannel("chat");
     attachDataChannel(targetConnId, dc, 'out');
     addLocalMediaTracks(targetConnId);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    sendSignaling(targetConnId, "OFFER", JSON.stringify(offer));
+    peer.makingOffer = true;
+    try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendSignaling(targetConnId, "OFFER", JSON.stringify(pc.localDescription));
+    } catch (e) { log("P2P kurulum hatası: " + e.message, "#ef4444"); }
+    finally { peer.makingOffer = false; }
     return peers[targetConnId];
 }
+
 
 async function handleP2PMsg(senderConnId, data) {
     if (typeof data !== 'string') return;
@@ -1132,6 +1158,10 @@ function handleCallSignal(senderConnId, text, viaP2P) {
             notifyParentCallState('sohbeto:incoming-call-cancelled', { from: senderConnId });
         }
         endActiveCall(true); endVideoCall(true);
+        // Arama için kurulan P2P kanalı bu kişiyle kapatıldıysa durum noktası
+        // griye düşüyordu; bayat kanalı hemen sıfırla ki taze bağlantı kurulup
+        // kişi tekrar yeşil görünsün.
+        teardownCallPeer(senderConnId);
         return;
     }
     if (text === "CALL_END") {
@@ -1143,6 +1173,9 @@ function handleCallSignal(senderConnId, text, viaP2P) {
             notifyParentCallState('sohbeto:incoming-call-cancelled', { from: senderConnId });
         }
         endActiveCall(true); endVideoCall(true);
+        // Aktif arama bu kişiyle değilse (ör. biz hiç kabul etmedik) endActiveCall
+        // yanlış kanalı kapatabilir; gönderenin kanalını mutlaka tazele.
+        teardownCallPeer(senderConnId);
         return;
     }
 }
@@ -1152,8 +1185,11 @@ async function handleSignaling(senderConnId, type, data) {
     if (type === "OFFER") {
         const existing = peers[senderConnId];
         const pc = existing?.pc && existing.pc.signalingState !== 'closed' ? existing.pc : new RTCPeerConnection({ iceServers: CONFIG.iceServers });
-        const existingQueue = existing?.iceQueue || [];
-        peers[senderConnId] = { pc, dc: existing?.dc || null, iceQueue: existingQueue };
+        const fresh = !existing || existing.pc !== pc;
+        const peer = existing && !fresh ? existing : { pc, dc: existing?.dc || null, iceQueue: existing?.iceQueue || [], makingOffer: false };
+        peer.pc = pc;
+        peer.iceQueue = peer.iceQueue || [];
+        peers[senderConnId] = peer;
         configurePeerConnection(senderConnId, pc);
         pc.ondatachannel = (e) => attachDataChannel(senderConnId, e.channel, 'in');
         addLocalMediaTracks(senderConnId);
@@ -1161,24 +1197,44 @@ async function handleSignaling(senderConnId, type, data) {
         // karşı tarafa akmasın: sadece acceptCall/startCall sonrası açılır.
         if (activeCallConnId !== senderConnId) setPeerAudioSendEnabled(senderConnId, false);
 
-        await pc.setRemoteDescription(new RTCSessionDescription(json));
-        const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
-        sendSignaling(senderConnId, "ANSWER", JSON.stringify(answer));
-        if (peers[senderConnId].iceQueue) { peers[senderConnId].iceQueue.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {})); peers[senderConnId].iceQueue = []; }
-        if (peers[senderConnId].dc?.readyState === 'open') sendProfileUpdate(senderConnId);
-    } else if (type === "ANSWER") {
-        const pc = peers[senderConnId]?.pc;
-        if (pc) {
-            await pc.setRemoteDescription(new RTCSessionDescription(json));
-            if (peers[senderConnId].iceQueue) { peers[senderConnId].iceQueue.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {})); peers[senderConnId].iceQueue = []; }
-            sendProfileUpdate(senderConnId);
+        // --- Glare (çakışan teklif) yönetimi ---
+        const collision = peer.makingOffer || pc.signalingState !== 'stable';
+        if (collision && !isPoliteWith(senderConnId)) {
+            // Kaba taraf: karşı teklifi yok say, kendi teklifi geçerli kalsın.
+            log("[P2P] Çakışan teklif yok sayıldı", "#fbbf24");
+            return;
         }
+        try {
+            if (collision) {
+                // Nazik taraf: kendi teklifini geri al ve karşınınkini kabul et.
+                try { await pc.setLocalDescription({ type: 'rollback' }); } catch (e) {}
+            }
+            await pc.setRemoteDescription(new RTCSessionDescription(json));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            sendSignaling(senderConnId, "ANSWER", JSON.stringify(pc.localDescription));
+        } catch (e) {
+            log("P2P teklif hatası: " + e.message, "#ef4444");
+            return;
+        }
+        if (peer.iceQueue.length) { peer.iceQueue.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {})); peer.iceQueue = []; }
+        if (peer.dc?.readyState === 'open') sendProfileUpdate(senderConnId);
+    } else if (type === "ANSWER") {
+        const peer = peers[senderConnId];
+        const pc = peer?.pc;
+        if (!pc || pc.signalingState !== 'have-local-offer') return; // bayat/çakışan yanıt
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription(json));
+        } catch (e) { log("P2P yanıt hatası: " + e.message, "#ef4444"); return; }
+        if (peer.iceQueue?.length) { peer.iceQueue.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {})); peer.iceQueue = []; }
+        sendProfileUpdate(senderConnId);
     } else if (type === "ICE") {
         if (!peers[senderConnId]) peers[senderConnId] = { iceQueue: [] };
         if (peers[senderConnId].pc?.remoteDescription) peers[senderConnId].pc.addIceCandidate(new RTCIceCandidate(json)).catch(() => {});
         else { if (!peers[senderConnId].iceQueue) peers[senderConnId].iceQueue = []; peers[senderConnId].iceQueue.push(json); }
     }
 }
+
 function sendSignaling(targetConnId, type, data) { wsSend(`[P2P_${type}]${btoa(encodeURIComponent(data))}`, targetConnId); }
 
 // ==================== CONNECTION (PeerJS) ====================
@@ -1225,7 +1281,14 @@ function connectChat(onReady) {
                 // Rehberdeki tüm kişilere doğrudan bağlanmayı dene (online tespiti)
                 setTimeout(() => {
                     try { contactsState.byNumber.forEach(c => { try { wsSend(`LOOKUP###${c.number}`, "HERKES"); } catch (e) {} }); } catch (e) {}
+                    watchAllContacts();
                 }, 1200);
+                // Durum noktaları (gri/yeşil) taşıma katmanıyla senkron kalsın.
+                if (!window.__sohbetoPresenceTimer) {
+                    window.__sohbetoPresenceTimer = setInterval(() => {
+                        try { watchAllContacts(); updateUI(); } catch (e) {}
+                    }, 5000);
+                }
                 if (chatReadyCb) { const cb = chatReadyCb; chatReadyCb = null; cb(); }
             },
             onClose: () => { wsChat = null; updateTopbarStatus(false); },
@@ -1326,6 +1389,25 @@ async function handleTransportMessage(sConnId, sVirtualNo, tConnId, text) {
 }
 
 window.handleTransportMessage = handleTransportMessage;
+
+/** Kişi gerçekten ulaşılabilir mi? (açık PeerJS kanalı veya açık P2P veri kanalı) */
+function isPeerReachable(connId) {
+    if (!connId || connId === 'genel' || connId === 'HERKES') return false;
+    try { if (window.SohbetoPeer && SohbetoPeer.isPeerOnline(connId)) return true; } catch (e) {}
+    return peers[connId]?.dc?.readyState === 'open';
+}
+window.isPeerReachable = isPeerReachable;
+
+/** Rehberdeki herkesi taşıma katmanının presence izlemesine ekle. */
+function watchAllContacts() {
+    try {
+        if (!window.SohbetoPeer || typeof SohbetoPeer.watch !== 'function') return;
+        contactsState.byNumber.forEach(c => {
+            const id = c.connId || peerIdForNumber(c.number);
+            if (id && id !== CONFIG.connectionId) SohbetoPeer.watch(id);
+        });
+    } catch (e) {}
+}
 
 function updateTopbarStatus(online) {
     const s = document.getElementById('topbarStatus');
@@ -2187,10 +2269,12 @@ function updateContactList(filter) {
             list.appendChild(h); lastLetter = letter; lettersPresent.add(letter);
         }
         const connId = c.connId || null;
-        const isConnected = connId && peers[connId]?.dc?.readyState === "open";
-        const isOnline = !!connId && state.users.has(connId);
-        const onlineClass = (isConnected || isOnline) ? '' : 'off';
-        const statusText = (isConnected || isOnline) ? 'Çevrimiçi' : 'Çevrimdışı';
+        // Tek doğruluk kaynağı: taşıma katmanındaki AÇIK kanal. state.users bir kez
+        // dolduğunda temizlenmediği için kişi çıkınca yeşil kalıyordu.
+        const online = !!connId && isPeerReachable(connId);
+        const onlineClass = online ? '' : 'off';
+        const statusText = online ? 'Çevrimiçi' : 'Çevrimdışı';
+
         const d = document.createElement('div'); d.className = 'contact-item';
         d.innerHTML = `<div class="contact-avatar ${getAvatarColor(name)}">${connId ? getAvatarContent(connId, name) : `<span>${escapeHtml(getInitials(name).substring(0,2))}</span>`}</div><div class="contact-info"><div class="contact-name">${escapeHtml(name)}</div><div class="contact-status ${onlineClass}"><span class="dot"></span>${statusText}</div></div>`;
         const avatarEl = d.querySelector('.contact-avatar');
@@ -2258,6 +2342,7 @@ function handleLookupReply(number, connId) {
     contactsState.byNumber.set(c.number, c);
     dbSaveContact(c);
     state.users.set(connId, `${c.name} [${c.number}]`);
+    try { if (window.SohbetoPeer && SohbetoPeer.watch) SohbetoPeer.watch(connId); } catch (e) {}
     log(`[LOOKUP ✓] ${c.number} → ${connId.substring(0,10)}`, '#22c55e');
     if (window._pendingLookups?.has(c.number)) {
         window._pendingLookups.delete(c.number);
@@ -2908,6 +2993,14 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
     document.getElementById('activeCallDuration').innerText = '00:00';
     document.getElementById('activeCallScreen').classList.remove('hidden');
 
+    if (isIncoming) {
+        // Biz ARAYAN değil KABUL EDEN tarafız: ekran açılır açılmaz "Bağlandı"
+        // yazılsın; medya/P2P hazırlığı sürerken araya "Çalıyor…" girmesin.
+        const stIn = document.getElementById('activeCallStatus');
+        if (stIn) stIn.innerText = 'Bağlandı';
+        try { window.__SOHBETO_CALL_CONNECTED_AT = connectedAt || Date.now(); } catch (e) {}
+    }
+
     isMuted = false; isSpeaker = false;
     document.getElementById('btnMute').classList.remove('active');
     document.getElementById('btnSpeaker').classList.remove('active');
@@ -2930,10 +3023,12 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
         resetCallClock();
         document.getElementById('activeCallStatus').innerText = 'Çalıyor...';
         sendCallSignal(connId, "CALL_RING");
+        armRingTimeout(connId);
     }
 
 
     // Now init P2P - localAudioStream is available so tracks will be added
+    await ensureCallPeerFresh(connId);
     await initP2P(connId);
 
     if (isIncoming) {
@@ -2946,6 +3041,7 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
 }
 
 function startCallTimer(startedAt) {
+    clearRingTimeout();
     // Clear any existing timer
     if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
     callStartTime = startedAt || Date.now();
@@ -3001,6 +3097,37 @@ function clearRemoteMedia(connId) {
 
 // Arama biterken peer connection'ı GERÇEKTEN kapat; ölü sender'larla ikinci
 // aramanın bozulmasını engeller. Sohbet veri kanalı için taze pc kurulur.
+const pendingP2PReinit = new Map();
+function cancelPendingP2PReinit(connId) {
+    if (!connId) return;
+    const t = pendingP2PReinit.get(connId);
+    if (t) { clearTimeout(t); pendingP2PReinit.delete(connId); }
+}
+
+/**
+ * Arama başlamadan önce bağlantıyı taze hale getirir.
+ * Önceki aramadan kalan "failed/disconnected/closed" bir RTCPeerConnection
+ * ikinci aramada teklif/yanıt akışını kilitliyor ve ekran donuyordu.
+ */
+async function ensureCallPeerFresh(connId) {
+    if (!connId || connId === 'genel') return;
+    cancelPendingP2PReinit(connId);
+    try { if (window.SohbetoPeer && SohbetoPeer.refresh) SohbetoPeer.refresh(connId); } catch (e) {}
+    const peer = peers[connId];
+    const pc = peer && peer.pc;
+    if (!pc) return;
+    const bad = ['failed', 'disconnected', 'closed'].includes(pc.connectionState)
+        || pc.signalingState === 'closed'
+        || (peer.dc && peer.dc.readyState === 'closed');
+    if (!bad) return;
+    try {
+        pc.ontrack = null; pc.onicecandidate = null; pc.onconnectionstatechange = null;
+        pc.close();
+    } catch (e) {}
+    delete peers[connId];
+    log('Bayat P2P bağlantısı sıfırlandı, arama için yeniden kuruluyor', '#fbbf24');
+}
+
 function teardownCallPeer(connId) {
     if (!connId) return;
     const peer = peers[connId];
@@ -3019,14 +3146,37 @@ function teardownCallPeer(connId) {
     clearRemoteMedia(connId);
     updateUI();
     // Sohbet kanalı kopmasın: kısa gecikmeyle taze bağlantı kur.
-    setTimeout(() => {
-        if (connId !== 'genel' && !peers[connId]) {
-            try { initP2P(connId); } catch (e) {}
-        }
+    // ÖNEMLİ: bu sırada yeni bir arama başladıysa (üst üste arama) yeniden
+    // kurulum teklifi, aramanın teklifiyle çakışıp bağlantıyı dondurabiliyordu.
+    cancelPendingP2PReinit(connId);
+    const timer = setTimeout(() => {
+        pendingP2PReinit.delete(connId);
+        if (connId === 'genel' || peers[connId]) return;
+        if (activeCallConnId || state.incomingCallFrom) return;
+        try { initP2P(connId); } catch (e) {}
     }, 600);
+    pendingP2PReinit.set(connId, timer);
+
+}
+
+// Cevaplanmayan giden arama sonsuza kadar "Çalıyor..." kalmasın (donma hissi).
+let ringTimeout = null;
+function armRingTimeout(connId) {
+    clearRingTimeout();
+    ringTimeout = setTimeout(() => {
+        ringTimeout = null;
+        if (callStartTime) return;              // arama bağlandı
+        if (activeCallConnId !== connId) return; // arama değişti
+        log('Cevap yok — arama sonlandırıldı', '#fbbf24');
+        endActiveCall(); endVideoCall();
+    }, 45000);
+}
+function clearRingTimeout() {
+    if (ringTimeout) { clearTimeout(ringTimeout); ringTimeout = null; }
 }
 
 function resetCallClock() {
+    clearRingTimeout();
     if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
     callStartTime = null;
     try { window.__SOHBETO_CALL_CONNECTED_AT = null; } catch (e) {}
@@ -3090,6 +3240,7 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
         }
         // Sesli kontroller (mute) aynı akış üzerinden çalışsın.
         localAudioStream = localVideoStream;
+        await ensureCallPeerFresh(connId);
 
         const localVideoEl = document.createElement('video');
         localVideoEl.srcObject = localVideoStream;
@@ -3110,6 +3261,8 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
         if (acName) acName.innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
         const acStatus = document.getElementById('activeCallStatus');
         if (acStatus) acStatus.innerText = isIncoming ? 'Bağlandı' : 'Çalıyor…';
+        // Kabul eden tarafta kabul damgasını erken bas: köprüler "Çalıyor…"a düşürmesin.
+        if (isIncoming) { try { window.__SOHBETO_CALL_CONNECTED_AT = connectedAt || Date.now(); } catch (e) {} }
         const acDuration = document.getElementById('activeCallDuration');
         if (acDuration) acDuration.innerText = '00:00';
 
@@ -3119,7 +3272,9 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
             const acStatus2 = document.getElementById('activeCallStatus');
             if (acStatus2) acStatus2.innerText = 'Çalıyor…';
             sendCallSignal(connId, "CALL_RING_VIDEO");
+            armRingTimeout(connId);
             log("Görüntülü arama başlatıldı - Karşı taraf bekleniyor", "#6366f1");
+
         }
 
         // Init P2P first so peer connection exists, then add tracks
