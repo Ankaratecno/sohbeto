@@ -8,6 +8,8 @@ import {
   markFounderMessageDelivered,
   verifyFounderLogin,
 } from "@/pwa/registry";
+import { setMyKey, getPeerKey, enqueue, fetchQueue, markDelivered } from "@/pwa/asiliveri";
+
 
 
 /**
@@ -152,6 +154,17 @@ const Sohbeto: React.FC = () => {
             id?: string;
             rid?: string;
             pin?: string;
+            // asılı veri köprüsü
+            pubkey?: string;
+            code?: string;
+            toPhone?: string;
+            payload?: string;
+            iv?: string | null;
+            alg?: string;
+            kind?: string;
+            msgId?: string | null;
+            codes?: string[];
+
           }
         | null;
       if (!d) return;
@@ -191,7 +204,29 @@ const Sohbeto: React.FC = () => {
       } else if (d.type === "sohbeto:verify-founder") {
         const res = await verifyFounderLogin(String(d.phone || ""), String(d.pin || ""));
         win?.postMessage({ type: "sohbeto:founder-verified", rid: d.rid, ...res }, "*");
+      } else if (d.type === "sohbeto:asili-anahtar-yaz") {
+        // Verimetri açık anahtarı defterine yazılır (özel anahtar cihazda kalır).
+        await setMyKey(String(d.pubkey || ""));
+      } else if (d.type === "sohbeto:asili-anahtar-al") {
+        const pubkey = await getPeerKey(String(d.phone || ""));
+        win?.postMessage({ type: "sohbeto:asili-anahtar", phone: d.phone, pubkey }, "*");
+      } else if (d.type === "sohbeto:asili-gonder") {
+        await enqueue({
+          code: String(d.code || ""),
+          toPhone: String(d.toPhone || ""),
+          payload: String(d.payload || ""),
+          iv: d.iv ?? null,
+          alg: d.alg ?? null,
+          kind: d.kind ?? null,
+          msgId: d.msgId ?? null,
+        });
+      } else if (d.type === "sohbeto:asili-cek") {
+        const list = await fetchQueue();
+        if (list.length) win?.postMessage({ type: "sohbeto:asili-kuyruk", list }, "*");
+      } else if (d.type === "sohbeto:asili-teslim") {
+        await markDelivered(d.codes || []);
       }
+
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
