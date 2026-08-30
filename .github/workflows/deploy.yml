@@ -23,16 +23,15 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile || bun install
-      # GitHub Pages statik barındırma yapar: SSR build yerine statik SPA çıktısı üretilir.
-      - run: bun run build:mobile
+      - run: bun run build
       - name: SPA 404 fallback
-        run: cp dist-mobile/index.html dist-mobile/404.html
+        run: cp dist/index.html dist/404.html
       - name: Disable Jekyll
-        run: touch dist-mobile/.nojekyll
+        run: touch dist/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist-mobile
+          path: dist
 
   deploy:
     needs: build
