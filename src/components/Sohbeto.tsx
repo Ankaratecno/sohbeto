@@ -9,6 +9,8 @@ import {
   verifyFounderLogin,
 } from "@/pwa/registry";
 import { setMyKey, getPeerKey, enqueue, fetchQueue, markDelivered } from "@/pwa/asiliveri";
+import { initNativeNotifications } from "@/native/nativeNotify";
+
 
 
 
@@ -117,6 +119,14 @@ const Sohbeto: React.FC = () => {
     return () => navigator.serviceWorker?.removeEventListener("message", onSwMessage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // APK (Capacitor) tarafı: FCM'siz yerel bildirimler. Web/PWA'da devreye girmez.
+  useEffect(() => {
+    void initNativeNotifications((payload) => deliver(payload));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
 
   const handleLoad = () => {
     setIframeReady(true);

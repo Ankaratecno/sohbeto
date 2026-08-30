@@ -41,6 +41,11 @@ jobs:
           fi
           npx cap sync android
 
+      - name: Android izinlerini ve native eklentiyi uygula
+        run: |
+          chmod +x android-patch/patch-android.sh
+          ./android-patch/patch-android.sh
+
       - name: Sürüm bilgisini yaz (1.0.${{ github.run_number }})
         run: |
           GRADLE_FILE=android/app/build.gradle
