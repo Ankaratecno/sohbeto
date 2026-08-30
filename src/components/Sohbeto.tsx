@@ -127,6 +127,39 @@ const Sohbeto: React.FC = () => {
   }, []);
 
 
+  // ASILI VERİ: uygulama açıkken sonradan gelen (offline) mesajları düzenli çek.
+  useEffect(() => {
+    let stopped = false;
+    const pull = async () => {
+      if (stopped) return;
+      if (!iframeReadyRef.current) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      try {
+        const list = await fetchQueue();
+        if (list.length) {
+          frameRef.current?.contentWindow?.postMessage({ type: "sohbeto:asili-kuyruk", list }, "*");
+        }
+      } catch {
+        /* ağ yoksa sessiz geç */
+      }
+    };
+    const timer = window.setInterval(pull, 15000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void pull();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", pull);
+    const first = window.setTimeout(pull, 1500);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      window.clearTimeout(first);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", pull);
+    };
+  }, []);
+
+
 
   const handleLoad = () => {
     setIframeReady(true);

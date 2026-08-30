@@ -18,7 +18,14 @@
 const CONFIG = {
     // WSS (topsportlivers) taşıma katmanı tamamen kaldırıldı.
     // Sinyalleşme ve taşıma artık PeerJS üzerinden yapılıyor (sohbeto-peer.js).
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:global.stun.twilio.com:3478" },
+        // Ücretsiz OpenRelay TURN (STUN yetersiz kalırsa yedek yol)
+        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turns:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+    ],
     virtualNo: "", seed: "", connectionId: ""
 };
 

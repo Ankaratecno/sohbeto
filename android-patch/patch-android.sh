@@ -32,6 +32,11 @@ add_perm RECEIVE_BOOT_COMPLETED
 add_perm SCHEDULE_EXACT_ALARM
 add_perm DISABLE_KEYGUARD
 add_perm INTERNET
+add_perm RECORD_AUDIO
+add_perm CAMERA
+add_perm MODIFY_AUDIO_SETTINGS
+add_perm BLUETOOTH_CONNECT
+add_perm ACCESS_NETWORK_STATE
 
 # MainActivity kilit ekranı üzerinde açılabilsin (Android 8.1+ manifest bayrakları)
 if ! grep -q "android:showWhenLocked" "$MANIFEST"; then

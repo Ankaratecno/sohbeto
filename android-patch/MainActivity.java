@@ -14,7 +14,23 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CallNotificationPlugin.class);
         super.onCreate(savedInstanceState);
         allowOverLockScreen();
+        grantWebRtcPermissions();
         handleCallIntent(getIntent());
+    }
+
+    /** WebView içindeki getUserMedia (mikrofon/kamera) isteklerini onayla. */
+    private void grantWebRtcPermissions() {
+        try {
+            if (getBridge() == null || getBridge().getWebView() == null) return;
+            getBridge().getWebView().setWebChromeClient(
+                new com.getcapacitor.BridgeWebChromeClient(getBridge()) {
+                    @Override
+                    public void onPermissionRequest(final android.webkit.PermissionRequest request) {
+                        runOnUiThread(() -> request.grant(request.getResources()));
+                    }
+                });
+        } catch (Throwable ignored) {
+        }
     }
 
     /** Kilit ekranının üzerinde açılabilsin + ekranı uyandırsın (Android 8 dahil). */
