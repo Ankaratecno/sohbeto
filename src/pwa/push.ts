@@ -202,6 +202,15 @@ async function userIdsForPhone(phone: string): Promise<string[]> {
  */
 export const APP_URL = "https://ankaratecno.github.io/sohbeto/";
 
+/**
+ * Aynı mesaj için birden çok tetikleyici (peer katmanı + motorun yeniden deneme
+ * bitişi + medya yolları) push çağırabiliyordu → karşı tarafta üst üste bildirim
+ * sesi. Burası TEK kapı: aynı numara + tür için kısa süre içinde ikinci çağrı
+ * sessizce yutulur.
+ */
+const lastNotify = new Map<string, number>();
+const NOTIFY_GAP = { message: 12000, call: 6000 } as const;
+
 /** Numaraya bildirim gönderir (P2P mesaj/arama tetikleyicisi). */
 export async function notifyPhone(
   phone: string,
@@ -214,7 +223,16 @@ export async function notifyPhone(
 ): Promise<boolean> {
   const p = normalizePhone(phone);
   if (!p) return false;
+  const key = `${p}:${kind}`;
+  const now = Date.now();
+  const prev = lastNotify.get(key) || 0;
+  if (now - prev < NOTIFY_GAP[kind]) {
+    console.info("[Sohbeto] Tekrarlanan bildirim engellendi:", key);
+    return true;
+  }
+  lastNotify.set(key, now);
   await ensureSupabaseUser();
+
   // Hem phone (yeni fonksiyon) hem user_ids (eski fonksiyon) gönderilir.
   const user_ids = await userIdsForPhone(p);
   if (!user_ids.length) {

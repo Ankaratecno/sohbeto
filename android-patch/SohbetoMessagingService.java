@@ -56,6 +56,10 @@ public class SohbetoMessagingService extends FirebaseMessagingService {
         boolean foreground = MainActivity.isForeground();
         JSONArray seen = loadSeen(p);
 
+        // Aynı kişiden gelen birden çok bilet TEK bildirim olmalı: yoksa her bilet
+        // için notify() çağrılıp ses üst üste çalıyordu ("defalarca mesaj" hissi).
+        java.util.LinkedHashSet<String> shown = new java.util.LinkedHashSet<>();
+
         for (int i = 0; i < tickets.length(); i++) {
             JSONObject t = tickets.optJSONObject(i);
             if (t == null) continue;
@@ -64,6 +68,9 @@ public class SohbetoMessagingService extends FirebaseMessagingService {
             String from = t.optString("from", "");
             if (!id.isEmpty()) seen.put(id);
             if (foreground) continue; // uygulama açık → JS kendisi gösterir/teslim eder
+
+            String key = kind + "|" + (from.isEmpty() ? id : from);
+            if (!shown.add(key)) continue; // bu kişi/tür için zaten gösterildi
 
             String name = SohbetoNotifier.displayName(this, from);
             if ("call".equals(kind)) {

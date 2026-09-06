@@ -2447,6 +2447,8 @@
     <script src="./sohbeto-fcm-names.js"></script>
     <script src="./sohbeto-pc.js"></script>
     <script src="./sohbeto-discover.js"></script>
+    <!-- Sesli aramada ahize/hoparlör yönlendirmesi -->
+    <script src="./sohbeto-audioroute.js"></script>
 
 
 
@@ -3040,27 +3042,42 @@
         var start = Date.now();
         (function poll(){
           if (ready()) { cb(true); return; }
-          if (Date.now() - start > (timeoutMs || 20000)) { cb(false); return; }
+          if (Date.now() - start > (timeoutMs || 90000)) { cb(false); return; }
           setTimeout(poll, 200);
+        })();
+      }
+      // Numara → bağlantı kimliği; SohbetoPeer henüz hazır değilse bekler.
+      function waitConnId(from, cb, timeoutMs){
+        var start = Date.now();
+        (function poll(){
+          var id = '';
+          try { id = (window.SohbetoPeer && from) ? (window.SohbetoPeer.idForNumber(from) || '') : ''; } catch(e){}
+          if (id) { cb(id); return; }
+          if (Date.now() - start > (timeoutMs || 15000)) { cb(''); return; }
+          setTimeout(poll, 250);
         })();
       }
       function handle(d){
         var from = String(d.from || '').trim();
         var isCall = d.kind === 'call';
+        // Cevapla niyeti motor açılmadan önce de kaybolmasın: zil sinyali
+        // sonradan gelirse motor bu bayrağı görüp aramayı hemen kabul eder.
+        if (isCall && d.act === 'answer') {
+          try { window.__sohbetoPendingAnswerFrom = from; } catch(e){}
+        }
         waitReady(function(ok){
-          if (!ok) return;
+          if (!ok) { try { console.warn('[SOHBETO] motor hazır olmadı, bildirim niyeti uygulanamadı'); } catch(e){} return; }
           try {
             if (isCall) {
               var inc = window.state && window.state.incomingCallFrom;
-              var connId = '';
-              try {
-                connId = (window.SohbetoPeer && from) ? (window.SohbetoPeer.idForNumber(from) || '') : '';
-              } catch(e){}
 
               // 1) Reddet: zil ekranı varsa motor reddetsin, yoksa doğrudan sinyal.
               if (d.act === 'decline') {
+                try { window.__sohbetoAutoAnswer = null; window.__sohbetoPendingAnswerFrom = null; } catch(e){}
                 if (inc && typeof window.rejectCall === 'function') { window.rejectCall(); return; }
-                try { if (connId && typeof window.sendCallSignal === 'function') window.sendCallSignal(connId, 'CALL_REJECT'); } catch(e){}
+                waitConnId(from, function(cid){
+                  try { if (cid && typeof window.sendCallSignal === 'function') window.sendCallSignal(cid, 'CALL_REJECT'); } catch(e){}
+                }, 8000);
                 return;
               }
 
@@ -3072,25 +3089,32 @@
               // 3) Zil sinyali (CALL_RING) henüz gelmedi — P2P bağlantısı yeni
               //    kuruluyor. Kullanıcıyı bekletmeden gelen arama ekranını AÇ,
               //    bu arada karşı tarafla kanalı hızlandır.
+              waitConnId(from, function(connId){
               if (connId) {
                 try { if (window.SohbetoPeer && window.SohbetoPeer.watch) window.SohbetoPeer.watch(connId); } catch(e){}
                 try { if (window.SohbetoPeer && window.SohbetoPeer.refresh) window.SohbetoPeer.refresh(connId); } catch(e){}
                 var kind = (d.callKind === 'video') ? 'video' : 'audio';
+                // Cevapla denmişse motor zil ekranını açar açmaz kabul etsin.
+                if (d.act === 'answer') { try { window.__sohbetoAutoAnswer = connId; } catch(e){} }
                 try { if (typeof window.showIncomingCall === 'function') window.showIncomingCall(connId, kind); } catch(e){}
 
-                // Bildirimden "Cevapla" denmişse: kanal açılır açılmaz kabul et.
+                // Bildirimden "Cevapla" denmişse: motor kabul etmediyse kendimiz kabul et.
                 if (d.act === 'answer') {
                   var waited = 0;
                   var iv = setInterval(function(){
                     waited += 300;
-                    var reach = false;
+                    var active = false, reach = false;
+                    try { active = !!(window.state && window.state.incomingCallFrom); } catch(e){}
                     try { reach = !!(typeof window.isPeerReachable === 'function' && window.isPeerReachable(connId)); } catch(e){}
-                    if (reach || waited >= 8000) {
+                    if (!active) { clearInterval(iv); return; }   // motor zaten kabul etti
+                    if (reach || waited >= 4000) {
                       clearInterval(iv);
+                      try { window.__sohbetoAutoAnswer = null; } catch(e){}
                       try { if (typeof window.acceptCall === 'function') window.acceptCall(); } catch(e){}
                     }
                   }, 300);
                 }
+
 
                 // 45 sn içinde arama kurulmadıysa zil ekranını kapat.
                 setTimeout(function(){
@@ -3107,12 +3131,13 @@
               }
 
               // 4) Numara rehberde değil: sohbeti aç.
-              if (from) window.openContactByNumber(from);
+              try { if (from && typeof window.openContactByNumber === 'function') window.openContactByNumber(from); } catch(e){}
+              }, 15000);
               return;
             }
             if (from) window.openContactByNumber(from);
           } catch(e){}
-        }, 25000);
+        }, 90000);
       }
       window.addEventListener('message', function(ev){
         var d = ev && ev.data;

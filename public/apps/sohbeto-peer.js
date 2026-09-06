@@ -289,6 +289,80 @@
     }
 
 
+    // ---------- posta kutusu (store & forward) ----------
+    // Kanal kapalıyken paket Supabase'e bırakılır. Böylece hem alıcı hem
+    // gönderen uygulamayı kapatsa bile mesaj/medya kaybolmaz; alıcı uygulamayı
+    // açtığında kutusunu çeker. Aynı paket sonradan P2P ile de gelirse motor
+    // msgId/parça indeksiyle yinelenenleri zaten ayıklar.
+    var relayTimer = null;
+    var relayBusy = false;
+
+    /** Sadece kalıcı içerik saklanır: sohbet, medya, sesli mesaj, profil.
+        Arama/yazıyor/ping gibi anlık sinyaller posta kutusuna yazılmaz. */
+    function relayWorthy(text) {
+        var t = String(text || '');
+        return t.indexOf('SEC###') === 0 || t.indexOf('MSG###') === 0 ||
+            t.indexOf('MEDIA_PART###') === 0 || t.indexOf('MEDIA_END###') === 0 ||
+            t.indexOf('VOICE_PART###') === 0 || t.indexOf('VOICE_END###') === 0 ||
+            t.indexOf('MSG_DEL###') === 0 || t.indexOf('PROFILE_UPDATE###') === 0;
+    }
+
+    function relayOut(connId, payload) {
+
+        try {
+            var send = pushFn('sohbetoRelaySend');
+            if (!send) return;
+            var toNumber = numberFromId(connId);
+            if (!toNumber) return;
+            var p = send(toNumber, payload);
+            if (p && typeof p.catch === 'function') p.catch(function () {});
+        } catch (e) {}
+    }
+
+    function relayDeliver(from, payload) {
+        var env = null;
+        try { env = JSON.parse(payload); } catch (e) { return; }
+        if (!env || typeof env.x !== 'string') return;
+        var sConnId = env.s || idForNumber(from);
+        if (!sConnId) return;
+        var sVirtualNo = env.v || numberFromId(sConnId) || from;
+        var tConnId = env.t || myId || 'HERKES';
+        try { if (handlers.onData) handlers.onData(sConnId, sVirtualNo, tConnId, env.x); } catch (e) {}
+    }
+
+    function relayPoll() {
+        if (relayBusy) return;
+        var fetchFn = pushFn('sohbetoRelayFetch');
+        if (!fetchFn) return;
+        relayBusy = true;
+        var done = function () { relayBusy = false; };
+        try {
+            var p = fetchFn(300);
+            if (!p || typeof p.then !== 'function') { done(); return; }
+            p.then(function (rows) {
+                done();
+                if (!rows || !rows.length) return;
+                emitLog('[POSTA] ' + rows.length + ' bekleyen paket alındı', '#38bdf8');
+                rows.forEach(function (r) { relayDeliver(r.from, r.payload); });
+                // Kutu doluysa kalanları hemen al.
+                if (rows.length >= 300) setTimeout(relayPoll, 300);
+            }, done);
+        } catch (e) { done(); }
+    }
+
+    function startRelay() {
+        if (relayTimer) return;
+        relayPoll();
+        relayTimer = setInterval(relayPoll, 8000);
+        try {
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') relayPoll();
+            });
+            window.addEventListener('focus', relayPoll);
+            window.addEventListener('online', relayPoll);
+        } catch (e) {}
+    }
+
     function sendTo(connId, text, target) {
         var payload = envelope(text, target || connId);
         var conn = conns.get(connId);
@@ -296,11 +370,14 @@
             try { conn.send(payload); return true; } catch (e) {}
         }
         // Kanal henüz açılmadıysa kuyruğa al ve bağlantıyı başlat; açılınca
-        // otomatik gönderilir. Çağıran taraf tekrar denemesin diye true döner.
+        // otomatik gönderilir. Ayrıca posta kutusuna da bırak: gönderen
+        // uygulamayı kapatsa bile paket alıcıya ulaşsın.
         queue(connId, payload);
+        if (relayWorthy(text)) relayOut(connId, payload);
         ensure(connId);
         return true;
     }
+
 
 
     // ---------- public API ----------
@@ -318,6 +395,9 @@
                 if (myNumber && setPhone) setPhone(myNumber);
             } catch (e) {}
             if (!myId) { emitLog('[PEER] Sanal numara yok, bağlantı kurulamadı', '#ef4444'); return null; }
+            // Posta kutusu: PeerJS bağlansa da bağlanmasa da bekleyen paketleri al.
+            startRelay();
+
             if (peer && !peer.destroyed && peer.id === myId) {
                 if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} }
                 else if (ready && handlers.onOpen) handlers.onOpen();
@@ -342,16 +422,22 @@
             });
             peer.on('connection', function (conn) { attach(conn); });
             peer.on('call', function (call) {
-                // Ekran paylaşımı çağrıları PRÇN katmanına gider, sesli/görüntülü arama motora.
+                // Ekran paylaşımı çağrıları PRÇN katmanına, keşfet yayınları
+                // keşfet katmanına, sesli/görüntülü arama motora gider.
                 try {
                     var md = call && call.metadata;
                     if (md && md.prcn === 'screen' && typeof window.__prcnScreenCall === 'function') {
                         window.__prcnScreenCall(call);
                         return;
                     }
+                    if (md && md.dsc && typeof window.__dscMediaCall === 'function') {
+                        window.__dscMediaCall(call);
+                        return;
+                    }
                 } catch (e) {}
                 try { if (handlers.onCall) handlers.onCall(call); } catch (e) {}
             });
+
             peer.on('disconnected', function () {
                 setReady(false);
                 emitLog('Bağlantı kesildi - yeniden bağlanılıyor...', '#ef4444');

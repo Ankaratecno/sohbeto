@@ -410,3 +410,197 @@ YAPILAN İŞ
 - sohbeto-fluid-tabs.js: fluid-mode'da gizli sekmelere visibility:visible; 'detached' modu için ayrı kural; swipeMode durumu localStorage 'sohbeto.tabSwipe' ile kalıcı; tabSwipePicker bağlama; window.SohbetoTabs API'si.
 - sohbetoOO.html: Tema Ayarları'na "Sekme Geçişi (Kaydırma)" kartı (Bitişik / Sonradan).
 - dist-mobile kopyaları güncellendi.
+
+=== 2026-09-06 (Yeni oturum) ===
+KONUŞULAN
+- Kullanıcı sohbeto-03.zip yükledi: proje olduğu gibi kurulacak, hiçbir kod eksiltilmeyecek/eklenmeyecek.
+- Konuşulan her şey bu dosyaya yazılmaya devam edecek.
+
+YAPILAN İŞ
+- Zip arşivi projeye birebir açıldı (src, public, supabase, mobile, pc-agent, android-patch, dist-mobile, assets, .github, tüm .txt notları ve yapılandırma dosyaları).
+- Şablondan gelen eski src/ ve public/ klasörleri kaldırıldı; yerine arşivdeki dosyalar kondu.
+- Bağımlılıklar kontrol edildi (değişiklik yok), derleme başarılı, önizleme çalışıyor.
+- Hiçbir koda ekleme veya değişiklik yapılmadı.
+
+=== ARAMA AKIŞI DÜZELTMELERİ (bu oturum) ===
+Sorun: Bildirimden "Cevapla"ya basınca uygulama açılıyor, sohbetler görünüyor,
+arama ekranı gelmiyor; bağlantı geç kuruluyor ve ses iki yönde de gitmiyordu.
+Reddet de uygulamayı açıyordu. Karşı taraf kapalıyken "Ulaşılamıyor" denmiyordu.
+
+Yapılanlar:
+1) public/apps/sohbeto-engine.js
+   - showIncomingCall(): __sohbetoAutoAnswer / __sohbetoPendingAnswerFrom bayrağı
+     varsa zil ekranı açılır açılmaz otomatik acceptCall().
+   - acceptCall(): CALL_ACCEPT medya hazırlığından ÖNCE gönderiliyor, medya
+     kurulduktan sonra tekrar gönderiliyor; ensureCallMediaFlowing() watchdog'u
+     track/peer durumunu 12 kez kontrol edip gerekirse initP2P + renegotiation yapıyor
+     (sesin iki yönde de akmaması sorunu).
+   - Giden arama: "Aranıyor..." → kanal kurulunca "Çalıyor..." (+CALL_RING tazeleme)
+     → 25 sn'de kanal yoksa "Ulaşılamıyor" ve arama kapanır (armOutgoingCallProgress).
+   - armRingTimeout(): 45 sn'de "Cevap yok".
+   - startCallTimer/resetCallClock artık clearOutgoingCallProgress() çağırıyor.
+2) public/apps/sohbetoOO.html (bildirim köprüsü)
+   - "Cevapla" niyeti motor açılmadan da saklanıyor (__sohbetoPendingAnswerFrom).
+   - connId için SohbetoPeer hazır olana kadar bekleniyor (waitConnId).
+   - Zil sinyali gelmemiş olsa bile gelen arama ekranı hemen açılıyor; 8 sn bekleme
+     kaldırıldı, en fazla 4 sn içinde acceptCall tetikleniyor.
+   - "Reddet": zil ekranı varsa rejectCall(), yoksa doğrudan CALL_REJECT sinyali.
+3) Android
+   - Yeni CallActionReceiver.java: Reddet artık uygulamayı AÇMADAN çalışıyor;
+     bildirim anında kapanıyor, red notu SharedPreferences'a yazılıyor ve
+     MainActivity.onResume() bir sonraki açılışta reddi web tarafına iletiyor.
+   - CallNotificationPlugin ve SohbetoNotifier "Reddet" düğmesi broadcast'e bağlandı.
+   - patch-android.sh receiver'ı manifeste ekliyor ve dosyayı kopyalıyor.
+
+Sıradaki: mesajlarda çoklu bildirim sesi (çift send-push + FCM/WebPush çakışması,
+setOnlyAlertOnce eksikliği, sw.js renotify) — analiz yapıldı, düzeltme bekliyor.
+
+---------------------------------------------------------------
+06.09.2026 — MESAJ BİLDİRİMİ ÇOKLAMA ANALİZİ VE ÇÖZÜM
+Tespit: Tek mesaj için 2-4 bildirim sesi çalmasının nedenleri
+ 1) İki ayrı tetikleyici: sohbeto-peer.js pushNotify() + sohbeto-engine.js
+    retry bitişinde pushToPeer() — birbirinden habersiz iki push.
+ 2) send-push tek çağrıda hem Web Push hem FCM gönderiyor; telefonda hem PWA
+    hem APK kayıtlıysa aynı mesaj iki kez düşüyor (kanallar ayrı ama hedef aynı).
+ 3) Android: aynı kişiden gelen her bilet için ayrı notify() → ses tekrarı.
+ 4) sw.js renotify:true → aynı kart güncellenirken ses yeniden çalıyor.
+Çözüm:
+ - src/pwa/push.ts notifyPhone(): numara+tür için tek kapı, mesaj 12sn / arama 6sn.
+ - send-push: aynı gönderen/alıcı/tür için 12sn (arama 6sn) sunucu tarafı dedupe.
+ - send-push: telefonun FCM kaydı varsa aynı telefonun Android tarayıcı (PWA)
+   aboneliği atlanır → APK önceliklidir.
+ - public/sw.js: mesajlarda renotify kapalı (arama hariç).
+ - SohbetoNotifier.showMessage: setOnlyAlertOnce(true).
+ - SohbetoMessagingService: aynı kişi/tür biletleri tek bildirime indirgenir.
+
+---------------------------------------------------------------
+06.09.2026 — ÇEVRİMDIŞI MESAJ KAYBI (POSTA KUTUSU / RELAY)
+Doğrulandı: Çevrimdışı kişiye gönderilen mesajlar sadece GÖNDERENİN
+belleğindeki kuyrukta (sohbeto-peer.js queues, 10 dk TTL) tutuluyordu.
+Gönderen de uygulamayı kapatınca paket kayboluyordu; Supabase'de saklama
+yoktu (push sadece "bildirim", içerik taşımıyor). Fotoğraf/video/sesli
+mesaj parçaları (MEDIA_PART/VOICE_PART) da aynı şekilde kayboluyordu.
+Çözüm — store & forward:
+ - supabase/relay.sql: public.relay_messages tablosu + relay_send(to,payload)
+   + relay_fetch(limit) (çeker ve siler), RLS + grant'lar, 7 gün TTL,
+   alıcı başına 5000 paket sınırı, paket başına 300 KB sınırı.
+   ÇALIŞTIR: Supabase SQL Editor'da relay.sql'in tamamı.
+ - src/pwa/relay.ts: sohbetoRelaySend / sohbetoRelayFetch köprüleri (initRelay).
+ - src/routes/index.tsx ve mobile/main.tsx: initRelay() eklendi.
+ - public/apps/sohbeto-peer.js: kanal kapalıyken paket hem yerel kuyruğa hem
+   posta kutusuna gider (relayWorthy: SEC/MSG/MEDIA/VOICE/MSG_DEL/PROFILE);
+   arama, yazıyor, ping gibi anlık sinyaller saklanmaz. Alıcı 8 sn'de bir,
+   ayrıca uygulama öne gelince/odaklanınca/internet dönünce kutusunu çeker.
+   Aynı paket sonradan P2P ile gelirse motor msgId/parça indeksiyle eler.
+
+---------------------------------------------------------------
+06.09.2026 — PROJE YENİDEN KURULUMU (sohbeto-04.zip)
+Kullanıcı sohbeto-04.zip arşivini yükledi: "bu zip dosyasını olduğu gibi
+oluştur, hiçbir kod eksik olmasın".
+Yapılanlar:
+ - Arşiv açıldı (301 öğe, ~6.4 MB), .git metadatası içermediği doğrulandı.
+ - Tüm içerik projeye birebir kopyalandı: src/ (routes, components, ui,
+   pwa, native, lib), public/ (apps, wallpapers, icons, sw.js, manifest),
+   dist-mobile/, mobile/, supabase/ (init, relay, registry, fcm, asiliveri
+   SQL + send-push & push-diag edge fonksiyonları), android-patch/,
+   pc-agent/, assets/, .github/workflows (build-apk, deploy),
+   capacitor.config.ts, vite.config.ts, vite.config.mobile.ts, package.json
+   ve tüm not dosyaları (sohbeto.txt, arayüz.txt, fcm-kurulum.txt,
+   url-degisikligi.txt, profesyonelsohbet.txt, roadmap.md).
+ - bun install ile bağımlılıklar kuruldu (Capacitor, Supabase, Radix, TanStack).
+ - unzip'in bozduğu Türkçe dosya adları düzeltildi: arayüz.txt ve
+   .lovable/plan/sohbeto-ana-sekme-düzeni-2026-09-06.md.
+ - Önizleme ayakta doğrulandı (HTTP 200).
+Not: Bu dosyaya konuşma kaydı tutulmaya devam edilecek.
+
+---------------------------------------------------------------
+06.09.2026 — BİLGİSAYAR BAĞLANTISI: KALAN İKİ ADIM TAMAMLANDI
+Önceki oturumda yapılanlar (kullanıcı bildirimi): telefon artık düz metin
+gönderiyor, ajan her biçimi çözüyor; dosya parçası 32 KB → 8 KB; sinyal
+sunucusu 429 için kademeli yeniden bağlanma (4/8/16… en fazla 60 sn).
+Bu oturumda:
+ - public/apps/sohbeto-pc.js: gelen paketi okuyan satır sadeleştirildi.
+   Yeni decodePacket(raw, cb) yardımcısı tek yerde metin / ArrayBuffer /
+   TypedArray / Blob / hazır nesne biçimlerini JSON'a çeviriyor;
+   conn.on('data') artık tek satır: decodePacket(raw, onMessage).
+ - Güncel sohbeto-pc.js dist-mobile/apps/ altına kopyalandı (iki dosya birebir).
+
+---------------------------------------------------------------
+06.09.2026 — BİLGİSAYARDA TAM EKRAN HAKİMİYETİ (İLERİDE YAPILACAK NOT)
+Kullanıcı sordu: mevcut PC ajanı eşleşmesinde ekrana tam hakimiyet var mı?
+Cevap: HAYIR. Şu an yalnızca dosya işlemleri (listeleme/indirme/yükleme),
+durum-ağ bilgisi, uzaktan uyandırma ve canlı yayın aktarımı var. Ekranı
+görme, fare/klavye kontrolü veya program çalıştırma YOK.
+Tam hakimiyet (uzak masaüstü) için gerekenler:
+ 1) Ekran görüntüsü akışı: bilgisayarda periyodik yakalama (robotjs /
+    screenshot-desktop) → küçük JPEG parçalar hâlinde WebSocket ile telefona.
+ 2) Girdi kontrolü: telefondan tıklama/kaydırma/klavye → bilgisayarda
+    robotjs ya da platforma özel komutlarla uygulama.
+ 3) Optimizasyon: ham kareler ağır (1080p ≈ 6 MB/kare) → JPEG kalitesi
+    düşür, yalnızca değişen bölgeyi gönder, FPS sınırla; yoksa kanal tıkanır.
+ 4) Güvenlik: ekran + girdi hassas → PIN/onay mekanizması şart.
+Tahmini süre: çalışan ilk sürüm ~1-2 yoğun oturum; akıcı/güvenli hâl +1 oturum.
+KARAR: Şimdilik yapılmıyor; dosya okuma yeterli. Gerekirse ileride eklenecek.
+
+---------------------------------------------------------------
+06.09.2026 — KEŞFET: REHBERE CANLI YAYIN VE "NE DİNLİYORUM" DAĞITIMI
+İstek: Keşfet'te canlı yayın açan kişinin yayınını ve dinlediği müziği
+rehberindekilere göndermesi; karşı tarafın anında yakalayıp izlemesi/çalması.
+Yapılanlar:
+ - public/apps/sohbeto-peer.js: gelen PeerJS medya çağrılarında
+   metadata.dsc varsa çağrı window.__dscMediaCall'a yönlendiriliyor
+   (ekran paylaşımı prcn yönlendirmesinin yanına eklendi).
+ - public/apps/sohbeto-discover.js:
+   * Duyuru protokolü "[DSC]" + JSON, taşıma metni olarak rehberdeki
+     herkese gider: { t:'live'|'music'|'stop'|'want', title, by, at }.
+     handleTransportMessage sarmalanarak bu paketler sohbet baloncuğu
+     olmadan ayıklanıyor (prcn'deki [PRCN_LIVE] deseniyle aynı yöntem).
+   * Yayın/müzik başlarken rehbere duyuru gider; alıcıda Keşfet
+     listesinde "İzle" / "Dinle" satırı belirir.
+   * Alıcı düğmeye basınca yayıncıya {t:'want'} gider, yayıncı o kişiye
+     callWithStream(cid, shareStream, {dsc:'live'|'music'}) ile akışı açar.
+     Böylece izleyici sayısı kadar bağlantı kurulur, gereksiz çağrı olmaz.
+   * Müzik akışı: audio.captureStream / mozCaptureStream, olmazsa
+     AudioContext createMediaElementSource + MediaStreamDestination
+     (kullanıcı kendi sesini duymaya devam eder).
+   * İzleyici tarafı: gelen akış otomatik cevaplanır, tam ekran oynatıcı
+     açılır (yayında video; müzikte dönen plak görseli + ses). "Ayrıl" /
+     "Kapat" bağlantıyı kapatır; yayıncı bitirince {t:'stop'} ile kapanır.
+   * Yayıncıda izleyici/dinleyici sayısı satırda canlı gösterilir.
+   * Uygulama yeniden açılınca akış kalmadığı için yayın/müzik durumu
+     sıfırlanır; sayfa kapanırken rehbere 'stop' duyurusu gönderilir.
+ - Her iki dosya dist-mobile/apps/ altına birebir kopyalandı.
+
+---------------------------------------------------------------
+06.09.2026 — KEŞFET / YAKINDAKİLER: GERÇEK MESAFE (A-B NOKTASI)
+İstek: X "Görünür ol" dediğinde, aynı şekilde görünür olan Y rehber kişisi
+listede çıksın ve aradaki gerçek mesafe yazsın (örn. "219 metre"),
+koordinat gösterilmesin.
+Yapılanlar (public/apps/sohbeto-discover.js):
+ - Konum artık enableHighAccuracy:true ile tam hassasiyette alınıyor
+   (eski hâlde 3 ondalığa yuvarlanıyordu ≈ 100 m hata).
+ - "Görünür ol" deyince rehberdeki herkese [DSC]{t:'near',lat,lon,by,at}
+   gider. Karşı taraf da görünürse kendi konumunu yalnızca o kişiye
+   {re:1} işaretiyle geri yollar (yanıta yanıt yok, döngü oluşmaz).
+ - Görünürlük kapatılınca / sayfa kapanınca {t:'near-off'} gider,
+   kişi karşı taraftaki listeden düşer.
+ - Mesafe haversine ile metre cinsinden hesaplanır (distMeters) ve
+   okunur yazılır (distText): 1000 m altı "219 metre uzaklıkta",
+   üstü "1,4 km uzaklıkta". Koordinat hiçbir yerde gösterilmez.
+ - watchPosition ile hareket izlenir; 25 m'den fazla yer değiştirince
+   konum yeniden yayınlanır, mesafeler canlı güncellenir.
+ - Yakındakiler listesi mesafeye göre artan sıralanır; yeni biri
+   göründüğünde bildirim çıkar ("Ahmet yakınlarda • 219 metre uzaklıkta").
+ - row() düğmesiz satır da üretebiliyor (yakındakiler satırlarında
+   eylem düğmesi yok).
+ - Uygulama yeniden açıldığında görünürlük açıksa konum tazelenip
+   rehbere yeniden bildirilir.
+ - Dosya dist-mobile/apps/ altına birebir kopyalandı.
+
+[06.09.2026 16:58] Keşfet canlı yayın: kendi yayınımda satır içinde 56px mini oynatıcı (sessiz, kamera görüntüsü) eklendi; dokununca tam ekran kendi önizlemem açılıyor. İzleyicide gelen yayın önce satırda mini olarak oynuyor, dokununca tam ekrana geçiyor. Liste yeniden çizimi artık içerik değişmedikçe DOM yazmıyor, böylece mini oynatıcılar sıfırlanmıyor. Telefon yayını zaten telefonda çalışıyor; "0 izleyici" kimse katılmadığı için yazıyordu. Dosya dist-mobile/apps/ altına kopyalandı.
+
+[2026-09-06 20:0x] Keşfet: mini oynatıcı kararması giderildi (liste yeniden yazılırken oynayan video ögeleri korunuyor, sadece duraklamışsa play). Tam ekran oynatıcı artık saf siyah (arkada blurlu Sohbeto içerikleri görünmüyor), video ekranı tamamen kaplıyor, başlık üstte ve Kapat altta yüzüyor.
+
+[2026-09-06 20:10] Canlı yayin: on/arka kamera gecisi eklendi (switchCam). Yeni video izi getUserMedia({facingMode}) ile alinip giden PeerJS cagrilarinda sender.replaceTrack ile degistiriliyor, yerel akista eski iz durdurulup yenisi ekleniyor, PC modunda MediaRecorder yeni izle yeniden kuruluyor. Dugmeler: kendi yayin satirinda kamera-rotate ikonu ve tam ekran oynaticida sag altta yuvarlak kamera dugmesi; satir alt yazisinda "on kamera / arka kamera" gorunuyor.
+
+[2026-09-06 20:15] Sesli arama ses yolu: yeni public/apps/sohbeto-audioroute.js eklendi (sohbetoOO.html icinde discover sonrasi yuklenir, dist-mobile kopyasi da guncel). Arama basladiginda #audioContainer icindeki <audio> ogeleri MutationObserver ile yakalanip AHIZE moduna alinir: setSinkId ile earpiece/receiver/ahize/communications etiketli cikis secilir; hoparlore gecisde speaker/default secilir. Capacitor ortaminda AudioRoute/AudioToggle/NativeAudio eklentisi varsa setSpeakerOn/setAudioMode cagrilir (yoksa sessizce atlanir). window.toggleSpeaker sarildi: motorun isSpeaker durumu korunur, ustune gercek yonlendirme uygulanir; btnSpeaker/btnVideoSpeaker/oocSpeaker gorunumu senkron. Her yeni aramada varsayilan yeniden ahize olur. NOT: tam guvenilir ahize yonlendirmesi tarayici/WebView sinirlari nedeniyle APK tarafinda yerel bir ses yonlendirme eklentisi ister; kod hazir, eklenti gelince otomatik devreye girer.

@@ -48,6 +48,7 @@ mkdir -p "$PKG_DIR"
 cp "$ROOT/android-patch/BatteryOptimizationPlugin.java" "$PKG_DIR/BatteryOptimizationPlugin.java"
 cp "$ROOT/android-patch/CallNotificationPlugin.java" "$PKG_DIR/CallNotificationPlugin.java"
 cp "$ROOT/android-patch/MainActivity.java" "$PKG_DIR/MainActivity.java"
+cp "$ROOT/android-patch/CallActionReceiver.java" "$PKG_DIR/CallActionReceiver.java"
 cp "$ROOT/android-patch/SohbetoNotifier.java" "$PKG_DIR/SohbetoNotifier.java"
 cp "$ROOT/android-patch/FcmPlugin.java" "$PKG_DIR/FcmPlugin.java"
 cp "$ROOT/android-patch/SohbetoMessagingService.java" "$PKG_DIR/SohbetoMessagingService.java"
@@ -93,6 +94,12 @@ else
 fi
 
 # Özel sesler: android-patch/sounds/ringtone.mp3 ve message.mp3 varsa res/raw'a kopyalanır.
+# Reddet düğmesi uygulamayı açmadan çalışsın
+if ! grep -q "CallActionReceiver" "$MANIFEST"; then
+  sed -i "s#</application>#    <receiver android:name=\".CallActionReceiver\" android:exported=\"false\" />\n</application>#" "$MANIFEST"
+  echo "eklendi: CallActionReceiver"
+fi
+
 mkdir -p "$RAW_DIR"
 for f in ringtone message; do
   for ext in mp3 ogg wav; do

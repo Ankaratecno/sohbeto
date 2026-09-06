@@ -117,7 +117,13 @@ public final class SohbetoNotifier {
 
         PendingIntent full = activityIntent(ctx, "SOHBETO_INCOMING", from, 1);
         PendingIntent answer = activityIntent(ctx, "SOHBETO_ANSWER", from, 2);
-        PendingIntent decline = activityIntent(ctx, "SOHBETO_DECLINE", from, 3);
+        // Reddet uygulamayı açmasın: broadcast ile bildirimi kapat, reddi not düş.
+        Intent dIntent = new Intent(ctx, CallActionReceiver.class);
+        dIntent.setAction(CallActionReceiver.ACTION_DECLINE);
+        dIntent.putExtra("sohbeto_from", from);
+        int dFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) dFlags |= PendingIntent.FLAG_IMMUTABLE;
+        PendingIntent decline = PendingIntent.getBroadcast(ctx, 3, dIntent, dFlags);
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CH_CALLS)
                 .setSmallIcon(ctx.getApplicationInfo().icon)
@@ -162,6 +168,8 @@ public final class SohbetoNotifier {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setAutoCancel(true)
+                // Aynı kişi için bildirim tazelenince ses/titreşim TEKRAR çalmasın.
+                .setOnlyAlertOnce(true)
                 .setContentIntent(activityIntent(ctx, "SOHBETO_OPEN", from, id));
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {

@@ -254,7 +254,7 @@ function askApproval(src) {
 const peers = new Map(); // key: src|connectionId -> { pc, dc, src }
 
 /* ----------------------- F4.2: dosya işlemleri --------------------- */
-const CHUNK = 32 * 1024;              // ham bayt
+const CHUNK = 8 * 1024;               // ham bayt (base64 sonrası ~11 KB; kanal sınırı 16 KB)
 const MAX_BUFFER = 1 * 1024 * 1024;   // kanalda bekleyen üst sınır
 const uploads = new Map();            // id -> { fd, path, name, size, got }
 
@@ -364,8 +364,14 @@ function handleChannel(src, dc) {
   const key = [...peers.entries()].find(([, v]) => v.src === src)?.[0];
   log(`Veri kanalı açıldı ← ${src}`);
   dc.onMessage((raw) => {
+    let text;
+    if (typeof raw === 'string') text = raw;
+    else if (Buffer.isBuffer(raw)) text = raw.toString('utf8');
+    else if (raw instanceof ArrayBuffer) text = Buffer.from(raw).toString('utf8');
+    else if (raw && raw.buffer) text = Buffer.from(raw.buffer, raw.byteOffset || 0, raw.byteLength).toString('utf8');
+    else text = String(raw);
     let msg;
-    try { msg = JSON.parse(String(raw)); } catch (e) { return; }
+    try { msg = JSON.parse(text); } catch (e) { return; }
     if (msg.t === 'ping') {
       dc.sendMessage(JSON.stringify({ t: 'pong', ts: Date.now() }));
     } else if (msg.t === 'hello') {
@@ -559,8 +565,19 @@ async function handleOffer(sig, msg) {
 let ws = null;
 let code = null;
 let hbTimer = null;
+let retry = 0;          // ard arda başarısız deneme sayısı (429 için bekleme artar)
+let reconnectTimer = null;
+
+function scheduleReconnect(reason) {
+  clearTimeout(reconnectTimer);
+  const wait = Math.min(60000, 4000 * Math.pow(2, Math.min(retry, 4))) + Math.floor(Math.random() * 3000);
+  retry++;
+  log(`${reason} ${Math.round(wait / 1000)} sn içinde yeniden denenecek...`);
+  reconnectTimer = setTimeout(connect, wait);
+}
 
 function connect() {
+  clearTimeout(reconnectTimer);
   if (!code) code = config.code || makeCode();
   if (config.code !== code) { config.code = code; saveConfig(); }
   const id = peerIdFor(code);
@@ -577,6 +594,7 @@ function connect() {
   };
 
   ws.on('open', () => {
+    retry = 0;
     const n = netInfo();
     log(`Bağlandı. Bilgisayar adı: ${config.pcName}`);
     log(`Ağ: ${n.ip || '?'}  MAC: ${n.mac || '?'}  (Wake-on-LAN için)`);
@@ -596,7 +614,8 @@ function connect() {
       code = makeCode();
       config.code = code; saveConfig();
       try { ws.close(); } catch (e) {}
-      setTimeout(connect, 500);
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 800);
       return;
     }
     if (msg.type === 'ERROR' || msg.type === 'INVALID-KEY') {
@@ -620,10 +639,13 @@ function connect() {
 
   ws.on('close', () => {
     clearInterval(hbTimer);
-    log('Sinyal bağlantısı koptu, 5 sn içinde yeniden denenecek...');
-    setTimeout(connect, 5000);
+    scheduleReconnect('Sinyal bağlantısı koptu,');
   });
-  ws.on('error', (e) => log('Sinyal hatası:', e.message));
+  ws.on('error', (e) => {
+    const m = String(e && e.message || '');
+    if (m.includes('429')) log('Sinyal sunucusu şu an yoğun (429). Bekleyip tekrar denenecek.');
+    else log('Sinyal hatası:', m);
+  });
 }
 
 /* ------------------------------ Başlat ----------------------------- */

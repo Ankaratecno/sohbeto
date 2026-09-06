@@ -94,6 +94,9 @@ async function fcmWake(sa: ServiceAccount, access: string, token: string, kind: 
   return { ok: false as const, stale };
 }
 
+/** Son gönderimler (yinelenen bildirim engeli). */
+const recentSends = new Map<string, number>();
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -166,11 +169,30 @@ Deno.serve(async (req) => {
     if (!userTargets.length && !phoneTargets.length)
       return json({ error: "user_id/user_ids veya phone/phones gerekli" }, 400);
 
+    // Aynı olay (aynı gönderen → aynı alıcı → aynı tür) kısa aralıkta iki kez
+    // tetiklenebiliyordu (peer katmanı + motorun yeniden deneme bitişi). Bu da
+    // karşı tarafta üst üste bildirim sesi demekti. Tekrarı burada yut.
+    const dedupeKey = JSON.stringify({
+      u: [...userTargets].sort(),
+      p: [...phoneTargets].sort(),
+      kind,
+      f: String((data as Record<string, unknown> | undefined)?.["from"] ?? ""),
+    });
+    const nowMs = Date.now();
+    for (const [k, ts] of recentSends) if (nowMs - ts > 60000) recentSends.delete(k);
+    if (nowMs - (recentSends.get(dedupeKey) ?? 0) < (kind === "call" ? 6000 : 12000)) {
+      return json({ sent: 0, failed: 0, deduped: true, note: "yinelenen bildirim engellendi" });
+    }
+    recentSends.set(dedupeKey, nowMs);
+
     // Gönderen numarası (bilet için). Metin değil, sadece kimden.
     const fromPhone = norm(String((data as Record<string, unknown> | undefined)?.["from"] ?? ""));
 
-    // ---- a) Web Push (PWA / tarayıcı) — mevcut akış, dokunulmadı
-    let query = admin.from("push_subscriptions").select("id, endpoint, p256dh, auth");
+
+    // ---- a) Web Push (PWA / tarayıcı)
+    let query = admin
+      .from("push_subscriptions")
+      .select("id, endpoint, p256dh, auth, phone, user_agent");
     query = userTargets.length && phoneTargets.length
       ? query.or(
           `user_id.in.(${userTargets.join(",")}),phone.in.(${phoneTargets.map((p) => `"${p}"`).join(",")})`,
@@ -178,12 +200,30 @@ Deno.serve(async (req) => {
       : userTargets.length
         ? query.in("user_id", userTargets)
         : query.in("phone", phoneTargets);
-    const { data: subs, error: subErr } = await query;
+    const { data: allSubs, error: subErr } = await query;
     if (subErr) return json({ error: subErr.message }, 500);
+
+    // Aynı Android telefonda hem APK (FCM) hem PWA kayıtlıysa tek mesaj için iki
+    // bildirim düşüyordu. O telefonda APK önceliklidir → tarayıcı kaydını atla.
+    const apkPhones = new Set<string>();
+    if (phoneTargets.length) {
+      const { data: tp } = await admin
+        .from("fcm_tokens")
+        .select("phone")
+        .in("phone", phoneTargets);
+      (tp ?? []).forEach((r: { phone?: string | null }) => {
+        if (r.phone) apkPhones.add(r.phone);
+      });
+    }
+    const subs = (allSubs ?? []).filter(
+      (s: { phone?: string | null; user_agent?: string | null }) =>
+        !(s.phone && apkPhones.has(s.phone) && /Android/i.test(s.user_agent ?? "")),
+    );
 
     let sent = 0;
     const stale: string[] = [];
     if (subs?.length) {
+
       webpush.setVapidDetails(subject, publicKey, privateKey);
       const payload = JSON.stringify({
         title,

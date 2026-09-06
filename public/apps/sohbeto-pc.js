@@ -36,7 +36,7 @@
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:global.stun.twilio.com:3478' }
     ];
-    var CHUNK = 32 * 1024;
+    var CHUNK = 8 * 1024;   // base64 sonrası ~11 KB; veri kanalı tek paket sınırının altında
 
     var peer = null;
     var conn = null;
@@ -61,6 +61,27 @@
     var pendingPing = null;
 
     /* ------------------------------ yardımcı ------------------------------ */
+    // Gelen paketi biçimi ne olursa olsun (metin / ArrayBuffer / TypedArray / Blob)
+    // tek yerde JSON'a çevirir ve cb(msg) çağırır.
+    function decodePacket(raw, cb) {
+        if (raw == null) return;
+        if (typeof raw === 'object' && !(raw instanceof ArrayBuffer) &&
+            !ArrayBuffer.isView(raw) && typeof Blob !== 'undefined' && !(raw instanceof Blob)) {
+            cb(raw); return;   // peer zaten nesne olarak çözmüş
+        }
+        if (typeof Blob !== 'undefined' && raw instanceof Blob) {
+            raw.arrayBuffer().then(function (buf) { decodePacket(buf, cb); }, function () {});
+            return;
+        }
+        var text;
+        try {
+            text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+        } catch (e) { return; }
+        var msg;
+        try { msg = JSON.parse(text); } catch (e) { return; }
+        cb(msg);
+    }
+
     function saved() {
         try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) { return null; }
     }
@@ -526,7 +547,10 @@
             render();
             ensurePeer(function () {
                 try { if (conn) conn.close(); } catch (e) {}
-                conn = peer.connect('sohbeto-pc-' + currentCode, { reliable: true, serialization: 'binary' });
+                // 'raw': paketler düz metin olarak gider/gelir. PC Ajanı JSON metin
+                // beklediği için binary/json paketleme kullanılmaz (aksi hâlde ajan
+                // gelen paketi çözemez ve telefon "Yükleniyor…" ekranında kalır).
+                conn = peer.connect('sohbeto-pc-' + currentCode, { reliable: true, serialization: 'raw' });
                 clearTimeout(connectTimer);
                 connectTimer = setTimeout(function () {
                     if (state !== 'connected') {
@@ -556,10 +580,7 @@
                     ls('');
                 });
                 conn.on('data', function (raw) {
-                    var msg;
-                    try { msg = typeof raw === 'string' ? JSON.parse(raw) : JSON.parse(new TextDecoder().decode(raw)); }
-                    catch (e) { return; }
-                    onMessage(msg);
+                    decodePacket(raw, onMessage);
                 });
                 conn.on('close', function () {
                     if (state === 'connected' && !relayMode) toast('Bilgisayar bağlantısı kapandı.');

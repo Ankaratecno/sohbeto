@@ -878,18 +878,66 @@ function showIncomingCall(senderConnId, type = "audio") {
     // Cevapsız çağrıyı otomatik kapatmıyoruz: özellikle görüntülü aramada P2P/izin
     // hazırlığı uzayabiliyor. Çağrı yalnızca arayan kapatırsa, alıcı reddederse veya
     // taraflardan biri gerçekten bağlantıyı sonlandırırsa düşmeli.
+
+    // Bildirimden "Cevapla"ya basılmışsa (zil sinyali sonradan geldi): hemen kabul et.
+    try {
+        var pendPhone = window.__sohbetoPendingAnswerFrom || '';
+        var ringPhone = '';
+        try { if (pendPhone && window.SohbetoPeer) ringPhone = SohbetoPeer.numberFromId(senderConnId) || ''; } catch (e) {}
+        var phoneMatch = !!(pendPhone && ringPhone &&
+            String(pendPhone).replace(/\D/g, '') === String(ringPhone).replace(/\D/g, ''));
+        if ((window.__sohbetoAutoAnswer && window.__sohbetoAutoAnswer === senderConnId) || phoneMatch) {
+            window.__sohbetoAutoAnswer = null;
+            window.__sohbetoPendingAnswerFrom = null;
+            setTimeout(function () { try { acceptCall(); } catch (e) {} }, 60);
+        }
+    } catch (e) {}
+}
+
+/**
+ * Kabul sonrası ses akmıyorsa (kanal geç kuruldu, teklif kayboldu) sessizce
+ * donmasın: track'leri yeniden ekleyip yeniden pazarlık başlatır ve kabul
+ * damgasını bir kez daha gönderir.
+ */
+function ensureCallMediaFlowing(connId, connectedAt) {
+    if (!connId) return;
+    let tries = 0;
+    let reAccepted = false;
+    const iv = setInterval(() => {
+        tries++;
+        if (activeCallConnId !== connId || tries > 12) { clearInterval(iv); return; }
+        const peer = peers[connId];
+        const pc = peer && peer.pc;
+        if (!pc || pc.signalingState === 'closed') { try { initP2P(connId); } catch (e) {} return; }
+        if (pc.connectionState === 'connected') {
+            const hasRemote = pc.getReceivers().some(r => r.track && r.track.kind === 'audio' && r.track.readyState === 'live');
+            if (hasRemote) { clearInterval(iv); return; }
+        }
+        const changed = addLocalMediaTracks(connId);
+        setPeerAudioSendEnabled(connId, true);
+        if (changed || pc.connectionState !== 'connected') renegotiatePeer(connId);
+        if (!reAccepted && tries >= 2) {
+            reAccepted = true;
+            sendCallSignal(connId, `CALL_ACCEPT###${connectedAt || Date.now()}`);
+        }
+    }, 1200);
 }
 
 async function acceptCall() {
     const callerConnId = state.incomingCallFrom;
     const callType = state.incomingCallType || "audio";
     const connectedAt = Date.now();
+    try { window.__sohbetoAutoAnswer = null; } catch (e) {}
     document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
     if (callerConnId) {
+        // Kabul bilgisi ÖNCE gitsin: arayan taraf "Bağlandı"ya geçip medyayı açsın,
+        // mikrofon izni/medya hazırlığı beklerken kabul kaybolmasın.
+        sendCallSignal(callerConnId, `CALL_ACCEPT###${connectedAt}`);
         if (callType === "video") await startVideoCall(callerConnId, true, connectedAt);
         else await startAudioCall(callerConnId, true, connectedAt);
         sendCallSignal(callerConnId, `CALL_ACCEPT###${connectedAt}`);
         notifyParentCallState('sohbeto:call-accepted', { from: callerConnId, connectedAt });
+        ensureCallMediaFlowing(callerConnId, connectedAt);
     }
 }
 
@@ -3026,10 +3074,11 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
 
     if (!isIncoming) {
         // Zil sinyalini offer'dan ÖNCE gönder ki karşı taraf hazırlansın.
-        // Sıra önemli: önce saat/durum sıfırlanır (bayat "Bağlandı" silinir), sonra "Çalıyor...".
+        // Sıra önemli: önce saat/durum sıfırlanır (bayat "Bağlandı" silinir).
         resetCallClock();
-        document.getElementById('activeCallStatus').innerText = 'Çalıyor...';
+        document.getElementById('activeCallStatus').innerText = 'Aranıyor...';
         sendCallSignal(connId, "CALL_RING");
+        armOutgoingCallProgress(connId, "CALL_RING");
         armRingTimeout(connId);
     }
 
@@ -3049,6 +3098,7 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
 
 function startCallTimer(startedAt) {
     clearRingTimeout();
+    clearOutgoingCallProgress();
     // Clear any existing timer
     if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
     callStartTime = startedAt || Date.now();
@@ -3175,15 +3225,56 @@ function armRingTimeout(connId) {
         if (callStartTime) return;              // arama bağlandı
         if (activeCallConnId !== connId) return; // arama değişti
         log('Cevap yok — arama sonlandırıldı', '#fbbf24');
-        endActiveCall(); endVideoCall();
+        const st = document.getElementById('activeCallStatus');
+        if (st) st.innerText = 'Cevap yok';
+        setTimeout(() => { endActiveCall(); endVideoCall(); }, 1200);
     }, 45000);
 }
 function clearRingTimeout() {
     if (ringTimeout) { clearTimeout(ringTimeout); ringTimeout = null; }
 }
 
+/* Giden arama ilerlemesi:
+   "Aranıyor..."  → karşı tarafla kanal kurulana kadar
+   "Çalıyor..."   → kanal kurulduğu an (zil sinyali de tazelenir)
+   "Ulaşılamıyor" → 25 sn içinde kanal hiç kurulamazsa (karşı taraf kapalı) */
+let outgoingProgressTimer = null;
+function clearOutgoingCallProgress() {
+    if (outgoingProgressTimer) { clearInterval(outgoingProgressTimer); outgoingProgressTimer = null; }
+}
+function armOutgoingCallProgress(connId, ringText) {
+    clearOutgoingCallProgress();
+    if (!connId) return;
+    let waited = 0;
+    let ringing = false;
+    outgoingProgressTimer = setInterval(() => {
+        waited += 500;
+        if (activeCallConnId !== connId || callStartTime) { clearOutgoingCallProgress(); return; }
+        const st = document.getElementById('activeCallStatus');
+        let reach = false;
+        try { reach = typeof isPeerReachable === 'function' && isPeerReachable(connId); } catch (e) {}
+        if (reach && !ringing) {
+            ringing = true;
+            if (st) st.innerText = 'Çalıyor...';
+            // Kanal yeni açıldı: zil sinyalini bu kanaldan tazele (kaybolmasın).
+            sendCallSignal(connId, ringText || "CALL_RING");
+            clearOutgoingCallProgress();
+            return;
+        }
+        if (!ringing && waited >= 25000) {
+            clearOutgoingCallProgress();
+            clearRingTimeout();
+            if (st) st.innerText = 'Ulaşılamıyor';
+            log('Karşı tarafa ulaşılamıyor', '#ef4444');
+            setTimeout(() => { endActiveCall(); endVideoCall(); }, 2000);
+        }
+    }, 500);
+}
+
+
 function resetCallClock() {
     clearRingTimeout();
+    clearOutgoingCallProgress();
     if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
     callStartTime = null;
     try { window.__SOHBETO_CALL_CONNECTED_AT = null; } catch (e) {}
@@ -3277,12 +3368,14 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
             // Zil önce gitsin, süre karşı taraf açana kadar başlamasın.
             resetCallClock();
             const acStatus2 = document.getElementById('activeCallStatus');
-            if (acStatus2) acStatus2.innerText = 'Çalıyor…';
+            if (acStatus2) acStatus2.innerText = 'Aranıyor…';
             sendCallSignal(connId, "CALL_RING_VIDEO");
+            armOutgoingCallProgress(connId, "CALL_RING_VIDEO");
             armRingTimeout(connId);
             log("Görüntülü arama başlatıldı - Karşı taraf bekleniyor", "#6366f1");
 
         }
+
 
         // Init P2P first so peer connection exists, then add tracks
         await initP2P(connId);

@@ -5,11 +5,13 @@ import Sohbeto from "@/components/Sohbeto";
 import { InstallSheet } from "@/pwa/InstallSheet";
 import { registerServiceWorker } from "@/pwa/serviceWorkerRegistration";
 import { initPush } from "@/pwa/push";
+import { initRelay } from "@/pwa/relay";
 import "@/styles.css";
 
 // iframe yüklenmeden önce köprü fonksiyonlarını hazırla. Service worker kaydı
 // daha uzun sürerse sanal numaranın push aboneliğine yazılması kaçmasın.
 initPush();
+initRelay();
 void registerServiceWorker();
 
 // "Uygulama açık" kalp atışı: SW, push geldiğinde bu bilgiye bakıp uygulama

@@ -207,7 +207,9 @@ self.addEventListener("push", (event) => {
         badge: `${SCOPE}icons/badge-96.png`,
         ...(payload.image ? { image: payload.image } : {}),
         tag,
-        renotify: true,
+        // Mesajlarda renotify KAPALI: aynı kişiden gelen ikinci push kartı sessizce
+        // günceller (üst üste bildirim sesi sorunu). Aramada ısrar gerekiyor.
+        renotify: isCall,
         silent: false,
         requireInteraction: isCall,
         // Sohbeto imzası: mesaj = kısa "ta-tap", arama = uzun ısrarlı nabız

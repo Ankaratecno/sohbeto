@@ -89,6 +89,15 @@ public class CallNotificationPlugin extends Plugin {
         return PendingIntent.getActivity(getContext(), reqCode, intent, flags);
     }
 
+    private PendingIntent declineIntent(String from, int reqCode) {
+        Intent intent = new Intent(getContext(), CallActionReceiver.class);
+        intent.setAction(CallActionReceiver.ACTION_DECLINE);
+        intent.putExtra("sohbeto_from", from);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getBroadcast(getContext(), reqCode, intent, flags);
+    }
+
     /** Tam ekran gelen arama bildirimi gösterir. */
     @PluginMethod
     public void showIncomingCall(PluginCall call) {
@@ -99,7 +108,8 @@ public class CallNotificationPlugin extends Plugin {
 
         PendingIntent full = activityIntent("SOHBETO_INCOMING", from, 1);
         PendingIntent answer = activityIntent("SOHBETO_ANSWER", from, 2);
-        PendingIntent decline = activityIntent("SOHBETO_DECLINE", from, 3);
+        // Reddet: uygulamayı açmadan çalışsın (broadcast).
+        PendingIntent decline = declineIntent(from, 3);
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(getContext(), CH_CALLS)
                 .setSmallIcon(getContext().getApplicationInfo().icon)

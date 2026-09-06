@@ -4,6 +4,7 @@ import Sohbeto from "@/components/Sohbeto";
 import { Toaster } from "@/components/ui/sonner";
 import { InstallSheet } from "@/pwa/InstallSheet";
 import { initPush } from "@/pwa/push";
+import { initRelay } from "@/pwa/relay";
 import { registerServiceWorker } from "@/pwa/serviceWorkerRegistration";
 
 export const Route = createFileRoute("/")({
@@ -42,6 +43,7 @@ function Index() {
   // Eski sürümdeki main.tsx davranışı: push köprüleri + SW kaydı + "uygulama açık" kalp atışı.
   useEffect(() => {
     initPush();
+    initRelay();
     void registerServiceWorker();
 
     const pingSw = () => {
