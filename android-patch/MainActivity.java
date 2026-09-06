@@ -48,6 +48,20 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         current = this;
         foreground = true;
+
+        // Bildirimden (uygulama açılmadan) reddedilen arama varsa reddi şimdi gönder.
+        try {
+            android.content.SharedPreferences sp =
+                getSharedPreferences(CallActionReceiver.PREFS, MODE_PRIVATE);
+            String pending = sp.getString(CallActionReceiver.KEY_PENDING_DECLINE, null);
+            if (pending != null) {
+                sp.edit().remove(CallActionReceiver.KEY_PENDING_DECLINE).apply();
+                Intent i = new Intent();
+                i.putExtra("sohbeto_action", "SOHBETO_DECLINE");
+                i.putExtra("sohbeto_from", pending);
+                handleCallIntent(i);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -92,24 +106,6 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        // Bildirimden (uygulama açılmadan) reddedilen arama varsa reddi şimdi gönder.
-        try {
-            android.content.SharedPreferences sp =
-                getSharedPreferences(CallActionReceiver.PREFS, MODE_PRIVATE);
-            String pending = sp.getString(CallActionReceiver.KEY_PENDING_DECLINE, null);
-            if (pending != null) {
-                sp.edit().remove(CallActionReceiver.KEY_PENDING_DECLINE).apply();
-                Intent i = new Intent();
-                i.putExtra("sohbeto_action", "SOHBETO_DECLINE");
-                i.putExtra("sohbeto_from", pending);
-                handleCallIntent(i);
-            }
-        } catch (Exception ignored) {}
-    }
-
-    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -146,7 +142,6 @@ public class MainActivity extends BridgeActivity {
             }, d);
         }
     }
-
 
     private String jsEscape(String v) {
         return v.replace("\\", "\\\\").replace("'", "\\'");
