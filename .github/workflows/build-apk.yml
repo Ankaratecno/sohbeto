@@ -25,11 +25,11 @@ jobs:
       - name: Web (mobil) çıktısını üret
         run: bun run build:mobile
 
-      - name: JDK 17 kurulumu
+      - name: JDK 21 kurulumu
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - name: Android SDK kurulumu
         uses: android-actions/setup-android@v3

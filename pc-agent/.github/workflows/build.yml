@@ -1,0 +1,59 @@
+name: PC Ajanı Paketle
+
+# "v1.0.0" gibi bir etiket (tag) atınca 3 platform için otomatik paket üretir
+# ve GitHub Releases'a ekler. Elle çalıştırmak da mümkün (Actions → Run workflow).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Release'a dosya yükleyebilmek için yazma izni şart.
+# Bu izin olmadan "Resource not accessible by integration" hatası alınır.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            pack: pack:win
+            artifact: sohbeto-pc-agent.exe
+            release-name: sohbeto-pc-agent-windows.exe
+          - os: ubuntu-latest
+            pack: pack:linux
+            artifact: sohbeto-pc-agent
+            release-name: sohbeto-pc-agent-linux
+          - os: macos-latest
+            pack: pack:mac
+            artifact: sohbeto-pc-agent
+            release-name: sohbeto-pc-agent-macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - run: npm install
+
+      - name: Paketle (tek dosya)
+        run: npm run ${{ matrix.pack }}
+
+      - name: Release'a yükle
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.artifact }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Artifact olarak sakla (etiketsiz çalıştırmalar için)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.release-name }}
+          path: dist/${{ matrix.artifact }}

@@ -26,6 +26,8 @@ export const Route = createFileRoute("/")({
         property: "og:description",
         content: "Sohbeto: hızlı, sade ve güvenli mesajlaşma uygulaması.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [
       { rel: "manifest", href: "/manifest.json" },

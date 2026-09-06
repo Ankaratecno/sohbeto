@@ -1740,22 +1740,22 @@
       bindCgFields();
     });
     mo.observe(document.body, { childList: true, subtree: true });
-    // Gruplar sekmesi her açıldığında listeyi tazele
+    // Etkinlikler > Gruplar alanı her açıldığında listeyi tazele
     var renderTimer = null;
     function maybeRenderGroups() {
-      var s = document.getElementById('screen-gruplar');
+      var s = document.getElementById('screen-etkinlikler');
       if (s && !s.classList.contains('hidden-screen')) {
         if (renderTimer) clearTimeout(renderTimer);
         renderTimer = setTimeout(renderGroups, 50);
       }
     }
     var navMo = new MutationObserver(maybeRenderGroups);
-    var sg = document.getElementById('screen-gruplar');
+    var sg = document.getElementById('screen-etkinlikler');
     if (sg) navMo.observe(sg, { attributes: true, attributeFilter: ['class'] });
     else {
       // Bekleyip bağla
       var t = setInterval(function () {
-        var sg2 = document.getElementById('screen-gruplar');
+        var sg2 = document.getElementById('screen-etkinlikler');
         if (sg2) { navMo.observe(sg2, { attributes: true, attributeFilter: ['class'] }); clearInterval(t); maybeRenderGroups(); }
       }, 300);
     }

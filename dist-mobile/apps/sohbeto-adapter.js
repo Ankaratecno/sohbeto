@@ -137,7 +137,10 @@
         auth: 'screen-auth',
         sohbetler: 'screen-sohbetler',
         kisiler: 'screen-kisiler',
-        gruplar: 'screen-gruplar',
+        gruplar: 'screen-etkinlikler',
+        kesfet: 'screen-kesfet',
+        etkinlikler: 'screen-etkinlikler',
+        bilgisayarim: 'screen-bilgisayarim',
         ayarlar: 'screen-ayarlar',
         chat: 'screen-chat'
       };
@@ -545,6 +548,7 @@
         if (seen[key]) return; // Aynı kişi için yeni kutu açma
         seen[key] = true;
         var clone = child.cloneNode(true);
+        clone.dataset.unread = child.querySelector('.conv-unread') ? '1' : '0';
         var cloneName = clone.querySelector('.conv-name');
         if (cloneName) cloneName.textContent = display;
         var prev = clone.querySelector('.conv-preview');
@@ -585,6 +589,12 @@
         if (connId) bindConvLongPress(clone, connId, display);
         oo.appendChild(clone);
       });
+      try {
+        var activeFilter = document.querySelector('.sb-filter-pill.active');
+        if (activeFilter && typeof window.sbApplyChatFilter === 'function') {
+          window.sbApplyChatFilter(activeFilter.dataset.chatFilter || 'all');
+        }
+      } catch (e) {}
       enterMain();
     };
 
@@ -1612,9 +1622,20 @@
       catch (e) { return false; }
     }
 
+    // Karşı taraf uygulamayı arka plana attıysa (PRESENCE_OFFLINE paketi) kanal
+    // hâlâ açık olsa bile ÇEVRİMDIŞI gösterilir.
+    var awayConns = {};
+    function isAway(id) { return !!(id && awayConns[id]); }
+    function setAway(id, v) {
+      if (!id) return;
+      if (v) awayConns[id] = 1; else delete awayConns[id];
+    }
+
     function isConnOnline(id) {
+      if (isAway(id)) return false;
       return !!(id && (isLiveConnId(id) || hasOpenP2P(id)));
     }
+
 
     function isContactOnline(contact) {
       if (!contact) return false;
@@ -1630,6 +1651,7 @@
 
     function markConnOffline(connId, reason) {
       if (!connId) return;
+      setAway(connId, true);
       try {
         var st = getEngineState();
         if (st && st.users && st.users.has(connId)) st.users.delete(connId);
@@ -1803,6 +1825,14 @@
           markConnOffline(senderConnId, 'presence-packet');
           return;
         }
+        if (typeof data === 'string' && data.indexOf('PRESENCE_ONLINE###') === 0) {
+          setAway(senderConnId, false);
+          try { if (typeof window.renderContacts === 'function') window.renderContacts(); } catch (e) {}
+          try { if (typeof window.renderConvList === 'function') window.renderConvList(); } catch (e) {}
+          return;
+        }
+        // Herhangi bir veri geldiyse karşı taraf aktiftir.
+        setAway(senderConnId, false);
         return origP2PMsg.apply(this, arguments);
       };
       wrappedP2PMsg.__ooPresenceWrapped = true;
@@ -2617,6 +2647,32 @@
     window.addEventListener('pagehide', gracefulShutdown);
     window.addEventListener('beforeunload', gracefulShutdown);
 
+    // ---------- ARKA PLANA ALMA → anında "çevrimdışı" ----------
+    // Android'de uygulamadan çıkınca pagehide tetiklenmez; bu yüzden
+    // görünürlük değişiminde bağlantıyı KAPATMADAN durum paketi yollarız
+    // (kanal açık kalır ki geri dönünce/aramada anında haberleşilsin).
+    function broadcastPresence(online) {
+      try {
+        var peersRef = getPeersRef();
+        if (!peersRef) return;
+        var tag = (online ? 'PRESENCE_ONLINE###' : 'PRESENCE_OFFLINE###') + Date.now();
+        Object.keys(peersRef).forEach(function (cid) {
+          var p = peersRef[cid];
+          try { if (p && p.dc && p.dc.readyState === 'open') p.dc.send(tag); } catch (e) {}
+        });
+      } catch (e) {}
+    }
+    document.addEventListener('visibilitychange', function () {
+      // Aktif arama sırasında arka plan = hâlâ çevrimiçi.
+      var inCall = false;
+      try {
+        var st = getEngineState();
+        inCall = !!(st && (st.activeCallWith || st.incomingCallFrom));
+      } catch (e) {}
+      if (inCall) return;
+      broadcastPresence(!document.hidden);
+    });
+
     // ---------- GELEN ARAMA KÖPRÜSÜ (callee tarafı) ----------
     // Motor showIncomingCall() → #callScreen.hidden kalkar → OO #screen-ooIncoming açılır.
     function openOOIncomingScreen() {
@@ -2853,14 +2909,14 @@
       bodyObs.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
     })();
 
-    // ---------- Dokunmatik swipe: sohbetler ↔ kişiler ↔ gruplar ↔ ayarlar ----------
+    // ---------- Dokunmatik swipe: sohbetler ↔ keşfet ↔ etkinlikler ↔ bilgisayarım ----------
     (function bindSwipeNav() {
-      var ORDER = ['sohbetler', 'kisiler', 'gruplar', 'ayarlar'];
+      var ORDER = ['sohbetler', 'kesfet', 'etkinlikler', 'bilgisayarim'];
       var SCREEN_TO_TAB = {
         'screen-sohbetler': 'sohbetler',
-        'screen-kisiler':   'kisiler',
-        'screen-gruplar':   'gruplar',
-        'screen-ayarlar':   'ayarlar'
+        'screen-kesfet': 'kesfet',
+        'screen-etkinlikler': 'etkinlikler',
+        'screen-bilgisayarim': 'bilgisayarim'
       };
       function currentTab() {
         for (var sid in SCREEN_TO_TAB) {

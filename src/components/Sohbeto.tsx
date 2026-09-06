@@ -21,7 +21,7 @@ import { syncFcmNames } from "@/native/fcm";
  * Motor dosyaları (engine/adapter/extras/fluid-tabs/card-anim/peer) DOKUNULMAZ;
  * tüm arayüz public/apps/sohbetoOO.html içinde yaşar.
  */
-type PushClick = { from?: string | undefined; kind?: string | undefined; act?: string | undefined };
+type PushClick = { from?: string | undefined; kind?: string | undefined; act?: string | undefined; nid?: string | undefined };
 
 const Sohbeto: React.FC = () => {
   const src = `${import.meta.env.BASE_URL}apps/sohbetoOO.html`;
@@ -123,9 +123,35 @@ const Sohbeto: React.FC = () => {
 
   // APK (Capacitor) tarafı: FCM'siz yerel bildirimler. Web/PWA'da devreye girmez.
   useEffect(() => {
-    void initNativeNotifications((payload) => deliver(payload));
+    // Bildirim aksiyonları tek kanaldan ("sohbeto:native-notification") geçer.
+    void initNativeNotifications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Native tam ekran arama bildirimi (Cevapla / Reddet / dokunma) → iframe.
+  useEffect(() => {
+    const handled = new Set<string>();
+    const onNative = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as PushClick | null;
+      if (!detail) return;
+      const nid = detail.nid || `${detail.act || ""}|${detail.from || ""}`;
+      if (handled.has(nid)) return;
+      handled.add(nid);
+      const raw = String(detail.act || "open").toUpperCase();
+      const act =
+        raw === "SOHBETO_ANSWER" || raw === "ANSWER"
+          ? "answer"
+          : raw === "SOHBETO_DECLINE" || raw === "DECLINE"
+            ? "decline"
+            : "open";
+      deliver({ from: detail.from, kind: detail.kind || "call", act });
+    };
+    window.addEventListener("sohbeto:native-notification", onNative);
+    return () => window.removeEventListener("sohbeto:native-notification", onNative);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
 
 
   // ASILI VERİ: uygulama açıkken sonradan gelen (offline) mesajları düzenli çek.
@@ -136,6 +162,9 @@ const Sohbeto: React.FC = () => {
       if (!iframeReadyRef.current) return;
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       try {
+        // Önce, geçen sefer sunucuya işaretlenemeyen teslimleri tekrar dene:
+        // aksi hâlde aynı mesajlar her açılışta yeniden düşer.
+        await markDelivered([]);
         const list = await fetchQueue();
         if (list.length) {
           frameRef.current?.contentWindow?.postMessage({ type: "sohbeto:asili-kuyruk", list }, "*");

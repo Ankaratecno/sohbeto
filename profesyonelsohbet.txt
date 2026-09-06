@@ -838,3 +838,181 @@ KULLANICININ YAPACAKLARI → fcm-kurulum.txt (9 adım, sırayla):
  4 Servis hesabı özel anahtarı (.json) indir  5 Cloud Messaging API V1 etkin
  6 Supabase Secret FCM_SERVICE_ACCOUNT = servis hesabı json içeriği
  7 supabase/fcm.sql çalıştır  8 send-push deploy  9 APK'yı yeniden derle/kur
+
+================================================================
+SOHBET KAYDI — 6 Eylül 2026
+================================================================
+KULLANICI: "Bu zip dosyasını olduğu gibi oluştur, hiçbir kod ekleme.
+profesyonel.txt dosyasına her konuştuğumuzu yazmaya devam et. Ayrıca
+fcm-kurulum.txt içindeki 'ADIM 3 — google-services.json'ı GITHUB'A KOY
+(SECRET OLARAK)' kısmını anlamadım. Bir de Supabase'de send-push (index.ts)
+kodlarını edge function olarak kaydederken adının 'rapid-responder' olması
+sorun mu?"
+
+LOVABLE: Zip içeriği projeye olduğu gibi geri yüklendi (kod eklenmedi,
+değiştirilmedi). Bağımlılıklar kuruldu, önizleme çalışıyor.
+
+CEVAP 1 — ADIM 3 nedir?
+  google-services.json = Firebase'in Android uygulamana verdiği kimlik
+  dosyası. APK derlenirken gerekli. Ama içinde proje anahtarların olduğu
+  için repoya (herkesin görebileceği yere) KOYULMAZ.
+  Bunun yerine GitHub'ın "gizli kasa"sına konur; APK'yı derleyen otomatik
+  iş (build-apk.yml) derleme anında kasadan alıp dosyayı kendi yaratır.
+  Adım adım:
+   1. Firebase Console → proje ayarları → Android uygulaman →
+      "google-services.json" indir.
+   2. Dosyayı Not Defteri ile aç → Ctrl+A → Ctrl+C (tüm metni kopyala).
+   3. GitHub → depon → Settings → Secrets and variables → Actions.
+   4. "New repository secret" düğmesi.
+   5. Name kutusuna tam olarak: GOOGLE_SERVICES_JSON
+   6. Secret kutusuna kopyaladığın metni yapıştır → "Add secret".
+  Bitti. Dosyanın kendisini depoya yüklemiyorsun, sadece içeriğini kasaya
+  koyuyorsun. Kendi bilgisayarında derliyorsan alternatif olarak dosyayı
+  android-patch/google-services.json yoluna koyabilirsin — ama commit etme.
+
+CEVAP 2 — Edge function adı "rapid-responder" olur mu?
+  Hayır, olmaz; ad ÖNEMLİ. Uygulama fonksiyonu adıyla çağırıyor
+  (functions/v1/send-push). Ad farklı olursa çağrı 404 döner ve bildirim
+  gitmez. Fonksiyonun adı birebir "send-push" olmalı.
+  Supabase panelinde otomatik gelen rastgele ad (rapid-responder gibi)
+  varsa onu silip "send-push" yaz. Yanlış adla oluşturduysan: o fonksiyonu
+  sil, yeniden "send-push" adıyla oluştur ve index.ts içeriğini yapıştır.
+  (Aynı şekilde teşhis fonksiyonunun adı da "push-diag" olmalı.)
+================================================================
+
+
+=== 06.09.2026 — APK DERLEME HATASI ===
+S: GitHub Actions derlemesi "BUILD FAILED in 58s" ile hata verdi, hangi dosyada?
+C: Hata bir kod dosyasında değil, derleme ortamındaydı: projede Capacitor 8 var ve Capacitor 7+ derleme için JDK 21 ister; .github/workflows/build-apk.yml ise JDK 17 kuruyordu. Workflow JDK 21 olacak şekilde düzeltildi. Tekrar push edince derleme çalışmalı. Hata sürerse Actions logunda "What went wrong" bölümünün üstündeki ilk kırmızı satırla geri dön.
+
+────────────────────────────────────────────────────────
+KONUŞMA — Arama ekranı, çevrimiçi durumu, tekrar eden mesajlar
+────────────────────────────────────────────────────────
+KULLANICI: Bildirim APK'da geliyor ama arama (call) ekranı gelmiyor.
+Karşı taraf uygulamadan çıkınca çevrimiçi yeşil kalıyor. Kapalıyken
+aradığımda anlık bağlanmıyor. Her yeni girişte eski mesajlar tekrar
+geliyor. Bildirimde isim + mesaj içeriği gösterirsek sunucuya uğramadan
+gelir mi?
+
+YANIT / YAPILANLAR (küçük ama güçlü adımlar):
+1) ARAMA EKRANI: Android bildirimindeki "Cevapla / Reddet" ve bildirime
+   dokunma artık uygulamaya ulaşıyor.
+   - MainActivity.java: olay tek seferlik değil, 300/1200/3000/6000 ms'de
+     tekrar gönderiliyor (soğuk açılışta kaçmasın) ve "nid" ile
+     tekilleştiriliyor.
+   - Sohbeto.tsx: "sohbeto:native-notification" olayı dinleniyor,
+     answer/decline/open olarak iframe'e iletiliyor.
+   - sohbetoOO.html: Zil sinyali henüz gelmemişse bile GELEN ARAMA EKRANI
+     ANINDA açılıyor, bu sırada P2P kanalı hızlandırılıyor; "Cevapla"
+     denmişse kanal açılır açılmaz (en geç 8 sn) otomatik kabul ediliyor.
+     45 sn'de arama kurulmazsa ekran kapanıp sohbet açılıyor.
+     "Reddet" kanal yokken bile CALL_REJECT sinyali yolluyor.
+2) ÇEVRİMİÇİ/ÇEVRİMDIŞI: Android'de uygulamadan çıkınca pagehide
+   tetiklenmediği için yeşil kalıyordu. Artık görünürlük değişiminde
+   (arka plana alma) bağlantı kapatılmadan PRESENCE_OFFLINE, geri
+   dönünce PRESENCE_ONLINE paketi yollanıyor; alıcı tarafta "away"
+   listesi ile nokta anında griye dönüyor. Aktif arama sırasında bu
+   yapılmıyor.
+3) TEKRAR EDEN MESAJLAR: Teslim bildirimi (asili_teslim) başarısız
+   olduğunda kodlar sessizce kayboluyordu; sunucuda delivered_at hiç
+   işaretlenmediği için kuyruk her açılışta aynı satırları veriyordu.
+   Artık başarısız kodlar cihazda saklanıp her çekimde yeniden
+   deneniyor.
+4) BİLDİRİMDE İSİM + MESAJ İÇERİĞİ: Hayır, sunucuya uğramadan olmaz.
+   Metnin bildirimde görünmesi için şifreli metnin sunucuda tutulup
+   cihazda çözülmesi gerekir; şu an sadece "kimden/tür" bileti çekiliyor.
+
+---
+S: sence kullanıcı açısından hangi bildirim mantıklı peki ayrıca supabaseye şifreli saklasak olmuyormu fcm sonuçta sinyalci değilmi benim bildiğim supabaesede blob olarak durmuyormu mesajlar kişi çevrimdışı iken
+C: Kullanıcı açısından mantıklı olan WhatsApp mantığı: bildirimde "Ayşe: merhaba" görünmesi, ama metnin şifreli gidip telefonda çözülmesi. FCM sinyalcidir; veri bildiriminin içine şifreli paket konabilir, Google sadece taşır. Çevrimdışı mesajlar Supabase'de Verimetri ile şifreli blob olarak duruyor; FCM sadece telefonu uyandırır, mesaj uygulamanın kanalından gelir. Plan: bildirime şifreli paketin küçük parçası konur, telefon çözüp "Ayşe: merhaba" gösterir; sunucuda açık metin asla durmaz. Onay bekleniyor.
+
+---
+S: yani fcm ye ne gidecek tam olarak uyandır mı mesajlar supabaeseden mi çekilecek onu söyle lütfen ve son güncellemede artık aramala anlık yakalanacakmı görüntü gelmeme sorunu çözüldümü
+C:
+FCM'YE TAM OLARAK NE GİDECEK?
+- Şu anki kurulumda FCM paketine sadece içeriksiz uyandırma sinyali gider,
+  örneğin {"t":"1"} veya {"wake":true}. Bu pakette: mesaj metni, gönderen
+  adı, numara, arama detayı, görüntü bilgisi YOKTUR. Google sadece "bu cihaz
+  uyansın" emrini görür.
+- Telefon uyandıktan sonra uygulama kendi Supabase bağlantısıyla şifreli
+  mesajı, arama biletini veya kuyruğu çeker. Yani MESAJLAR HER ZAMAN
+  SUPABASE'DEN ÇEKİLİR; FCM sadece kapı zili görevi görür.
+- İleride "bildirimde mesaj içeriği de göster" istersen: FCM'ye şifreli
+  küçük paket gider (gönderen kimliği + şifreli mesaj parçası + zaman).
+  Google bu paketi görebilir ama çözemez; telefon kendi anahtarıyla çözüp
+  "Ayşe: merhaba" yazar. Açık metin asla FCM veya sunucuda durmaz.
+
+SON GÜNCELLEME — ARAMALAR ANLIK YAKALANACAK MI?
+- Evet. Son güncelleme ile Android bildirimindeki "Cevapla / Reddet" ve
+  bildirime dokunma artık uygulamaya sağlam ulaşıyor.
+- Uygulama soğuk açılışta bile GELEN ARAMA EKRANI hemen açılıyor; bu sırada
+  P2P kanalı hızlandırılıyor.
+- "Cevapla" denmişse kanal açılır açılmaz (en geç 8 saniye) otomatik kabul
+  ediliyor.
+- 45 saniyede arama kurulamazsa ekran kapanıp kişinin sohbeti açılıyor.
+- "Reddet" ise kanal henüz yokken bile CALL_REJECT sinyali yollar.
+- Görüntü gelmeme sorunu: uygulama zaten açıkken yapılan aramalarda görüntü
+  geliyordu. Asıl sorun, uygulama kapalıyken/dışarıdan arandığında aramanın
+  anında bağlanmamasıydı; bu akış çözüldü. Henüz push edilmedi ve canlı
+  telefonda test edilmedi; onay verirsen derleyip gönderiyorum.
+
+NOT: Bildirimde mesaj metnini şifreli olarak gösterme işi ayrı bir adımdır;
+şu anki FCM paketine metin konmuyor. Onu da istersen sıradaki adım olarak
+kodlarım.
+
+================================================================
+[2026-09-06 04:22] FAZ 4 ÖN TARTIŞMA — SOHBETO PC AJANI
+
+Kullanıcı: İçerikli bildirim konusu aklında kalsın, ileride düşünebilir.
+Faz 4'ü (Sohbeto PC Ajanı) çok istiyor; kodlamadan önce yol haritası
+soruyor: bilgisayar kısmı ayarlara mı konur, başka yere mi?
+
+Asistan cevabı (özet): PC Ajanı telefon uygulamasına eklenen bir özellik
+değil, bilgisayara kurulan ayrı küçük bir programdır. Telefon tarafında
+tek yeni ekran "Bilgisayarım" sekmesidir (Ayarlar'a gömülmez, sohbet
+listesi yanına ayrı sekme). Bilgisayar tarafı 3 parça: (1) ajan programı
+(Python/Node tek dosya, arka planda çalışır), (2) eşleşme kodu ile telefon-
+PC bağlantısı (PeerJS/WebRTC, sunucusuz), (3) komutlar: dosya al/gönder,
+dosya listele, WoL. Yol haritası: F4.1 eşleşme + bağlantı → F4.2 dosya
+listeleme/indirme → F4.3 telefondan PC'ye dosya gönderme → F4.4 WoL +
+durum (çevrimiçi/çevrimdışı) → F4.5 güvenlik (eşleşme onayı, şifreli
+kanal zaten WebRTC DTLS). Risk: ajan programının kurulumu kullanıcı için
+en zor adım → tek tık kurulum betiği gerekir.
+
+================================================================
+[2026-09-06 04:27] FAZ 4 DEVAM — TEK TIK KURULUM + AYRI DEPO
+
+Kullanıcı: Tek tık kurulum betiği nasıl olur? Sohbeto içine bir GitHub
+URL'si ekleyip ayrı bir depo açsak, kullanıcı indirip PC'sine kurabilir mi?
+
+Asistan cevabı (özet): Evet, en doğru model budur. Ayrı repo
+(sohbeto-pc-agent) + GitHub Releases'tan hazır indirme. Kullanıcı için
+iki yol: (1) Kurulumsuz tek .exe (Node kodu pkg ile exe'ye gömülür,
+çift tıkla çalışır, ek kurulum gerekmez — ÖNERİLEN), (2) Python sürümü
++ kur.bat (daha kırılgan). GitHub Actions her etikette Windows/Mac/Linux
+için otomatik paket üretir. Sohbeto uygulaması içine "Bilgisayarım"
+ekranına "PC Ajanını İndir" butonu konur → Releases sayfasına gider.
+İlk kurulumda ajan 6 haneli eşleşme kodu üretir, kullanıcı bunu telefona
+girer (veya QR). Bu sohbetteki projeye dokunmaz, ayrı repo olduğu için
+mevcut APK derlemesini riske atmaz.
+
+================================================================
+[2026-09-06 04:29] FAZ 4 BAŞLADI — PC AJANI KODLANDI (F4.1)
+
+Kullanıcı: Kurulumsuz .exe olsun, ayrı klasör altına koy ki GitHub'a öyle
+atayım.
+
+Asistan: pc-agent/ klasörü oluşturuldu (bu projeden bağımsız, ayrı repo
+olacak):
+- agent.js: PeerJS bulutuna 6 haneli kodla kaydolur, telefon WebRTC veri
+  kanalı açar; ilk bağlantıda konsolda e/h onayı ister, onaylananlar
+  güven listesine yazılır (config.json); ping/pong, hello, status komutları.
+- package.json: pkg ile tek exe; native binary assets olarak gömülür,
+  ilk çalışmada geçici klasöre çıkarılıp yüklenir (setupNativeLoader).
+- scripts/prepare-native.js: platforma uygun @node-datachannel/*.node
+  dosyasını native/ altına kopyalar.
+- .github/workflows/build.yml: "v*" etiketi atılınca Windows/macOS/Linux
+  paketleri üretip Releases'a yükler (softprops/action-gh-release).
+- README.md (Türkçe): kullanıcı kurulum adımları + shell:startup ipucu.
+Sıradaki adım: kullanıcı bu klasörü yeni GitHub deposuna yükleyip v0.1.0
+etiketi atacak; sonra telefon tarafına "Bilgisayarım" ekranı kodlanacak.

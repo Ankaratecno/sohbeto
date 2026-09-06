@@ -109,18 +109,26 @@ public class MainActivity extends BridgeActivity {
             androidx.core.app.NotificationManagerCompat.from(this).cancel(424242);
         }
 
+        // Soğuk açılışta web tarafı henüz dinlemiyor olabilir; aynı olayı
+        // birkaç kez gönderiyoruz. JS tarafı "nid" ile tekilleştirir.
+        final String nid = action + "|" + (from == null ? "" : from) + "|" + System.currentTimeMillis();
         final String js =
             "window.dispatchEvent(new CustomEvent('sohbeto:native-notification',{detail:{"
                 + "kind:'call',"
+                + "nid:'" + jsEscape(nid) + "',"
                 + "act:'" + jsEscape(action) + "',"
                 + "from:'" + jsEscape(from == null ? "" : from) + "'}}));";
 
-        getWindow().getDecorView().postDelayed(() -> {
-            if (getBridge() != null && getBridge().getWebView() != null) {
-                getBridge().getWebView().evaluateJavascript(js, null);
-            }
-        }, 600);
+        final int[] delays = new int[] { 300, 1200, 3000, 6000 };
+        for (int d : delays) {
+            getWindow().getDecorView().postDelayed(() -> {
+                if (getBridge() != null && getBridge().getWebView() != null) {
+                    getBridge().getWebView().evaluateJavascript(js, null);
+                }
+            }, d);
+        }
     }
+
 
     private String jsEscape(String v) {
         return v.replace("\\", "\\\\").replace("'", "\\'");

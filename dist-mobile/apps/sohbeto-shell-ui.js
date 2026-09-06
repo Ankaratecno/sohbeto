@@ -89,7 +89,7 @@
   }
 
   function injectSearchButtons() {
-    ['screen-sohbetler', 'screen-kisiler', 'screen-gruplar'].forEach(function (id) {
+    ['screen-sohbetler', 'screen-kisiler'].forEach(function (id) {
       var screen = document.getElementById(id);
       if (!screen || !screen.querySelector('.search-container')) return;
       var header = screen.querySelector('.main-header');
@@ -105,6 +105,173 @@
       else header.appendChild(btn);
     });
   }
+
+  // ---------------- Sohbetler hızlı ekleme + yeni ana ekranlar ----------------
+  var lastMainScreen = 'sohbetler';
+
+  window.sbOpenSettings = function (from) {
+    lastMainScreen = from || lastMainScreen;
+    if (window.app && typeof window.app.navigate === 'function') window.app.navigate('ayarlar');
+  };
+
+  function ensureSettingsBack() {
+    var header = document.querySelector('#screen-ayarlar .main-header');
+    if (!header || header.querySelector('.sb-settings-back')) return;
+    var back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'sb-head-action sb-settings-back';
+    back.setAttribute('aria-label', 'Geri');
+    back.innerHTML = '<i class="fa-solid fa-arrow-left"></i>';
+    back.addEventListener('click', function () {
+      if (window.app && typeof window.app.navigate === 'function') window.app.navigate(lastMainScreen);
+    });
+    header.insertBefore(back, header.firstChild);
+  }
+
+  function ensureQuickAdd() {
+    var add = document.getElementById('sb-chat-add');
+    if (!add || add.dataset.bound === '1') return;
+    add.dataset.bound = '1';
+    add.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      document.body.classList.toggle('sb-add-open');
+    });
+    if (!document.getElementById('sb-add-menu')) {
+      var menu = document.createElement('div');
+      menu.id = 'sb-add-menu';
+      menu.className = 'sb-add-menu';
+      menu.innerHTML =
+        '<button type="button" data-add-action="chat"><i class="fa-regular fa-comment"></i><span>Yeni sohbet</span></button>' +
+        '<button type="button" data-add-action="contact"><i class="fa-solid fa-user-plus"></i><span>Kişi ekle</span></button>' +
+        '<button type="button" data-add-action="group"><i class="fa-solid fa-users"></i><span>Grup oluştur</span></button>' +
+        '<button type="button" data-add-action="settings"><i class="fa-solid fa-gear"></i><span>Ayarlar</span></button>';
+      document.querySelector('.app-container').appendChild(menu);
+    }
+  }
+
+  function bindNewShellActions() {
+    if (document.__sbNewShellBound) return;
+    document.__sbNewShellBound = true;
+    document.addEventListener('click', function (ev) {
+      var menu = document.getElementById('sb-add-menu');
+      var action = ev.target.closest ? ev.target.closest('[data-add-action]') : null;
+      if (action) {
+        ev.preventDefault();
+        document.body.classList.remove('sb-add-open');
+        var kind = action.dataset.addAction;
+        if (kind === 'chat') {
+          if (window.app && typeof window.app.navigate === 'function') window.app.navigate('kisiler');
+        } else if (kind === 'contact') {
+          if (typeof window.openAddContact === 'function') window.openAddContact();
+        } else if (kind === 'group') {
+          if (window.SohbetoExtras && typeof window.SohbetoExtras.openCreateGroup === 'function') window.SohbetoExtras.openCreateGroup();
+        } else if (kind === 'settings') window.sbOpenSettings('sohbetler');
+        return;
+      }
+      if (menu && document.body.classList.contains('sb-add-open') && !ev.target.closest('#sb-chat-add')) {
+        document.body.classList.remove('sb-add-open');
+      }
+
+      var gear = ev.target.closest ? ev.target.closest('.sb-gear') : null;
+      if (gear) {
+        ev.preventDefault();
+        var scr = gear.closest('.screen');
+        var from = scr ? (scr.id || '').replace('screen-', '') : 'sohbetler';
+        window.sbOpenSettings(from);
+        return;
+      }
+
+      var eventAdd = ev.target.closest ? ev.target.closest('.sb-event-add') : null;
+      if (eventAdd) {
+        ev.preventDefault();
+        if (window.SohbetoExtras && typeof window.SohbetoExtras.openCreateGroup === 'function') window.SohbetoExtras.openCreateGroup();
+        return;
+      }
+
+      var eventTab = ev.target.closest ? ev.target.closest('[data-event-view]') : null;
+
+      if (eventTab) {
+        document.querySelectorAll('[data-event-view]').forEach(function (b) {
+          var active = b === eventTab;
+          b.classList.toggle('active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        var groups = eventTab.dataset.eventView === 'groups';
+        var eventsView = document.getElementById('events-view');
+        var groupsView = document.getElementById('groups-view');
+        if (eventsView) eventsView.hidden = groups;
+        if (groupsView) groupsView.hidden = !groups;
+        if (groups && window.SohbetoExtras && typeof window.SohbetoExtras.renderGroups === 'function') window.SohbetoExtras.renderGroups();
+        return;
+      }
+
+      var chatFilter = ev.target.closest ? ev.target.closest('[data-chat-filter]') : null;
+      if (chatFilter) {
+        document.querySelectorAll('[data-chat-filter]').forEach(function (b) { b.classList.toggle('active', b === chatFilter); });
+        window.sbApplyChatFilter(chatFilter.dataset.chatFilter || 'all');
+        return;
+      }
+
+      if (ev.target.closest && ev.target.closest('.sb-event-search')) {
+        var eventSearch = document.querySelector('.sb-event-search-box');
+        if (eventSearch) {
+          eventSearch.hidden = !eventSearch.hidden;
+          var input = eventSearch.querySelector('input');
+          if (!eventSearch.hidden && input) setTimeout(function () { input.focus(); }, 20);
+        }
+        return;
+      }
+
+      if (ev.target.closest && ev.target.closest('.sb-discover-search')) {
+        var discover = document.getElementById('discover-search-wrap');
+        if (discover) {
+          discover.hidden = !discover.hidden;
+          var dinput = discover.querySelector('input');
+          if (!discover.hidden && dinput) setTimeout(function () { dinput.focus(); }, 20);
+          else if (dinput && dinput.value) { dinput.value = ''; dinput.dispatchEvent(new Event('input', { bubbles: true })); }
+        }
+      }
+    });
+  }
+
+  window.sbApplyChatFilter = function (filter) {
+    document.querySelectorAll('#screen-sohbetler .content-area .conv-item').forEach(function (row) {
+      var hide = (filter === 'unread' && row.dataset.unread !== '1') || filter === 'notes';
+      row.style.display = hide ? 'none' : '';
+    });
+    if (filter === 'notes') {
+      if (window.SohbetoExtras && typeof window.SohbetoExtras.openNotes === 'function') window.SohbetoExtras.openNotes();
+    }
+  };
+
+  // Notlarım seçiliyken başka bir ana ekrana geçilince not defterini kapat
+  // ve sohbet listesini "Tümü" filtresine döndür.
+  function resetNotesFilter() {
+    var notes = document.getElementById('screen-notes');
+    if (notes) { notes.classList.remove('active'); notes.classList.add('hidden-screen'); }
+    var editor = document.getElementById('note-editor-wrap');
+    if (editor) editor.style.display = 'none';
+    var pills = document.querySelectorAll('[data-chat-filter]');
+    var active = document.querySelector('[data-chat-filter].active');
+    if (active && active.dataset.chatFilter === 'notes') {
+      pills.forEach(function (b) { b.classList.toggle('active', b.dataset.chatFilter === 'all'); });
+      window.sbApplyChatFilter('all');
+    }
+  }
+
+  function wrapNavigate() {
+    if (!window.app || typeof window.app.navigate !== 'function' || window.app.__sbNavWrapped) return;
+    var orig = window.app.navigate;
+    window.app.navigate = function (screen) {
+      if (screen !== 'sohbetler') resetNotesFilter();
+      return orig.apply(this, arguments);
+    };
+    window.app.__sbNavWrapped = true;
+  }
+  setInterval(wrapNavigate, 600);
+  wrapNavigate();
+
 
   function toggleSearch(screen) {
     var open = screen.classList.toggle('sb-search-open');
@@ -167,6 +334,9 @@
     try { if (window.sbChatBgForMode) window.sbChatBgForMode(get(LS_MODE, 'light')); } catch (e) {}
     injectSections();
     injectSearchButtons();
+    ensureSettingsBack();
+    ensureQuickAdd();
+    bindNewShellActions();
     setInterval(injectSearchButtons, 1200);
     var nav = document.getElementById('screen-tema');
     if (nav) {

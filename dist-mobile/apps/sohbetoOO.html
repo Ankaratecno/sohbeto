@@ -1692,10 +1692,15 @@
                     <input type="text" placeholder="Ara">
                 </div>
             </div>
+            <div class="sb-chat-filters" aria-label="Sohbet filtreleri">
+                <button type="button" class="sb-filter-add" id="sb-chat-add" aria-label="Yeni ekle"><i class="fa-solid fa-plus"></i></button>
+                <button type="button" class="sb-filter-pill active" data-chat-filter="all">Tümü</button>
+                <button type="button" class="sb-filter-pill" data-chat-filter="unread">Okunmamış</button>
+            </div>
             <div class="content-area"></div>
         </div>
 
-        <!-- 3. KİŞİLER -->
+        <!-- KİŞİLER (Sohbetler içindeki ekleme akışında kullanılmaya devam eder) -->
         <div id="screen-kisiler" class="screen hidden-screen">
             <div class="main-header">
                 <div class="main-title">Kişiler</div>
@@ -1868,28 +1873,91 @@
                 <div class="ci-emoji-grid" id="ciEmojiGrid"></div>
             </div>
         </div>
-        <div id="screen-gruplar" class="screen hidden-screen">
+        <!-- 3. KEŞFET -->
+        <div id="screen-kesfet" class="screen hidden-screen">
             <div class="main-header">
-                <div class="main-title">Gruplar</div>
-                <div class="header-icon" id="hdr-create-group" role="button" tabindex="0" title="Yeni grup" aria-label="Yeni grup"><i class="fa-solid fa-plus" style="font-weight: 300;"></i></div>
+                <div class="main-title">Keşfet</div>
+                <div class="hdr-icons"><div class="hdr-icon sb-discover-search" title="Ara" aria-label="Ara"><i class="fa-solid fa-magnifying-glass"></i></div><div class="hdr-icon sb-gear" title="Ayarlar" aria-label="Ayarlar"><i class="fa-solid fa-gear"></i></div></div>
             </div>
-            <div class="content-area" id="groups-content">
-                <div class="empty-state" id="groups-empty">
-                    <div class="empty-icon">
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary-green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                    </div>
-                    <button class="btn-solid" id="btn-create-group" style="max-width:240px;padding:14px;border-radius:10px">Grup Oluştur</button>
-                </div>
-                <div id="groups-list"></div>
+            <div class="sb-inline-search" id="discover-search-wrap" hidden>
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" id="discover-search" placeholder="Kişi veya yayın ara" aria-label="Kişi veya yayın ara">
+            </div>
+            <div class="content-area sb-discover-content">
+                <section class="sb-feed-section">
+                    <h2>Canlı Yayınlar</h2>
+                    <div class="sb-empty-line" id="discover-live-empty"><i class="fa-solid fa-tower-broadcast"></i><span>Canlı yayın başladığında burada görünecek</span></div>
+                    <div class="sb-live-list" id="discover-live-list"></div>
+                </section>
+                <section class="sb-feed-section">
+                    <h2>Ne Dinliyor</h2>
+                    <div class="sb-empty-line" id="discover-music-empty"><i class="fa-solid fa-music"></i><span>Arkadaşların müzik paylaştığında burada görünecek</span></div>
+                    <div class="sb-music-list" id="discover-music-list"></div>
+                </section>
+                <section class="sb-feed-section">
+                    <h2>Yakındakiler</h2>
+                    <div class="sb-empty-line" id="discover-nearby-empty"><i class="fa-solid fa-location-dot"></i><span>Yakındaki kişiler görünür olduğunda burada listelenecek</span></div>
+                    <div class="sb-nearby-list" id="discover-nearby-list"></div>
+                </section>
             </div>
         </div>
 
-        <!-- 5. AYARLAR -->
+        <!-- 4. ETKİNLİKLER VE GRUPLAR -->
+        <div id="screen-etkinlikler" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Etkinlikler</div>
+                <div class="hdr-icons"><div class="hdr-icon sb-event-search" title="Ara" aria-label="Ara"><i class="fa-solid fa-magnifying-glass"></i></div><div class="hdr-icon sb-event-add" title="Ekle" aria-label="Ekle"><i class="fa-solid fa-plus"></i></div><div class="hdr-icon sb-gear" title="Ayarlar" aria-label="Ayarlar"><i class="fa-solid fa-gear"></i></div></div>
+            </div>
+            <div class="sb-segmented" role="tablist" aria-label="Etkinlikler ve gruplar">
+                <button type="button" class="active" data-event-view="events" role="tab" aria-selected="true">Etkinlikler</button>
+                <button type="button" data-event-view="groups" role="tab" aria-selected="false">Gruplar</button>
+            </div>
+            <div class="sb-inline-search sb-event-search-box" hidden>
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" id="event-search" placeholder="Etkinlik veya grup ara" aria-label="Etkinlik veya grup ara">
+            </div>
+            <div class="content-area sb-events-content">
+                <div id="events-view">
+                    <section class="sb-feed-section">
+                        <h2>En Yakın Etkinlik</h2>
+                        <div class="sb-empty-panel"><i class="fa-regular fa-calendar"></i><strong>Yakında etkinlik yok</strong><span>Sana en yakın etkinlik burada görünecek</span></div>
+                    </section>
+                    <section class="sb-feed-section">
+                        <h2>Diğer Etkinlikler</h2>
+                        <div class="sb-empty-line"><i class="fa-solid fa-calendar-days"></i><span>Yeni etkinlikler eklendiğinde burada listelenecek</span></div>
+                    </section>
+                </div>
+                <div id="groups-view" hidden>
+                    <section class="sb-feed-section">
+                        <h2>Gruplarım</h2>
+                        <div id="groups-content">
+                            <div class="empty-state" id="groups-empty">
+                                <div class="empty-icon"><i class="fa-solid fa-user-group"></i></div>
+                                <button class="btn-solid" id="btn-create-group" style="max-width:240px;padding:14px;border-radius:10px">Grup Oluştur</button>
+                            </div>
+                            <div id="groups-list"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. BİLGİSAYARIM -->
+        <div id="screen-bilgisayarim" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Bilgisayarım</div>
+                <div class="hdr-icons"><div class="hdr-icon sb-gear" title="Ayarlar" aria-label="Ayarlar"><i class="fa-solid fa-gear"></i></div></div>
+            </div>
+            <div class="content-area sb-computer-content">
+                <div class="sb-empty-panel sb-computer-empty">
+                    <i class="fa-solid fa-desktop"></i>
+                    <strong>Henüz bir bilgisayar bağlı değil</strong>
+                    <span>Bilgisayar eşleştirme adımı F4.1 ile burada açılacak</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- AYARLAR -->
         <div id="screen-ayarlar" class="screen hidden-screen">
             <div class="main-header">
                 <div class="main-title">Ayarlar</div>
@@ -2060,7 +2128,24 @@
                         </button>
                     </div>
                 </div>
+
+                <div class="settings-section">
+                    <h3>Sekme Geçişi (Kaydırma)</h3>
+                    <div class="pick-grid" id="tabSwipePicker">
+                        <button type="button" class="pick-tile" data-swipe="stick">
+                            <div class="pt-demo lg"><i class="fa-solid fa-left-right"></i></div>
+                            <div class="pt-label">Bitişik</div>
+                            <div class="pt-sub">Varsayılan</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-swipe="detached">
+                            <div class="pt-demo lg"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                            <div class="pt-label">Sonradan</div>
+                            <div class="pt-sub">Bırakınca gelir</div>
+                        </button>
+                    </div>
+                </div>
             </div>
+
         </div>
 
         <!-- 7. HESAP > PROFİL (Ayarlar > Hesap'tan açılır; tam ekran overlay) -->
@@ -2311,20 +2396,16 @@
 
         <div id="bottom-nav" class="bottom-nav" style="display: none;">
             <div class="nav-item active" id="nav-sohbetler" onclick="app.navigate('sohbetler')">
-                <i class="fa-solid fa-comment"></i>
-                <span>Sohbetler</span>
+                <i class="fa-solid fa-comment"></i><span>Sohbetler</span>
             </div>
-            <div class="nav-item" id="nav-kisiler" onclick="app.navigate('kisiler')">
-                <i class="fa-solid fa-user" style="opacity: 0.5;"></i> 
-                <span>Kişiler</span>
+            <div class="nav-item" id="nav-kesfet" onclick="app.navigate('kesfet')">
+                <i class="fa-solid fa-compass"></i><span>Keşfet</span>
             </div>
-            <div class="nav-item" id="nav-gruplar" onclick="app.navigate('gruplar')">
-                <i class="fa-solid fa-user-group" style="opacity: 0.5;"></i>
-                <span>Gruplar</span>
+            <div class="nav-item" id="nav-etkinlikler" onclick="app.navigate('etkinlikler')">
+                <i class="fa-solid fa-calendar-days"></i><span>Etkinlikler</span>
             </div>
-            <div class="nav-item" id="nav-ayarlar" onclick="app.navigate('ayarlar')">
-                <i class="fa-solid fa-gear" style="opacity: 0.5;"></i>
-                <span>Ayarlar</span>
+            <div class="nav-item" id="nav-bilgisayarim" onclick="app.navigate('bilgisayarim')">
+                <i class="fa-solid fa-desktop"></i><span>Bilgisayarım</span>
             </div>
         </div>
 
@@ -2363,6 +2444,9 @@
     <!-- Verimetri (mesaj kodu + şifreleme) ve Asılı Veri (çevrimdışı kuyruk) -->
     <script src="./verimetri.js"></script>
     <script src="./asiliveri.js"></script>
+    <script src="./sohbeto-fcm-names.js"></script>
+    <script src="./sohbeto-pc.js"></script>
+    <script src="./sohbeto-discover.js"></script>
 
 
 
@@ -2967,29 +3051,63 @@
           if (!ok) return;
           try {
             if (isCall) {
-              // Gelen arama ekranı hâlâ çalıyorsa doğrudan cevapla.
               var inc = window.state && window.state.incomingCallFrom;
-              if (inc && d.act !== 'decline') {
-                if (typeof window.acceptCall === 'function') { window.acceptCall(); return; }
-              }
+              var connId = '';
+              try {
+                connId = (window.SohbetoPeer && from) ? (window.SohbetoPeer.idForNumber(from) || '') : '';
+              } catch(e){}
+
+              // 1) Reddet: zil ekranı varsa motor reddetsin, yoksa doğrudan sinyal.
               if (d.act === 'decline') {
                 if (inc && typeof window.rejectCall === 'function') { window.rejectCall(); return; }
+                try { if (connId && typeof window.sendCallSignal === 'function') window.sendCallSignal(connId, 'CALL_REJECT'); } catch(e){}
+                return;
               }
-              // Arama bitmişse: arayan kişiye dön (sohbet + geri arama imkânı).
-              if (from) window.openContactByNumber(from);
-              // Kısa bir süre bekle, bağlantı kurulunca sesli aramayı başlat.
-              if (from && d.act !== 'decline') {
+
+              // 2) Zil ekranı zaten açık: anında cevapla.
+              if (inc) {
+                if (typeof window.acceptCall === 'function') { window.acceptCall(); return; }
+              }
+
+              // 3) Zil sinyali (CALL_RING) henüz gelmedi — P2P bağlantısı yeni
+              //    kuruluyor. Kullanıcıyı bekletmeden gelen arama ekranını AÇ,
+              //    bu arada karşı tarafla kanalı hızlandır.
+              if (connId) {
+                try { if (window.SohbetoPeer && window.SohbetoPeer.watch) window.SohbetoPeer.watch(connId); } catch(e){}
+                try { if (window.SohbetoPeer && window.SohbetoPeer.refresh) window.SohbetoPeer.refresh(connId); } catch(e){}
+                var kind = (d.callKind === 'video') ? 'video' : 'audio';
+                try { if (typeof window.showIncomingCall === 'function') window.showIncomingCall(connId, kind); } catch(e){}
+
+                // Bildirimden "Cevapla" denmişse: kanal açılır açılmaz kabul et.
+                if (d.act === 'answer') {
+                  var waited = 0;
+                  var iv = setInterval(function(){
+                    waited += 300;
+                    var reach = false;
+                    try { reach = !!(typeof window.isPeerReachable === 'function' && window.isPeerReachable(connId)); } catch(e){}
+                    if (reach || waited >= 8000) {
+                      clearInterval(iv);
+                      try { if (typeof window.acceptCall === 'function') window.acceptCall(); } catch(e){}
+                    }
+                  }, 300);
+                }
+
+                // 45 sn içinde arama kurulmadıysa zil ekranını kapat.
                 setTimeout(function(){
                   try {
-                    var c = typeof window.getContactByNumber === 'function'
-                      ? window.getContactByNumber(window.normalizeNumber ? window.normalizeNumber(from) : from)
-                      : null;
-                    if (c && c.connId && typeof window.startAudioCall === 'function') {
-                      window.startAudioCall(c.connId, false);
+                    if (window.state && window.state.incomingCallFrom === connId) {
+                      window.state.incomingCallFrom = null;
+                      var cs = document.getElementById('callScreen');
+                      if (cs) cs.classList.add('hidden');
+                      if (from && typeof window.openContactByNumber === 'function') window.openContactByNumber(from);
                     }
                   } catch(e){}
-                }, 1200);
+                }, 45000);
+                return;
               }
+
+              // 4) Numara rehberde değil: sohbeti aç.
+              if (from) window.openContactByNumber(from);
               return;
             }
             if (from) window.openContactByNumber(from);

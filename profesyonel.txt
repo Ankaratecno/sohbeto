@@ -1,0 +1,412 @@
+SOHBETO — PROFESYONEL ÇALIŞMA GÜNLÜĞÜ
+Konum: Ankara (UTC+3)
+
+=====================================================================
+[06.09.2026 10:06 — Ankara] KULLANICI İSTEĞİ
+"Bu zip dosyasını olduğu gibi oluştur, hiçbir kod eksik olmasın,
+hiçbir kod ekleme. Sonra geliştirmeye devam edeceğiz. Her
+konuştuğumuzu profesyonel.txt dosyasına yazmaya devam et: tarih,
+konum Ankara, benim isteklerim, senin cevapların ve yaptığın tüm
+kodlamalar."
+
+[06.09.2026 10:06 — Ankara] LOVABLE CEVABI / YAPILAN İŞLEM
+- sohbeto0009.zip açıldı ve içerik denetlendi (.git metadata yok).
+- Arşivdeki tüm dosyalar projeye birebir kopyalandı (rsync, hariç
+  tutulanlar: .git, node_modules, .lovable/project.json).
+  Kopyalanan başlıca içerik:
+  * src/ (routes, components, hooks, lib, native, pwa, styles.css,
+    router.tsx, server.ts, start.ts, routeTree.gen.ts)
+  * public/, assets/, dist-mobile/, mobile/
+  * supabase/ (init.sql, asiliveri.sql, fcm.sql, registry.sql,
+    config.toml, functions/)
+  * android-patch/, pc-agent/, .github/workflows/
+  * capacitor.config.ts, vite.config.ts, vite.config.mobile.ts,
+    package.json, bun.lock, components.json, eslint.config.js,
+    tsconfig.json, prettier ayarları
+  * Dokümanlar: sohbet.txt, sohbeto.txt, profesyonelsohbet.txt,
+    fcm-kurulum.txt, url-degisikligi.txt, arayüz.txt, AGENTS.md,
+    README.md
+- Hiçbir satır kod eklenmedi veya değiştirilmedi (yalnızca bu günlük
+  dosyası, profesyonel.txt, yeni oluşturuldu).
+- bun install çalıştırıldı: 510 paket doğrulandı, değişiklik yok.
+- Derleme sonucu: build OK. Önizleme HTTP 200 dönüyor.
+
+=====================================================================
+NOT: Bundan sonraki her istek ve yapılan her kod değişikliği bu
+ dosyaya tarih ve Ankara konumu ile eklenecektir.
+
+=====================================================================
+[06.09.2026 10:32 — Ankara] KULLANICI İSTEĞİ
+Kullanıcı, Sohbeto ana ekranında kırmızı ile işaretlediği 3 farklı
+konum için "Bilgisayarım" (PC) ekranının nereye yerleştirilmesi
+gerektiğini sordu:
+1) Sohbetler başlığındaki sol ok / geri alanından sola çekmece
+   (drawer) olarak açmak,
+2) Üst başlıkta arama büyüteci ile mesaj zarfı simgesinin arasına
+   bir simge koymak,
+3) Alt sekme çubuğunda Ayarlar'ın yanına yeni sekme açmak.
+Cevabın ardından kodlamaya başlanacak; önce görüş istendi.
+
+[06.09.2026 10:32 — Ankara] LOVABLE CEVABI / YAPILAN İŞLEM
+- Görüş bildirildi: en uygun yer 3. seçenek (alt sekme çubuğu,
+  Ayarlar'ın yanı). Bilgisayarım birincil ve sık erişilen bir
+  ekran olduğu için alt sekmelerde yer almalı.
+- 2. seçenek (üst başlık simgesi) eylem/kısayol alanına uymuyor,
+  kalabalık yapar ve sayfa mı açılıyor belirsizliği yaratır.
+- 1. seçenek (sol çekmece) ikincil/menü işlevler için uygundur,
+  Bilgisayarım'ı gizler; yedek alternatif olarak düşünülebilir.
+- Kodlama henüz yapılmadı; kullanıcı onayına göre F4.1 telefon
+  tarafı (Bilgisayarım sekmesi ve PC eşleşme/bağlantı akışı)
+  kodlanacak.
+
+=====================================================================
+[06.09.2026 10:22 — Ankara] KULLANICI İSTEĞİ
+"pc-agent Releases hatası (fotoğrafta 'Resource not accessible by
+integration'). Önce build.yml düzeltilsin. Sonra Faz 4 sırası ile
+F4.1'den devam. Şimdilik sadece pc-agent build tarafı kodlanacak.
+Ayrıca: Sohbeto içinde 'Bilgisayarım' ekranı nereye kodlanmalı ve
+PC ekranını görmek (tam hakimiyet) mümkün mü?"
+
+[06.09.2026 10:22 — Ankara] LOVABLE CEVABI / YAPILAN İŞLEM
+- Hata sebebi: GitHub Actions varsayılan GITHUB_TOKEN'ı yalnızca
+  okuma iznine sahip; softprops/action-gh-release Release'ı
+  güncelleyemedi.
+- Düzeltme: pc-agent/.github/workflows/build.yml dosyasına iş akışı
+  düzeyinde izin eklendi:
+      permissions:
+        contents: write
+- Başka kod değişikliği yapılmadı (F4.1 ajan tarafı zaten hazır).
+- Kullanıcıya ayrıca "Bilgisayarım" ekranının Sohbeto içindeki yeri
+  ve ekran paylaşımı/tam hakimiyet konusu sohbette anlatıldı.
+
+=====================================================================
+[06.09.2026 11:06 — Ankara] KULLANICI İSTEĞİ
+Sohbetler ekranında üstte zaten 4 simge olduğu için "+" simgesinin
+"Tümü" filtresinin yanına (en başa) gelmesi gerektiği netleştirildi.
+Ayrıca Keşfet'teki ayarlar (⚙️) simgesinin yerinin doğru olup
+olmadığı soruldu; kullanıcı "keşfet öyle kalabilir" dediyse de
+asıl endişesi kullanıcının "neden sadece Keşfet'te?" sorgusu.
+
+[06.09.2026 11:06 — Ankara] LOVABLE CEVABI / YAPILAN İŞLEM
+- "+" simgesi üst başlıktaki 4 simgeye eklenmeyecek; filtre
+  çubuğunda "Tümü"nün soluna, en başa yerleştirilecek.
+- Ayarlar (⚙️) simgesi Keşfet'ten kaldırılıp her ekranın sağ üst
+  başlığında sabitlenecek; böylece kullanıcının "neden orada?"
+  sorgusu ortadan kalkar.
+- Kodlama henüz yapılmadı; F4.1 öncesi UI/UX düzeni netleştirildi.
+
+=====================================================================
+[06.09.2026 08:17 — Ankara] KULLANICI İSTEĞİ
+Kullanıcı, kararlaştırılan yeni ana düzenin kodlanmasını istedi: alt
+sekmeler Sohbetler — Keşfet — Etkinlikler — Bilgisayarım olacak;
+Sohbetler'de “Tümü”nün soluna + gelecek; Keşfet'te Canlı Yayınlar,
+Ne Dinliyor ve Yakındakiler; Etkinlikler'de Etkinlikler/Gruplar seçimi,
+En Yakın Etkinlik, Diğer Etkinlikler ve Gruplarım alanları bulunacak.
+Referans görsellerdeki kişiler/örnek içerikler eklenmeyecek; gerçek
+kullanıcı verileri oluştukça alanlar dolacak.
+
+[06.09.2026 08:17 — Ankara] LOVABLE CEVABI / YAPILAN KODLAMA
+- Alt menü Sohbetler, Keşfet, Etkinlikler ve Bilgisayarım olarak değiştirildi.
+- Keşfet ekranına arama ile Canlı Yayınlar, Ne Dinliyor ve Yakındakiler
+  bölümleri, örnek kişi veya fotoğraf eklenmeden boş durumlarıyla eklendi.
+- Etkinlikler ekranına Etkinlikler/Gruplar seçimi; En Yakın Etkinlik,
+  Diğer Etkinlikler ve mevcut veriyle çalışan Gruplarım alanı eklendi.
+- Sohbetler filtre satırına +, Tümü, Okunmamış ve Notlarım eklendi. + menüsü
+  Yeni sohbet, Kişi ekle, Grup oluştur ve Ayarlar işlevlerine bağlandı.
+- Ayarlar erişimi yeni ana ekran başlıklarına eklendi ve geri dönüş davranışı
+  son açık ana ekrana bağlandı.
+- Bilgisayarım ekranı F4.1 eşleştirme adımına hazır boş durumuyla eklendi;
+  eşleştirme/bağlantı mantığı bu UI çalışmasına dahil edilmedi.
+- Kaydırmalı sekme sırası ve eski grup veri yenilemesi yeni yapıya uyarlandı.
+- public kaynakları dist-mobile dağıtım kopyalarıyla eşitlendi.
+- Son görünüm düzenlemesinde hızlı ekleme menüsü “Tümü” satırının altına
+  hizalandı; dört alt sekmenin dar telefonlarda eşit genişlikte ve tek satırda
+  kalması sağlandı. Ana sayfanın sosyal paylaşım tanımları tamamlandı.
+
+[06.09.2026 08:58 — Ankara] KULLANICI TALEBİ
+Kullanıcı sohbeto-01.zip dosyasını yükledi ve projenin bu arşivdeki haliyle
+birebir oluşturulmasını, hiçbir kodun eksik bırakılmamasını ve hiçbir yeni kod
+eklenmemesini istedi. Ayrıca konuşmaların profesyonel.txt dosyasına yazılmaya
+devam edilmesini istedi.
+
+[06.09.2026 08:58 — Ankara] LOVABLE CEVABI / YAPILAN İŞLEM
+- Arşiv açıldı; içinde git verisi bulunmadığı doğrulandı.
+- Şablondan gelen eski src ve public klasörleri kaldırıldı, arşivdeki tüm
+  dosyalar (src, public, mobile, dist-mobile, supabase, android-patch,
+  pc-agent, assets, .github, yapılandırma ve metin dosyaları) olduğu gibi
+  projeye kopyalandı.
+- Türkçe karakterli arayüz.txt dosya adı düzeltildi.
+- Bağımlılıklar yüklendi, önizleme sunucusu sorunsuz ayağa kalktı.
+- Hiçbir yeni kod yazılmadı, mevcut kodlarda değişiklik yapılmadı.
+
+[2026-09-06 12:18 Ankara] Kullanıcı isteği: Notlarım sekmesinden diğer ana ekranlara geçerken otomatik olarak notlara dönme sorunu; Notlarım'da Sohbeto ana hesabı sohbetinin görünmemesi; Keşfet/Etkinlikler/Bilgisayarım sağ üst simgelerinin Sohbetler'deki gibi (tema vurgu renginde, çalışır) olması; Keşfet aramasının büyüteç simgesine bağlanıp ilk açılışta gizli olması.
+[2026-09-06 12:18 Ankara] Yapıldı: Ana ekran geçişlerinde not defteri kapatılıp filtre "Tümü"ne dönüyor; Notlarım seçiliyken sohbet listesi gizleniyor; üç ana ekrana büyüteç + gelen kutusu + aramalar + not defteri simgeleri eklendi ve mevcut işlevlere bağlandı; Keşfet arama kutusu gizli başlıyor, büyüteçle açılıyor. Mobil kopyalar eşitlendi.
+
+[2026-09-06 12:26 Ankara] İstek: Bilgisayarım başlığında sadece ayarlar çarkı; Etkinlikler başlığında büyüteç, + ve çark; Keşfet başlığında büyüteç ve çark.
+Yapılan: Üç ekranın başlık simgeleri bu düzene göre yeniden yazıldı; çark Ayarlar sayfasını açıyor, Etkinlikler + simgesi grup oluşturmayı açıyor. dist-mobile kopyaları eşitlendi.
+
+[2026-09-06 12:31 Ankara] İstek: Sohbetler filtrelerinden Notlarım kaldırılsın, notlar yukarıdaki simgeden açılsın.
+Yapılan: Notlarım filtre düğmesi kaldırıldı; not defteri üst simgeden açılmaya devam ediyor.
+
+[2026-09-06 12:45 Ankara] İstek: PC ajanı GitHub'da hazır; telefon ile bağlantı için Faz 4.1 kodlansın.
+Yapılan: public/apps/sohbeto-pc.js eklendi — Bilgisayarım ekranında 6 haneli kod girişi, ajanın
+"sohbeto-pc-<kod>" peer kimliğine ayrı PeerJS bağlantısı, hello/status/ping-pong protokolü, bağlı
+bilgisayarın adı-sürümü-açık kalma süresi-gecikme gösterimi, yenile/bağlantıyı kes düğmeleri ve son
+eşleşen bilgisayarın hatırlanması. Sohbet taşıma katmanı etkilenmedi. Stiller sohbeto-shell-ui.css'e,
+script etiketi sohbetoOO.html'e eklendi; dist-mobile kopyaları eşitlendi. Dosya al/gönder F4.2'de.
+
+=====================================================================
+[06.09.2026 12:50 — Ankara] KULLANICI İSTEĞİ
+"Faz 4.2'ye geç ve nasıl bağlanacağımı, akışın nasıl olacağını anlat;
+her şeyi txt dosyasına yazmaya devam et."
+
+[06.09.2026 12:50 — Ankara] LOVABLE CEVABI / YAPILAN İŞLEM
+F4.2 = Bilgisayardaki dosyaları telefondan görme + iki yönlü aktarım.
+Kodlananlar:
+- pc-agent/agent.js: yeni komutlar eklendi.
+    ls        -> klasör listeleme (kod boşsa: Belgeler/İndirilenler/
+                 Masaüstü + sürücü kökleri)
+    get       -> dosyayı 32 KB'lık base64 parçalar hâlinde telefona
+                 gönderir (get-meta, chunk, get-done, get-err)
+    put/put-chunk/put-done -> telefondan gelen dosyayı
+                 ~/Downloads/Sohbeto klasörüne yazar, aynı ad varsa
+                 "(1)" eklenir; bitince put-saved döner
+    cancel    -> yarım kalan yüklemeyi siler
+  Kanal tıkanmasın diye bufferedAmount 1 MB'ı aşınca akış duraklatılır.
+- public/apps/sohbeto-pc.js: bağlantı kurulunca otomatik "ls" atılır;
+  klasör gezgini (üst klasör, yenile), dosyaya dokununca indirme,
+  "Bilgisayara gönder" ile telefondan dosya yükleme, her iki yönde
+  yüzdelik ilerleme çubuğu. Aynı anda tek aktarım kuralı var.
+- public/apps/sohbeto-shell-ui.css: gezgin, liste ve ilerleme çubuğu
+  stilleri (renkler tema vurgu rengine bağlı).
+- dist-mobile/apps/ kopyaları eşitlendi.
+
+BAĞLANMA AKIŞI (kullanıcıya anlatılan):
+1) Bilgisayarda Sohbeto PC Ajanı çalıştırılır; ekranda 6 haneli kod
+   ve bilgisayar adı görünür.
+2) Telefonda Sohbeto → Bilgisayarım → kod girilir → Bağlan.
+3) İlk bağlantıda bilgisayarda "bağlanmak istiyor, onaylıyor musun?
+   (e/h)" sorusu çıkar; "e" yazılır. Bu telefon güven listesine
+   eklenir, sonraki seferler onaysız bağlanır.
+4) Bağlantı kurulunca üstte bilgisayar adı, sürüm, açık kalma süresi,
+   gecikme; altında klasörler listelenir.
+5) Klasöre dokun → içine girer; dosyaya dokun → telefona iner.
+   "Bilgisayara gönder" → telefondan seçilen dosya bilgisayarda
+   İndirilenler/Sohbeto klasörüne kaydedilir.
+6) Veri doğrudan cihazdan cihaza (WebRTC) akar; sunucuya dosya
+   gitmez, bulut yalnızca eşleştirme için kullanılır.
+Sonraki adım F4.3: birden fazla dosya/klasör, sürükle-bırak ve
+uzaktan ekran görüntüsü tartışılacak.
+
+=====================================================================
+[06.09.2026 12:54 — Ankara] KULLANICI SORUSU
+"Faz 4.3 neydi, sanki onu da kodladın?"
+
+[06.09.2026 12:54 — Ankara] LOVABLE CEVABI
+F4.3 = "Telefondan PC'ye dosya gönderme". Evet, F4.2 ile aynı turda
+kodlandı ("Bilgisayara gönder" düğmesi + put/put-chunk/put-done akışı,
+dosyalar bilgisayarda İndirilenler/Sohbeto klasörüne kaydediliyor).
+pc-agent/README.md yol haritasında F4.2 ve F4.3 tamamlandı işaretlendi.
+Kalan: F4.4 WoL (kapalı PC'yi ağdan uyandırma) + çevrimiçi durumu,
+F4.5 güvenlik (kısıtlı klasör, kota, işlem kaydı).
+
+=====================================================================
+[06.09.2026 12:58 — Ankara] KULLANICI SORUSU
+"Kredim azaldı, bundan sonra sadece konuşmaları yaz. Bu özellik
+mesajlaşma uygulamalarında bir ilk mi olur? Kapalı PC'yi uyandırma
+nedir, tamamen kapalı PC açılamaz değil mi, uyku modu gibi mi?
+Ayrıca canlı yayında PC'nin RAM/işlem gücünü kullanabilir miyiz;
+telefon tek başına tıkanır gibi geliyor."
+
+[06.09.2026 12:58 — Ankara] LOVABLE CEVABI
+1) İlk mi: WhatsApp/Telegram/Signal'de bilgisayarın klasörlerini
+   telefondan gezip dosya alıp gönderme yok; masaüstü sürümleri
+   sadece mesajlaşma. Bu işi AirDroid, KDE Connect, Pushbullet gibi
+   ayrı programlar yapıyor. Yani "mesajlaşma uygulamasının içinde
+   tam PC ajanı" pratikte görülmüş bir şey değil — bilinen büyük
+   uygulamalarda bir ilk sayılır.
+2) WoL (Wake-on-LAN): tamamen kapalı (fişte duran) bilgisayar da
+   açılabilir; çünkü ana kart ve ağ kartı bekleme akımıyla beslenir.
+   Şartlar: BIOS/UEFI'de "Wake on LAN" açık, ağ kartı ayarında izin
+   verilmiş, tercihen kablolu ethernet (Wi-Fi'de çoğu kartta çalışmaz),
+   fiş takılı. Sihirli paket aynı ağdan gönderilmeli; uzaktan açmak
+   için ya modemde yönlendirme ya da o ağda uyanık başka bir cihaz
+   (router, ikinci PC, TV kutusu) gerekir. Elektrik kesikse veya güç
+   düğmesinden tamamen kesilmişse açılamaz.
+3) Canlı yayın + PC gücü: telefonun tek başına hem çekim hem kodlama
+   hem çok izleyiciye dağıtım yapması gerçekten zorlar (ısınma, pil,
+   yükleme hızı). Çözüm PC'nin RAM'ini "ödünç almak" değil — bellek
+   ağ üzerinden paylaşılamaz — PC'yi yayın istasyonu yapmaktır:
+   telefon görüntüyü tek bir akış hâlinde PC'ye yollar, PC kodlar,
+   kalite seviyelerine böler ve izleyicilere dağıtır. Böylece telefon
+   sadece tek bağlantı taşır. Bu Faz 5 (canlı yayın) konusudur;
+   PC ajanı zaten altyapıyı hazırlıyor.
+
+=====================================================================
+[06.09.2026 13:01 — Ankara] KULLANICI SORUSU
+"PC'yi canlı yayın için kullanırsak kaç kişiyi kaldırır?"
+
+[06.09.2026 13:01 — Ankara] LOVABLE CEVABI
+Sınır işlemciden çok internetin YÜKLEME hızıdır.
+- Kaba hesap: izleyici sayısı = yükleme hızı / yayın kalitesi.
+  720p ~2.5 Mbit, 1080p ~4.5 Mbit, 480p ~1.2 Mbit.
+- Ev fiberi 20 Mbit yükleme: 720p'de 6-7, 480p'de ~12 izleyici.
+  50 Mbit: 720p'de ~16-18. 100 Mbit: 720p'de ~30-35.
+- Bilgisayarın kendisi (orta seviye i5/Ryzen 5, 16 GB RAM, donanım
+  kodlayıcı NVENC/QuickSync) tek yayını 40-60 kişiye dağıtacak
+  güçtedir; darboğaz neredeyse her zaman internet olur.
+- Herkes doğrudan bilgisayara bağlandığı için 30-40 kişiden sonra
+  gerçek çözüm bulut röle (SFU) sunucusudur: PC tek akış yollar,
+  sunucu binlerce kişiye dağıtır. Maliyet o zaman devreye girer.
+Özet: arkadaş/dost yayını (10-30 kişi) PC ile ücretsiz olur;
+kitlesel yayın için bulut röle şart.
+
+============================================================
+[2026-09-06 14:49 TR] Yeni oturum
+Kullanıcı: "sohbeto-02.zip dosyasını olduğu gibi oluştur, hiçbir
+kod eksik olmasın, hiçbir kod ekleme; sonra geliştirmeye devam
+edeceğiz. Ayrıca tüm konuşmalarımızı profesyonel.txt dosyasına
+yazmaya devam et."
+Lovable: Arşivdeki 262 dosyanın tamamı projeye birebir kopyalandı
+(kod değiştirilmedi, eklenmedi). Bağımlılıklar kuruldu, önizleme
+sorunsuz açıldı. Bundan sonraki tüm konuşmalar bu dosyaya
+eklenmeye devam edecek.
+============================================================
+
+=====================================================================
+[06.09.2026 15:05 — Ankara] KULLANICI İSTEĞİ
+"F4.4 WoL (kapalı PC'yi ağdan uyandırma) + çevrimiçi durumu kodlansın;
+Bilgisayarım sekmesi ve pc-agent tarafı birlikte. F4.4 ne işe yarayacak,
+çalışma prensibi ne olacak açıkla. Sonra 4.5'e geçilecek."
+
+[06.09.2026 15:05 — Ankara] LOVABLE CEVABI / YAPILAN İŞ
+F4.4 ne işe yarar:
+ - Bilgisayar kapalı/uykudayken telefondan ağ üzerinden açılabilir (WoL).
+ - Bilgisayarım ekranı artık "Çevrimiçi / Çevrimdışı" ve "son görülme"
+   bilgisini gösterir; bilgisayar açıldığında telefon kendiliğinden bağlanır.
+
+Çalışma prensibi:
+ - PC Ajanı bağlandığında kendi ağ bilgisini (MAC, IP, yayın adresi) telefona
+   bildirir; telefon bunu cihaz kaydında saklar.
+ - Telefon her 30 saniyede bir (ve ekran öne gelince) kayıtlı koda sessiz bir
+   bağlantı denemesi yapar. Açılırsa "Çevrimiçi", açılmazsa "Çevrimdışı".
+ - Uyandırma: tarayıcı UDP paketi gönderemediği için sihirli paket (magic
+   packet) aynı ev ağındaki AÇIK bir bilgisayardaki PC Ajanı üzerinden
+   iletilir. Telefon yardımcı bilgisayarın 6 haneli kodunu ister, ona bağlanır
+   ve {t:'wake', mac} komutunu gönderir; ajan 255.255.255.255 ve ağ yayın
+   adresine 7/9 portlarından sihirli paketi yollar.
+ - Ajan artık eşleşme kodunu config'e kaydeder; bilgisayar yeniden başlasa da
+   kod değişmez, telefon aynı kodla bulabilir.
+
+Değişen dosyalar:
+ - pc-agent/agent.js (v0.2.0): netInfo/magicPacket/sendWol, 'net' ve 'wake'
+   komutları, hello/status içinde ağ bilgisi, kalıcı eşleşme kodu.
+ - public/apps/sohbeto-pc.js + dist-mobile kopyası: çevrimiçi yoklaması,
+   çevrimdışı kartı (Bağlan / Uyandır / Unut), yardımcı kod ile uyandırma.
+ - pc-agent/README.md: F4.4 tamamlandı olarak işaretlendi.
+
+Sırada: F4.5 — ek güvenlik katmanları (kısıtlı klasör, kota, kayıt).
+
+=====================================================================
+[06.09.2026 15:13 — Ankara] KULLANICI SORUSU / İSTEĞİ
+"Wake-on-LAN gerçekten tamamen kapalı bilgisayarı açar mı, 4.4'te bu var mı?
+Ayrıca F4.5 güvenliği (kısıtlı klasör, kota, işlem kaydı) kodlayalım."
+
+[06.09.2026 15:13 — Ankara] LOVABLE CEVABI
+WoL hakkında: Evet, 4.4'te gönderilen sihirli paket standart Wake-on-LAN
+paketidir; fişte duran ama kapalı bir bilgisayar açılabilir. Şartlar:
+BIOS/UEFI'de "Wake on LAN" açık, ağ kartı ayarında izinli, tercihen kablolu
+ethernet, fiş takılı ve paket aynı ağdan gönderilmiş olmalı. Telefon UDP
+gönderemediği için paketi aynı ağdaki açık bir bilgisayardaki PC Ajanı iletir
+(modemde port yönlendirme ile uzaktan da mümkün). Elektrik kesikse veya güç
+tamamen kesilmişse açılmaz.
+
+[06.09.2026 15:13 — Ankara] YAPILAN İŞ — F4.5 Güvenlik
+ - pc-agent/agent.js (v0.3.0):
+   * shares listesi: yalnızca Belgeler/İndirilenler/Masaüstü/Resimler görünür;
+     sürücü kökleri ve diğer klasörler tamamen kapalı (ls ve get denetimi).
+   * maxFileMB (2 GB) tek dosya sınırı, dailyQuotaMB (10 GB) günlük kota;
+     kota günlük sıfırlanır, indirme+gönderme birlikte sayılır.
+   * islem-kaydi.log: eşleşme onay/red, indirme, gönderme, uyandırma ve
+     reddedilen istekler tarih damgasıyla yazılır.
+   * 'policy' komutu: telefona paylaşım/kota/kayıt bilgisini bildirir.
+   * İlk çalıştırmada config.json'a varsayılanlar yazılır (kullanıcı düzenler).
+ - public/apps/sohbeto-pc.js + dist-mobile kopyası: bağlı ekranda "Güvenlik"
+   kartı (paylaşılan klasörler, dosya sınırı, günlük kota çubuğu, kayıt
+   durumu) ve hata mesajlarının Türkçeleştirilmesi.
+ - pc-agent/README.md: F4.5 tamamlandı + ayar dosyası açıklaması.
+
+[06.09.2026 15:32 — Ankara] KULLANICI SORUSU/İSTEĞİ
+Neden sadece Belgeler/İndirilenler/Masaüstü/Resimler görünüyor, her klasöre
+erişim olamaz mı? Tek dosya neden 2 GB, günlük neden 10 GB? Bu sınırlar ileride
+ticari/pazarlama açısından paket olarak kullanılabilir mi (ör. 5 GB tek dosya,
+20 GB günlük kota, aylık ücret)? Ayrıca Faz 5 (canlı yayın) Keşfet ile
+bağlansın: Keşfet'teki "+" düğmesine basınca alt alta "canlı yayın başlat"
+(PC Ajanı bağlıysa telefondan/bilgisayardan seçimi), "ne dinliyorsun" ve
+"görünür ol" seçenekleri çıksın; müzik seçince "Ne Dinliyor", görünür olunca
+"Yakındakiler" listesinde "Ben" olarak görüneyim.
+
+LOVABLE CEVABI
+Klasör kısıtı bir güvenlik varsayılanıdır, teknik zorunluluk değil: config.json
+içindeki "shares" listesine istenen her klasör (hatta sürücü kökü) eklenebilir.
+Varsayılanın dar olması, telefon çalınırsa/kod ele geçerse Windows, Program
+Files, tarayıcı profilleri gibi hassas yerlerin açılmamasını sağlar. 2 GB ve
+10 GB değerleri de config.json'dan serbestçe değiştirilebilir; amaçları tek
+hatalı istekle diski/veriyi tüketmemek ve mobil veriyi korumaktır.
+Ticari açıdan mantıklı: bu üç değer (paylaşılabilir klasör serbestliği, tek
+dosya sınırı, günlük kota) doğal bir paketleme eksenidir — ör. Ücretsiz 2 GB/
+10 GB + 4 klasör, Artı 5 GB/20 GB + sınırsız klasör, Pro sınırsız + çoklu
+bilgisayar + öncelikli yayın istasyonu. Sınırlar zaten ajanda uygulanıyor, yani
+paketleme için altyapı hazır.
+
+YAPILAN İŞ — F5 başlangıcı (canlı yayın istasyonu + Keşfet bağlantısı)
+ - pc-agent/agent.js (v0.4.0): yayın istasyonu eklendi. Yeni komutlar:
+   live-caps, live-start, frame, live-stop, watch, unwatch, live-status.
+   Telefon görüntüyü tek akış hâlinde ajana yollar; ajan parçaları bağlı
+   izleyicilere dağıtır, ilk parçayı (başlık bilgisi) sonradan katılana da
+   gönderir. Yayın başlangıç/bitiş ve izleyici katılımı işlem kaydına yazılır.
+   hello/status yanıtları artık "live" bilgisini de taşır.
+ - public/apps/sohbeto-pc.js: mesaj dinleyici arayüzü (on/off), info().
+ - public/apps/sohbeto-discover.js (yeni): Keşfet ekranına "+" düğmesi ve menü:
+   * Canlı yayın başlat → PC bağlıysa "Telefondan" / "Bilgisayardan (PC gücü)"
+     seçimi; bilgisayardan seçilirse MediaRecorder ile tek akış ajana gider.
+   * Ne dinliyorsun → cihazdan parça seçilir, çalar ve "Ne Dinliyor"
+     listesinde "Ben" olarak görünür.
+   * Görünür ol → konum izniyle "Yakındakiler" listesinde "Ben" olarak görünür;
+     tekrar basınca gizlenir.
+ - public/apps/sohbeto-shell-ui.css: "+" düğmesi, alt menü ve liste kartı
+   stilleri. sohbetoOO.html'e yeni betik bağlandı; dist-mobile kopyaları
+   güncellendi.
+
+[06.09.2026 15:40 — İstanbul] KULLANICI SORUSU/İSTEĞİ
+Keşfet kısmındaki "+" simgesine basınca Sohbetler'dekiyle aynı tasarım çıkmalı; alttan açılan panel doğru değil, düzelt.
+
+LOVABLE CEVABI
+Keşfet menüsü artık alttan değil, "+" düğmesinin hemen altından açılan küçük kart olarak çıkıyor; düğme de Sohbetler'deki yuvarlak "+" ile aynı görünümde.
+
+YAPILAN İŞ
+- sohbeto-discover.js: openSheet artık düğmeye hizalı açılır menü (sb-dmenu) oluşturuyor, tutamaç kaldırıldı, sınıflar sb-dmenu-* olarak güncellendi.
+- sohbeto-shell-ui.css: sb-discover-add Sohbetler'deki sb-filter-add görünümüne getirildi; sb-dmenu / sb-dmenu-item stilleri sb-add-menu ile aynı hale getirildi.
+- dist-mobile kopyaları güncellendi.
+
+[06.09.2026 15:52 — Ankara] KULLANICI SORUSU/İSTEĞİ
+"Ne dinliyorsun" simgesi/yazısı sağa kaymış görünüyor; Keşfet'teki "+" Sohbetler'deki "+" ile aynı hizada olmalı. Ayrıca sekmeler arası elle kaydırmada içeriğin bitişik mi gelmesi gerektiği soruldu.
+
+LOVABLE CEVABI
+Kaydırmada içerik bitişik (parmakla 1:1) gelmeli; kullanıcı hareketi ile ekranın birebir takip etmesi daha doğal ve hızlı hissettirir. Sonradan gelen/gecikmeli içerik akıcılığı bozar.
+
+YAPILAN İŞ
+- Keşfet "+" düğmesi Sohbetler ile aynı sol hizaya getirildi (addbar sol boşluk -2px).
+- Menü simgeleri sabit 22px genişliğe kilitlendi; "Ne dinliyorsun" satırındaki kayma giderildi.
+- dist-mobile kopyası güncellendi.
+
+[06.09.2026 15:58 — İstanbul] KULLANICI SORUSU/İSTEĞİ
+Sekmeler arası içerik yapışık gelmiyor, düzeltilsin; ayrıca mevcut geçiş kullanıcıya seçenek olsun: Ayarlar > Tema > Sekme Geçişi > Bitişik (varsayılan) / Sonradan.
+
+LOVABLE CEVABI
+Komşu sekmeler gizli kaldığı için sürüklerken boşluk görünüyordu; artık parmakla birlikte bitişik geliyor. Tema ayarlarına "Sekme Geçişi" seçimi eklendi.
+
+YAPILAN İŞ
+- sohbeto-fluid-tabs.js: fluid-mode'da gizli sekmelere visibility:visible; 'detached' modu için ayrı kural; swipeMode durumu localStorage 'sohbeto.tabSwipe' ile kalıcı; tabSwipePicker bağlama; window.SohbetoTabs API'si.
+- sohbetoOO.html: Tema Ayarları'na "Sekme Geçişi (Kaydırma)" kartı (Bitişik / Sonradan).
+- dist-mobile kopyaları güncellendi.

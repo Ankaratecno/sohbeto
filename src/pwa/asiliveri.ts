@@ -66,13 +66,44 @@ export async function fetchQueue(limit = 200): Promise<AsiliRow[]> {
   return data as AsiliRow[];
 }
 
-/** Teslim aldığım kodları işaretle (bir daha düşmez). */
+/** Sunucuya işaretlenemeyen kodlar burada bekler (bir sonraki denemede tekrar gider). */
+const ACK_KEY = "sohbeto.asili.ack.pending.v1";
+
+function loadPendingAcks(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ACK_KEY) || "[]");
+    return Array.isArray(raw) ? raw.filter((c) => typeof c === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePendingAcks(list: string[]) {
+  try {
+    localStorage.setItem(ACK_KEY, JSON.stringify(list.slice(-500)));
+  } catch {
+    /* yoksay */
+  }
+}
+
+/**
+ * Teslim aldığım kodları işaretle (bir daha düşmez).
+ * İşaretleme başarısız olursa kodlar yerelde saklanır ve sonraki çağrıda
+ * yeniden denenir — böylece aynı mesaj her açılışta tekrar gelmez.
+ */
 export async function markDelivered(codes: string[]): Promise<number> {
-  const list = (codes || []).filter(Boolean);
+  const fresh = (codes || []).filter(Boolean);
+  const list = Array.from(new Set([...loadPendingAcks(), ...fresh]));
   if (!list.length) return 0;
   const { data, error } = await supabase.rpc("asili_teslim", { p_codes: list });
-  if (error) return 0;
-  return typeof data === "number" ? data : 0;
+  const marked = typeof data === "number" ? data : 0;
+  if (error) {
+    savePendingAcks(list);
+    return 0;
+  }
+  // Hata yoksa satırlar ya işaretlendi ya da zaten işaretliydi: bekleyeni temizle.
+  savePendingAcks([]);
+  return marked;
 }
 
 /** Gönderdiğim verilerin teslim durumu. */

@@ -1,0 +1,28 @@
+{
+  "name": "sohbeto-pc-agent",
+  "version": "0.1.0",
+  "description": "Sohbeto PC Ajanı — telefondan bilgisayara P2P köprü (dosya al/gönder, WoL)",
+  "bin": "agent.js",
+  "main": "agent.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node agent.js",
+    "prepare:native": "node scripts/prepare-native.js",
+    "pack:win": "npm run prepare:native && npx pkg . --targets node18-win-x64 --output dist/sohbeto-pc-agent.exe",
+    "pack:linux": "npm run prepare:native && npx pkg . --targets node18-linux-x64 --output dist/sohbeto-pc-agent",
+    "pack:mac": "npm run prepare:native && npx pkg . --targets node18-macos-x64 --output dist/sohbeto-pc-agent"
+  },
+  "dependencies": {
+    "node-datachannel": "^0.33.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [
+      "native/*.node"
+    ],
+    "outputPath": "dist"
+  }
+}

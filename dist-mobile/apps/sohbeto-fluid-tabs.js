@@ -1,6 +1,6 @@
 /* ============================================================
    SOHBETO FLUID TABS  v3 — parmak 1:1 takip eden pager mantığı
-   4 ana sekme: sohbetler / kisiler / gruplar / ayarlar
+   4 ana sekme: sohbetler / kesfet / etkinlikler / bilgisayarim
    - Yatay parmak swipe + alt nav tıkla
    - Çok küçük yatay harekette bile sayfa parmağın altına gelir
    - touch-action + pointer capture + rAF batch ile takılmasız hareket
@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  var TABS = ['sohbetler', 'kisiler', 'gruplar', 'ayarlar'];
+  var TABS = ['sohbetler', 'kesfet', 'etkinlikler', 'bilgisayarim'];
   var SCREEN_IDS = TABS.map(function (t) { return 'screen-' + t; });
 
   // Akışkanlık parametreleri — native pager / Telegram benzeri
@@ -55,9 +55,13 @@
         '{transition:none !important;}',
       // Fluid mode'da inactive tab'lar hidden-screen sözleşmesini korur ama görünür çizilir
       '.app-container.fluid-mode ' + SCREEN_IDS.map(function (id) { return '#' + id + '.hidden-screen'; }).join(',.app-container.fluid-mode ') +
-        '{opacity:1;transform:none;}',
+        '{opacity:1;visibility:visible;}',
+      // "Sonradan gelsin" modunda komşu sekmeler sürükleme boyunca görünmez
+      '.app-container.fluid-mode.fluid-detached ' + SCREEN_IDS.map(function (id) { return '#' + id + '.fluid-inactive'; }).join(',.app-container.fluid-mode.fluid-detached ') +
+        '{visibility:hidden;}',
       // Aktif olmayan sekmeler input almasın
       '.app-container.fluid-mode .fluid-inactive{pointer-events:none !important;}',
+
     ].join('\n');
     var style = document.createElement('style');
     style.id = '__fluid_tabs_css__';
@@ -69,8 +73,43 @@
     return SCREEN_IDS.map(function (id) { return document.getElementById(id); });
   }
 
+  // ---------- Kaydırma modu: 'stick' (bitişik, varsayılan) | 'detached' (sonradan) ----------
+  var MODE_KEY = 'sohbeto.tabSwipe';
+  var swipeMode = 'stick';
+  try { if (localStorage.getItem(MODE_KEY) === 'detached') swipeMode = 'detached'; } catch (e) {}
+
+  function applyMode() {
+    if (!appContainer) return;
+    appContainer.classList.toggle('fluid-detached', swipeMode === 'detached');
+    try {
+      document.querySelectorAll('#tabSwipePicker .pick-tile').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-swipe') === swipeMode);
+        b.classList.toggle('selected', b.getAttribute('data-swipe') === swipeMode);
+      });
+    } catch (e) {}
+  }
+
+  function setSwipeMode(mode) {
+    swipeMode = (mode === 'detached') ? 'detached' : 'stick';
+    try { localStorage.setItem(MODE_KEY, swipeMode); } catch (e) {}
+    applyMode();
+  }
+
+  function bindModePicker() {
+    var grid = document.getElementById('tabSwipePicker');
+    if (!grid || grid.dataset.bound === '1') return;
+    grid.dataset.bound = '1';
+    grid.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.pick-tile') : null;
+      if (!btn) return;
+      setSwipeMode(btn.getAttribute('data-swipe'));
+    });
+    applyMode();
+  }
+
   // ---------- State ----------
   var activeIndex = 0;
+
   var dragging = false;
   var pointerId = null;
   var dragStartX = 0, dragStartY = 0;
@@ -111,6 +150,7 @@
     var changed = idx !== activeIndex;
     activeIndex = idx;
     appContainer.classList.add('fluid-mode');
+    applyMode();
     var screens = getTabScreens();
     screens.forEach(function (el, i) {
       if (!el) return;
@@ -148,7 +188,7 @@
     if (changed) {
       var name = TABS[idx];
       try {
-        if (name === 'kisiler' && typeof window.renderContacts === 'function') window.renderContacts();
+        if (name === 'etkinlikler' && typeof window.SohbetoExtras !== 'undefined' && typeof window.SohbetoExtras.renderGroups === 'function') window.SohbetoExtras.renderGroups();
         if (name === 'sohbetler' && typeof window.renderConvList === 'function') window.renderConvList();
       } catch (e) {}
     }
@@ -171,9 +211,9 @@
   // ---------- app.navigate köprüsü ----------
   // Ayarlar > Tema / Hesap / Gizlilik açıkken alt nav'a tıklanınca bu overlay'ler
   // .active kalıp ana sekmenin üstünü kaplıyordu. Tab geçişinden ÖNCE her zaman
-  // bu sub-screen overlay'lerini kapatıyoruz ki Sohbetler/Kişiler/Gruplar/Ayarlar'a
+  // bu sub-screen overlay'lerini kapatıyoruz ki ana sekmelere
   // tıklamak her durumda doğrudan o sekmeye götürsün.
-  var SUBSCREEN_IDS = ['screen-tema', 'screen-hesap', 'screen-gizlilik', 'screen-yardim', 'screen-notes', 'screen-calls', 'screen-inbox'];
+  var SUBSCREEN_IDS = ['screen-tema', 'screen-hesap', 'screen-gizlilik', 'screen-yardim', 'screen-notes', 'screen-calls', 'screen-inbox', 'screen-ayarlar', 'screen-kisiler'];
   function closeSettingsSubscreens() {
     SUBSCREEN_IDS.forEach(function (id) {
       var el = document.getElementById(id);
@@ -397,8 +437,11 @@
       return;
     }
     injectStyles();
+    applyMode();
+    bindModePicker();
     patchNavigate();
     bindGestures();
     watchNavReady();
+    window.SohbetoTabs = { setSwipeMode: setSwipeMode, getSwipeMode: function () { return swipeMode; } };
   });
 })();
