@@ -1,0 +1,773 @@
+/* =====================================================================
+   SOHBETO SHELL UI — Ana ekran arayüzü: "sohbet penceresi içi" estetiği
+   Sohbetler / Kişiler / Gruplar / Ayarlar tek parça zemin, kenar çizgisi yok.
+   Motor dosyalarına dokunmaz; sadece görsel katman.
+   Yükleme: sohbetoOO.html <head> içindeki <style> bloğundan SONRA.
+   ===================================================================== */
+
+:root {
+  /* Tek zemin kaynağı — tema motoru --bg-white'ı değiştirince hepsi uyar */
+  --app-bg: var(--bg-white, #ffffff);
+  --app-surface: rgba(255, 255, 255, 0.72);
+  --app-surface-solid: #ffffff;
+  --app-card-border: rgba(15, 23, 42, 0.05);
+  --app-card-shadow: 0 10px 24px -14px rgba(15, 23, 42, 0.28);
+  --app-field: rgba(15, 23, 42, 0.045);
+  --app-text-1: var(--text-main, #111111);
+  --app-text-2: var(--text-secondary, #6b7280);
+  --app-text-3: #9aa3b2;
+  --app-avatar-radius: 30%;
+  --app-font: 'Manrope', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* --------------------------- Gece modu --------------------------- */
+html.sb-dark {
+  --app-bg: #0f1418;
+  --app-surface: rgba(255, 255, 255, 0.06);
+  --app-surface-solid: #171d23;
+  --app-card-border: rgba(255, 255, 255, 0.07);
+  --app-card-shadow: 0 12px 26px -16px rgba(0, 0, 0, 0.8);
+  --app-field: rgba(255, 255, 255, 0.07);
+  --app-text-1: #f2f5f7;
+  --app-text-2: #9aa7b2;
+  --app-text-3: #7d8994;
+  --text-main: #f2f5f7;
+  --text-secondary: #9aa7b2;
+  --border-light: rgba(255, 255, 255, 0.07);
+}
+html.sb-dark body { background: var(--app-bg); color: var(--app-text-1); }
+
+/* --------------------------- Tipografi --------------------------- */
+body,
+.ooc-btn,
+.settings-item-title,
+.main-title { font-family: var(--app-font); }
+html.sb-font-inter { --app-font: 'Inter', system-ui, sans-serif; }
+
+/* ------------------- Tek parça zemin (çizgiler yok) ------------------- */
+.app-container,
+.screen,
+.content-area { background-color: var(--app-bg); }
+
+.main-header,
+.theme-header {
+  background-color: var(--app-bg);
+  border-bottom: none !important;
+  color: var(--app-text-1);
+}
+.main-title { color: var(--app-text-1); letter-spacing: -0.4px; }
+
+.search-container { background-color: var(--app-bg); padding: 8px 16px 10px; }
+.search-box {
+  background-color: var(--app-field);
+  border-radius: 999px;
+  padding: 11px 16px;
+  border: 1px solid var(--app-card-border);
+}
+.search-box input { color: var(--app-text-1); }
+.search-box i,
+.search-box input::placeholder { color: var(--app-text-3); }
+
+#screen-sohbetler .content-area,
+#screen-kisiler .content-area,
+#screen-gruplar .content-area,
+#screen-ayarlar .content-area {
+  background: var(--app-card-bg, var(--app-bg)) !important;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+#screen-sohbetler .content-area { padding: 4px 14px 100px; }
+
+/* ------------------------- Sohbet kartları ------------------------- */
+#screen-sohbetler .conv-item {
+  background: var(--app-surface);
+  border: 1px solid var(--app-card-border);
+  border-radius: 22px;
+  box-shadow: var(--app-card-shadow);
+  margin-bottom: 10px;
+  padding: 12px 14px;
+}
+#screen-sohbetler .conv-item::after { display: none !important; }
+#screen-sohbetler .conv-item:hover {
+  background: var(--app-surface-solid);
+  box-shadow: 0 16px 30px -18px rgba(15, 23, 42, 0.35);
+}
+#screen-sohbetler .conv-name { color: var(--app-text-1); }
+#screen-sohbetler .conv-preview { color: var(--app-text-2); }
+#screen-sohbetler .conv-time { color: var(--app-text-3); }
+
+/* Squircle avatar — kare, 4 kenarı oval (1 ve 2 numaralı tasarım) */
+#screen-sohbetler .conv-avatar,
+.contact-avatar,
+.group-avatar {
+  border-radius: var(--app-avatar-radius) !important;
+  background: var(--primary-green);
+  color: #fff;
+  overflow: hidden;
+}
+#screen-sohbetler .conv-avatar { width: 52px; height: 52px; }
+.contact-avatar { width: 52px !important; height: 52px !important; font-size: 1.05rem; font-weight: 700; }
+
+/* --------------------------- Kişiler --------------------------- */
+.contact-row {
+  background: var(--app-surface);
+  border: 1px solid var(--app-card-border);
+  border-bottom: 1px solid var(--app-card-border) !important;
+  border-radius: 22px;
+  box-shadow: var(--app-card-shadow);
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  gap: 12px;
+}
+.contact-row:hover { background: var(--app-surface-solid); }
+#contactsList { padding: 4px 0 24px !important; }
+
+/* --------------------------- Ayarlar --------------------------- */
+.settings-list { padding: 0; gap: 10px; }
+.settings-item {
+  background: var(--app-surface);
+  border: 1px solid var(--app-card-border);
+  border-bottom: 1px solid var(--app-card-border) !important;
+  border-radius: 22px;
+  box-shadow: var(--app-card-shadow);
+  padding: 14px;
+}
+.settings-item-title { color: var(--app-text-1); }
+.settings-item-subtitle { color: var(--app-text-2); }
+.profile-divider { display: none; }
+.settings-section h3 { color: var(--app-text-2); }
+
+/* --------------------------- Alt menü --------------------------- */
+.bottom-nav {
+  background-color: var(--app-bg);
+  border-top: none !important;
+  padding-top: 8px;
+}
+.nav-item {
+  color: var(--app-text-3);
+  padding: 8px 0 6px;
+  border-radius: 20px;
+  margin: 0 6px;
+  width: auto; flex: 1;
+}
+.nav-item i { opacity: 1 !important; }
+.nav-item.active {
+  color: var(--primary-green);
+  background: var(--light-green-bg);
+}
+html.sb-dark .nav-item.active { background: rgba(255, 255, 255, 0.08); }
+
+/* --------------------- Gece modunda küçük düzeltmeler --------------------- */
+html.sb-dark .empty-icon { background: rgba(255, 255, 255, 0.06); }
+html.sb-dark .toggle-slider { background-color: #3a444e; }
+html.sb-dark .settings-action { color: var(--app-text-3); }
+
+/* --------------------- Tema ekranı: görünüm/font seçici --------------------- */
+.sb-pick-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.sb-pick {
+  flex: 1; min-width: 120px;
+  padding: 12px 14px; border-radius: 18px;
+  border: 1px solid var(--app-card-border);
+  background: var(--app-surface);
+  color: var(--app-text-1);
+  font-family: var(--app-font);
+  font-size: 0.9rem; font-weight: 600;
+  cursor: pointer;
+}
+.sb-pick.active { border-color: var(--primary-green); color: var(--primary-green); background: var(--light-green-bg); }
+html.sb-dark .sb-pick.active { background: rgba(255, 255, 255, 0.08); }
+
+/* --------------------- Alt menü: mockup'taki kapsül --------------------- */
+.bottom-nav { justify-content: space-around; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+.nav-item {
+  flex: 0 1 auto;
+  width: auto;
+  padding: 9px 20px 8px;
+  border-radius: 24px;
+  margin: 0 2px;
+  transition: background-color .2s, color .2s;
+}
+.nav-item i { margin-bottom: 4px; }
+.nav-item span { font-size: .74rem; font-weight: 600; }
+.nav-item.active { background: var(--light-green-bg); color: var(--primary-green); }
+
+/* --------------------- Açılır arama (büyüteç) --------------------- */
+.screen .search-container { display: none; }
+.screen.sb-search-open .search-container { display: block; padding-top: 4px; }
+.screen.sb-search-open .main-title { display: none; }
+.screen.sb-search-open .main-header { padding-bottom: 6px; }
+.screen.sb-search-open .hdr-icons > .hdr-icon:not(.sb-search-btn),
+.screen.sb-search-open .header-icon { display: none; }
+.hdr-icon.sb-search-btn { cursor: pointer; }
+
+.screen.sb-search-open .hdr-icons { margin-left: auto; }
+
+/* =====================================================================
+   DÜZELTMELER — alt menü çizgisi, liste eşitliği, ayarlar düzeni
+   ===================================================================== */
+
+/* 1) Alt menü: her temada tamamen kaynaşık (çizgi/blok görünümü yok) */
+.bottom-nav {
+  background: transparent !important;
+  border-top: 0 !important;
+  box-shadow: none !important;
+  padding: 6px 12px max(14px, env(safe-area-inset-bottom)) !important;
+}
+/* Zemin rengi nav'ın arkasında yumuşak geçişle bitsin */
+.bottom-nav::before {
+  content: "";
+  position: absolute; inset: -22px 0 0 0;
+  background: linear-gradient(to bottom, transparent, var(--app-bg) 42%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.nav-item { margin: 0 !important; }
+
+/* 2) Sohbetler ve Kişiler satırları birebir aynı ölçüde */
+#screen-kisiler .content-area,
+#screen-gruplar .content-area { padding: 4px 14px 100px !important; }
+#contactsList { padding: 0 !important; }
+
+#screen-sohbetler .conv-item,
+.contact-row,
+.group-row {
+  min-height: 76px;
+  padding: 12px 14px !important;
+  margin: 0 0 10px 0 !important;
+  gap: 12px;
+  border-radius: 22px !important;
+  box-sizing: border-box;
+}
+#screen-sohbetler .conv-avatar,
+.contact-avatar,
+.group-avatar {
+  width: 52px !important; height: 52px !important;
+  min-width: 52px; flex: 0 0 52px;
+}
+.contact-name, #screen-sohbetler .conv-name { font-size: 1rem; font-weight: 700; color: var(--app-text-1); }
+.contact-number, #screen-sohbetler .conv-preview { font-size: .84rem; color: var(--app-text-2); }
+
+/* 3) Ayarlar: tek dil, düzenli boşluk */
+#screen-ayarlar .content-area { padding: 4px 14px 110px !important; }
+#screen-ayarlar .settings-list { padding: 0 !important; margin-top: 4px; gap: 10px; }
+#screen-ayarlar .settings-section,
+#screen-tema .settings-section { width: 100%; padding: 0 !important; margin-top: 18px; }
+#screen-ayarlar .settings-section h3,
+#screen-tema .settings-section h3 {
+  font-size: .76rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--app-text-3); margin: 0 0 8px 4px;
+}
+.settings-item { min-height: 68px; display: flex; align-items: center; gap: 12px; }
+#screen-tema .content-area { padding: 4px 14px 110px !important; }
+#screen-tema .palette-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+#screen-tema .pick-grid { gap: 10px; }
+
+/* --------------------- Ayarlar & Hesap: ikonsuz düz liste --------------------- */
+#screen-ayarlar .settings-icon-wrapper,
+#screen-hesap .settings-icon-wrapper,
+#screen-gizlilik .settings-icon-wrapper { display: none !important; }
+#screen-ayarlar .settings-item,
+#screen-hesap .settings-item { padding-left: 18px !important; }
+#screen-hesap .settings-list { gap: 10px; display: flex; flex-direction: column; }
+#screen-hesap .settings-item {
+  background: var(--app-surface);
+  border: 1px solid var(--app-card-border);
+  border-radius: 22px;
+  box-shadow: var(--app-card-shadow);
+  min-height: 68px;
+  display: flex; align-items: center; gap: 12px;
+}
+#screen-hesap .content-area { padding: 4px 14px 110px !important; }
+#screen-hesap .settings-section h3 {
+  font-size: .76rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--app-text-3); margin: 0 0 8px 4px;
+}
+
+/* --------------------- Başlık düzeni (responsive) --------------------- */
+.main-header { gap: 8px; padding-left: 18px; padding-right: 14px; }
+.main-header .main-title { margin-right: auto; }
+.main-header .sb-search-btn { margin-left: 0; margin-right: auto; }
+.main-header .hdr-icons,
+.main-header > .header-icon { margin-left: auto; }
+/* Kişiler/Gruplar: büyüteç solda, + en sağda */
+#screen-kisiler .main-header .sb-search-btn,
+#screen-gruplar .main-header .sb-search-btn { margin-right: 4px; margin-left: auto; }
+#screen-kisiler .main-header > .header-icon,
+#screen-gruplar .main-header > .header-icon { margin-left: 0; padding: 6px; }
+.main-header .hdr-icons { gap: 14px; }
+@media (max-width: 380px) {
+  .main-header { padding-left: 14px; padding-right: 10px; }
+  .main-title { font-size: 1.32rem; }
+  .main-header .hdr-icons { gap: 10px; }
+  .hdr-icon, .header-icon { font-size: 1.05rem; }
+}
+
+/* --------------------- Gece modu: vurgular beyaz --------------------- */
+html.sb-dark {
+  --app-accent: #ffffff;
+}
+html.sb-dark .hdr-icon,
+html.sb-dark .header-icon,
+html.sb-dark .main-header i,
+html.sb-dark .settings-action,
+html.sb-dark .back-btn { color: var(--app-accent) !important; }
+html.sb-dark .nav-item.active,
+html.sb-dark .nav-item.active i,
+html.sb-dark .nav-item.active span { color: var(--app-accent) !important; }
+html.sb-dark .hdr-icon:hover { background: rgba(255, 255, 255, 0.08); }
+html.sb-dark .sb-pick.active { border-color: var(--app-accent); color: var(--app-accent); }
+
+/* =====================================================================
+   ÜSTTEN AÇILAN SAYFALAR (Yeni Kişi / Yeni Grup) — tema uyumlu
+   ===================================================================== */
+.sb-topsheet {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  background: rgba(8, 12, 18, 0.38) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.sb-topsheet.hidden-screen { display: none !important; }
+.sb-topsheet-panel {
+  width: 100%;
+  background: var(--app-bg);
+  color: var(--app-text-1);
+  border-radius: 0 0 26px 26px;
+  padding: max(18px, env(safe-area-inset-top)) 18px 20px;
+  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, .55);
+  animation: sbSlideDown .22s ease;
+  border-bottom: 1px solid var(--app-card-border);
+}
+@keyframes sbSlideDown { from { transform: translateY(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sb-topsheet-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.sb-topsheet-head h3 { flex: 1; font-size: 1.22rem; font-weight: 800; color: var(--app-text-1); margin: 0; }
+.sb-topsheet-x {
+  border: none; background: var(--app-field); color: var(--app-text-1);
+  width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 1rem;
+}
+.sb-field-list { display: flex; flex-direction: column; gap: 12px; }
+.sb-field label { display: block; font-size: .78rem; font-weight: 700; color: var(--app-text-2); margin-bottom: 6px; }
+.sb-field .sb-opt { font-weight: 500; color: var(--app-text-3); }
+.sb-field input,
+.sb-input {
+  width: 100%; padding: 13px 14px; border-radius: 14px;
+  border: 1px solid var(--app-card-border);
+  background: var(--app-field);
+  color: var(--app-text-1);
+  font-size: .95rem; font-family: inherit; outline: none;
+}
+.sb-field input::placeholder, .sb-input::placeholder { color: var(--app-text-3); }
+.sb-field input:focus, .sb-input:focus { border-color: var(--primary-green); }
+
+/* Hesap · Profil alanları (Ad / Biyografi / Kullanıcı adı) — gece modunda
+   beyaz zemin + beyaz yazı sorununu giderir. */
+html.sb-dark .profile-field input,
+html.sb-dark .profile-field textarea {
+  background: var(--app-field) !important;
+  border-color: var(--app-card-border) !important;
+  color: var(--app-text-1) !important;
+}
+html.sb-dark .profile-field input::placeholder,
+html.sb-dark .profile-field textarea::placeholder { color: var(--app-text-3); }
+html.sb-dark .profile-field label { color: var(--app-text-1); }
+.sb-sheet-actions { display: flex; gap: 10px; margin-top: 20px; }
+.sb-btn-ghost {
+  flex: 1; padding: 14px; border-radius: 14px; cursor: pointer;
+  border: 1px solid var(--app-card-border); background: transparent;
+  color: var(--app-text-1); font-weight: 700; font-family: inherit;
+}
+.sb-btn-primary {
+  flex: 1; padding: 14px; border-radius: 14px; cursor: pointer; border: none;
+  background: var(--primary-green); color: #fff; font-weight: 700; font-family: inherit;
+}
+.sb-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+/* --------- Tam ekran alt sayfalar (Yeni Grup, Notlar, Aramalar) --------- */
+.fs-screen { background: var(--app-bg) !important; color: var(--app-text-1); }
+.fs-header {
+  background: var(--app-card-bg, var(--app-bg)) !important;
+  border-bottom: none !important;
+  color: var(--app-text-1);
+}
+.fs-header .fs-back, .fs-header .fs-title { color: var(--app-text-1) !important; }
+.fs-empty { color: var(--app-text-2) !important; }
+.note-card, .list-row, .group-card, .cg-row {
+  background: var(--app-surface) !important;
+  border: 1px solid var(--app-card-border) !important;
+  color: var(--app-text-1);
+}
+.cg-row .cg-nm, .group-card .gc-name, .list-row .lr-name, .note-card .nc-title { color: var(--app-text-1) !important; }
+.cg-row .cg-num, .group-card .gc-sub, .list-row .lr-sub, .note-card .nc-snip { color: var(--app-text-2) !important; }
+.cg-name-input { background: var(--app-field) !important; border-color: var(--app-card-border) !important; color: var(--app-text-1) !important; }
+.cg-name-input::placeholder { color: var(--app-text-3); }
+.cg-save { background: var(--primary-green) !important; }
+
+/* Grup fotoğraf seçiciler */
+.cg-media { display: flex; align-items: flex-end; gap: 14px; margin: 4px 0 16px; }
+.cg-cover {
+  flex: 1; height: 96px; border-radius: 18px; cursor: pointer;
+  background: var(--app-field) center/cover no-repeat;
+  border: 1px dashed var(--app-card-border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--app-text-3); font-size: .78rem; font-weight: 600; text-align: center;
+}
+.cg-photo {
+  width: 72px; height: 72px; border-radius: 26%; cursor: pointer; flex: 0 0 72px;
+  background: var(--app-field) center/cover no-repeat;
+  border: 1px dashed var(--app-card-border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--app-text-3); font-size: 1.1rem;
+}
+.cg-hint { font-size: .74rem; color: var(--app-text-3); margin: -10px 2px 14px; }
+
+/* --------- Sohbetler: büyüteç zarfın hemen yanında --------- */
+#screen-sohbetler .main-header .sb-search-btn { margin-left: 0; margin-right: 0; }
+#screen-sohbetler .main-header .hdr-icons { margin-left: 4px; }
+
+/* =====================================================================
+   KİŞİ PROFİL KARTI — tema uyumlu, blursuz, avatardan merkeze
+   ===================================================================== */
+#contactCardOverlay,
+#contactCardOverlay.open,
+#contactCardOverlay.closing {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+#contactCardOverlay.open { background: rgba(0, 0, 0, .42); }
+#contactCardOverlay .contact-card {
+  background: var(--app-surface-solid) !important;
+  color: var(--app-text-1);
+  border: 1px solid var(--app-card-border);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .55);
+  transform-origin: center center !important;
+  transition: transform .34s cubic-bezier(.2,.82,.24,1), opacity .2s ease !important;
+}
+#contactCardOverlay .cc-name { color: var(--app-text-1); }
+#contactCardOverlay .cc-phone { color: var(--app-text-2); }
+#contactCardOverlay .cc-action {
+  background: var(--app-field);
+  color: var(--primary-green);
+  border: 1px solid var(--app-card-border);
+}
+html.sb-dark #contactCardOverlay .cc-action { color: var(--app-text-1); }
+#contactCardOverlay .cc-msg-btn { color: #fff; }
+
+/* Seçili eski efekt ne olursa olsun kart, tıklanan avatar karesinden akıcı gelir. */
+#contactCardOverlay.anim-default .contact-card,
+#contactCardOverlay.anim-spin .contact-card,
+#contactCardOverlay.anim-flip .contact-card {
+  transform: translate(var(--dx, 0), var(--dy, 0)) scale(.14) !important;
+  opacity: 0;
+}
+#contactCardOverlay.anim-default.open .contact-card,
+#contactCardOverlay.anim-spin.open .contact-card,
+#contactCardOverlay.anim-flip.open .contact-card {
+  transform: translate(0, 0) scale(1) !important;
+  opacity: 1;
+}
+#contactCardOverlay.anim-default.closing .contact-card,
+#contactCardOverlay.anim-spin.closing .contact-card,
+#contactCardOverlay.anim-flip.closing .contact-card {
+  transform: translate(var(--dx, 0), var(--dy, 0)) scale(.14) !important;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  #contactCardOverlay .contact-card { transition-duration: .01ms !important; }
+}
+
+/* --------- Ek/Emoji paneli (Fotoğraf · Kamera · Dosya · Konum) --------- */
+/* Tema motoru --bg-white'ı satır içi ayarladığı için gece modunda panel
+   beyaz kalıp yazılar okunmuyordu. Panel artık --app-bg üzerinden çalışır. */
+.ci-panel {
+  background: var(--app-card-bg, var(--app-bg)) !important;
+  border-top: 1px solid var(--app-card-border) !important;
+  color: var(--app-text-1);
+}
+.ci-panel-head { border-bottom: 1px solid var(--app-card-border) !important; }
+.ci-panel-title,
+.ci-attach-item,
+.ci-attach-item span { color: var(--app-text-1) !important; }
+.ci-tab { color: var(--app-text-2); }
+
+/* =====================================================================
+   GENEL: BLUR YOK + TÜM DİYALOG/KART KATMANLARI TEMAYA UYAR
+   ===================================================================== */
+
+/* 1) Performans: uygulamada hiçbir yerde backdrop-filter kullanılmaz */
+*,
+*::before,
+*::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 2) Ortak diyalog katmanı (Çıkış, Sohbeti sil vb.) */
+.sb-dialog {
+  position: fixed; inset: 0; z-index: 100000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: rgba(6, 10, 16, 0.5);
+}
+.sb-dialog-card {
+  width: 100%; max-width: 340px;
+  background: var(--app-surface-solid);
+  color: var(--app-text-1);
+  border: 1px solid var(--app-card-border);
+  border-radius: 22px;
+  padding: 22px 20px;
+  box-shadow: 0 24px 60px -22px rgba(0, 0, 0, .45);
+  font-family: var(--app-font);
+}
+.sb-dialog-title { font-size: 1.05rem; font-weight: 800; margin-bottom: 6px; color: var(--app-text-1); }
+.sb-dialog-text { font-size: .84rem; line-height: 1.5; color: var(--app-text-2); margin-bottom: 16px; }
+.sb-dialog-btn {
+  width: 100%; min-height: 44px; margin-bottom: 10px;
+  border: 1px solid var(--app-card-border);
+  border-radius: 14px; cursor: pointer;
+  background: var(--app-field);
+  color: var(--app-text-1);
+  font-family: inherit; font-weight: 700; font-size: .92rem;
+}
+.sb-dialog-btn:last-child { margin-bottom: 0; }
+.sb-dialog-btn-ghost { background: transparent; color: var(--app-text-2); font-weight: 600; }
+.sb-dialog-btn-danger { background: transparent; border-color: var(--app-card-border); color: #d9534f; }
+html.sb-dark .sb-dialog-btn-danger { color: #ff8a80; }
+
+/* 3) Motorun kendi modalları/sheet'leri: tema zeminini kullansın */
+#csModal .cs-sheet,
+#dataInfoModal > div,
+.ui-sheet-panel,
+.msg-action-sheet,
+.oo-sheet,
+.sheet-panel {
+  background: var(--app-surface-solid) !important;
+  color: var(--app-text-1) !important;
+  border-color: var(--app-card-border) !important;
+}
+#csModal .cs-title,
+#dataInfoModal h3,
+#dataInfoModal strong,
+.ui-sheet-panel .sheet-title { color: var(--app-text-1) !important; }
+#dataInfoModal p,
+#dataInfoModal div[style*="color"] { color: var(--app-text-2) !important; }
+#csModal .cs-grab { background: var(--app-card-border) !important; }
+#csModal .cs-close {
+  background: var(--app-field) !important;
+  color: var(--app-text-1) !important;
+  border: 1px solid var(--app-card-border) !important;
+}
+
+/* 4) Vurgu kutusu / degrade yok — düz, temaya uygun yüzeyler */
+#dataInfoModal button,
+.sb-dialog-btn { background-image: none !important; }
+
+/* ================= PRÇN 571 / sohbet menüsü katmanı ================= */
+.prcn-layer { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: flex-end;
+  justify-content: center; background: rgba(4, 8, 14, .5); }
+.prcn-layer.full { align-items: stretch; justify-content: stretch; background: var(--app-bg, #fff); }
+.prcn-card { width: 100%; max-width: 520px; background: var(--app-surface-solid, #fff);
+  color: var(--app-text-1); border-radius: 22px 22px 0 0; display: flex; flex-direction: column;
+  max-height: 92vh; overflow: hidden; box-shadow: var(--app-card-shadow); font-family: var(--app-font); }
+.prcn-card.full { border-radius: 0; max-width: none; width: 100%; height: 100%;
+  max-height: none; box-shadow: none; background: var(--app-bg, var(--app-surface-solid, #fff)); }
+.prcn-head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--app-card-border); }
+.prcn-card.full .prcn-head { padding-top: calc(14px + env(safe-area-inset-top)); }
+.prcn-title { font-weight: 650; font-size: 1.05rem; }
+.prcn-x { width: 36px; height: 36px; border-radius: 99px; border: none; cursor: pointer;
+  background: var(--app-field); color: var(--app-text-1); }
+.prcn-body { padding: 12px 14px calc(18px + env(safe-area-inset-bottom)); overflow-y: auto; }
+.prcn-card.full .prcn-body { flex: 1 1 auto; }
+.prcn-list { display: flex; flex-direction: column; }
+.prcn-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 6px;
+  background: transparent; border: none; border-bottom: 1px solid var(--app-card-border);
+  color: var(--app-text-1); text-align: left; cursor: pointer; font: inherit; }
+.prcn-row:last-child { border-bottom: none; }
+.prcn-row > i:first-child { width: 26px; text-align: center; color: var(--app-text-2); }
+.prcn-row span { flex: 1; display: flex; flex-direction: column; }
+.prcn-row em { font-style: normal; font-size: .78rem; color: var(--app-text-2); margin-top: 2px; }
+.prcn-chev { color: var(--app-text-3); font-size: .8rem; }
+.prcn-note { font-size: .86rem; color: var(--app-text-2); line-height: 1.5; margin: 4px 0 14px; }
+.prcn-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 99px;
+  background: var(--app-field); color: var(--app-text-1); font-size: .82rem; margin-bottom: 12px; }
+.prcn-kv { display: flex; justify-content: space-between; gap: 10px; padding: 11px 0;
+  border-bottom: 1px solid var(--app-card-border); font-size: .88rem; }
+.prcn-kv span { color: var(--app-text-2); }
+.prcn-field { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; font-size: .82rem;
+  color: var(--app-text-2); }
+.prcn-field.hidden { display: none; }
+.prcn-field input { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--app-card-border);
+  background: var(--app-field); color: var(--app-text-1); font: inherit; }
+.prcn-check { display: flex; align-items: center; gap: 10px; margin: 12px 0; font-size: .86rem;
+  color: var(--app-text-1); }
+.prcn-actions { display: flex; gap: 10px; margin-top: 14px; }
+.prcn-actions.col { flex-direction: column; }
+.prcn-actions.sticky { position: sticky; bottom: 0; background: var(--app-surface-solid, #fff);
+  padding-top: 10px; }
+.prcn-btn { flex: 1; padding: 14px; border: none; border-radius: 99px; cursor: pointer;
+  background: var(--app-text-1); color: var(--app-surface-solid, #fff); font: inherit; font-weight: 650; }
+.prcn-btn.ghost { background: var(--app-field); color: var(--app-text-1); }
+.prcn-btn:active { transform: scale(.99); }
+.prcn-seg { display: flex; gap: 6px; background: var(--app-field); padding: 4px; border-radius: 99px; }
+.prcn-segb { flex: 1; padding: 10px; border: none; border-radius: 99px; cursor: pointer;
+  background: transparent; color: var(--app-text-2); font: inherit; }
+.prcn-segb.on { background: var(--app-surface-solid, #fff); color: var(--app-text-1); font-weight: 650; }
+
+/* 571 kutu ızgarası */
+.prcn-571top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.prcn-571top b { display: block; font-size: .98rem; }
+.prcn-571top em { font-style: normal; font-size: .78rem; color: var(--app-text-2);
+  letter-spacing: .06em; }
+.prcn-571orb, .prcn-keyorb { width: 44px; height: 44px; border-radius: 14px; display: flex;
+  align-items: center; justify-content: center; color: #fff; flex: none;
+  background: radial-gradient(circle at 30% 25%, #6ee7b7 0%, #10b981 40%, #0f766e 100%);
+  box-shadow: 0 6px 16px -8px rgba(16, 185, 129, .9); animation: prcnPulse 2.6s ease-in-out infinite; }
+@keyframes prcnPulse { 0%,100% { transform: scale(1) } 50% { transform: scale(1.06) } }
+.prcn-571grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px;
+  margin: 14px 0; }
+.prcn-box { position: relative; display: block; }
+.prcn-box i { position: absolute; top: 2px; left: 5px; font-size: .56rem; font-style: normal;
+  color: var(--app-text-3); }
+.prcn-box input { width: 100%; padding: 15px 4px 5px; text-align: center; font: inherit;
+  font-size: .82rem; border-radius: 10px; border: 1px solid var(--app-card-border);
+  background: var(--app-field); color: var(--app-text-1); }
+.prcn-box input:focus { outline: 2px solid #10b981; outline-offset: 0; }
+
+/* Anahtar rozeti (mesaj yerine) */
+.prcn-keycard { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px;
+  background: var(--app-surface-solid, #fff); color: var(--app-text-1);
+  border: 1px solid var(--app-card-border); box-shadow: var(--app-card-shadow); max-width: 300px; }
+.prcn-keycard.own { margin-left: auto; }
+.prcn-keytx { display: flex; flex-direction: column; flex: 1; }
+.prcn-keytx b { font-size: .9rem; letter-spacing: .04em; }
+.prcn-keytx span { font-size: .74rem; color: var(--app-text-2); }
+.prcn-keyok { padding: 8px 12px; border: none; border-radius: 99px; cursor: pointer;
+  background: #10b981; color: #fff; font: inherit; font-size: .78rem; font-weight: 650; }
+.prcn-keydone { font-size: .74rem; color: #10b981; }
+.prcn-inline { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 14px;
+  background: var(--app-field); color: var(--app-text-1); font-size: .8rem; }
+.prcn-preview { margin-top: 14px; border-radius: 16px; overflow: hidden; background: var(--app-field); }
+.prcn-preview video { width: 100%; display: block; }
+.prcn-toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 2147483001;
+  padding: 11px 16px; border-radius: 99px; background: var(--app-text-1);
+  color: var(--app-surface-solid, #fff); font-size: .82rem; font-family: var(--app-font);
+  box-shadow: var(--app-card-shadow); transition: opacity .35s; }
+.prcn-toast.out { opacity: 0; }
+.prcn-archived { display: none !important; }
+
+/* ---------- PRÇN: ⋮ düğmesine yapışık menü ---------- */
+.prcn-pop-back { position: fixed; inset: 0; z-index: 2147483000; background: rgba(0,0,0,.16); }
+.prcn-pop { position: fixed; width: min(300px, calc(100vw - 20px));
+  background: var(--app-surface-solid, #fff); color: var(--app-text-1);
+  border: 1px solid var(--app-card-border); border-radius: 18px;
+  box-shadow: 0 18px 46px rgba(0,0,0,.28); padding: 6px 12px;
+  transform: translateY(-8px) scale(.97); opacity: 0; transform-origin: top right;
+  transition: transform .16s ease, opacity .16s ease; }
+.prcn-pop.in { transform: none; opacity: 1; }
+.prcn-pop-arrow { position: absolute; top: -7px; width: 14px; height: 14px; rotate: 45deg;
+  background: var(--app-surface-solid, #fff); border-left: 1px solid var(--app-card-border);
+  border-top: 1px solid var(--app-card-border); border-radius: 3px 0 0 0; }
+.prcn-pop .prcn-row { padding: 13px 4px; }
+
+/* ---------- PRÇN: canlı yazma baloncuğu ---------- */
+.prcn-live { display: flex; padding: 2px 10px 6px; }
+.prcn-live.me { justify-content: flex-end; }
+.prcn-live-b { max-width: 78%; display: inline-flex; align-items: center; gap: 4px;
+  padding: 9px 13px; border-radius: 18px; font-size: .92rem; line-height: 1.35;
+  background: #10b981; color: #06281d; white-space: pre-wrap; word-break: break-word;
+  box-shadow: 0 6px 18px rgba(16,185,129,.32); }
+.prcn-live.me .prcn-live-b { background: #34d399; }
+.prcn-caret { width: 2px; height: 1.05em; background: #06281d; display: inline-block;
+  animation: prcnBlink 1s steps(1) infinite; }
+@keyframes prcnBlink { 50% { opacity: 0; } }
+
+.prcn-preview video { width: 100%; display: block; background: #000; aspect-ratio: 16/9; object-fit: contain; }
+.prcn-preview.live { margin-top: 0; border-radius: 14px; }
+
+/* ---------- PRÇN: tam ekran açıkken arka plan kaydırmayı kilitle ---------- */
+.prcn-noscroll { overflow: hidden; }
+
+/* =====================================================================
+   HİBRİT AVATAR (C) — zemin nötr tema, ikon/baş harf vurgu renginde
+   ===================================================================== */
+:root {
+  --app-avatar-bg: color-mix(in srgb, var(--primary-green, #2f8f83) 12%, #ffffff);
+  --app-avatar-fg: var(--primary-green, #2f8f83);
+  --app-avatar-border: color-mix(in srgb, var(--primary-green, #2f8f83) 22%, transparent);
+}
+html.sb-dark {
+  --app-bg: var(--sb-dark-bg, #0f1418);
+  --app-avatar-bg: rgba(255, 255, 255, 0.08);
+  --app-avatar-fg: var(--primary-green, #9aa7b2);
+  --app-avatar-border: rgba(255, 255, 255, 0.10);
+}
+
+#screen-sohbetler .conv-avatar,
+.contact-avatar,
+.group-avatar,
+.chat-h-avatar,
+.cc-avatar {
+  background: var(--app-avatar-bg) !important;
+  background-image: none !important;
+  color: var(--app-avatar-fg) !important;
+  border: 1px solid var(--app-avatar-border);
+  font-weight: 700;
+}
+#screen-sohbetler .conv-avatar img,
+.contact-avatar img,
+.group-avatar img,
+.chat-h-avatar img,
+.cc-avatar img { border: 0; }
+
+/* Fotoğrafı olan avatarlarda zemin/kenarlık görünmesin */
+.chat-h-avatar:has(img),
+.cc-avatar:has(img),
+#screen-sohbetler .conv-avatar:has(img),
+.contact-avatar:has(img) { background: transparent !important; border-color: transparent; }
+
+/* Rehberde kayıtlı olmayan kişi: baş harf yerine kişi simgesi (küçük değil) */
+.sb-av-icon {
+  font-size: 1.5rem !important;
+  line-height: 1;
+  color: var(--app-avatar-fg);
+  opacity: .95;
+}
+
+/* Gece modunda vurgu paleti — swatch'lar */
+#screen-tema .color-swatch { border: 1px solid var(--app-card-border); }
+#screen-tema .color-swatch.active { outline: 2px solid var(--primary-green); outline-offset: 2px; }
+
+/* Sohbet balonlarında tarayıcı metin seçimi / "Kopyala" bağlam balonu çıkmasın.
+   Kopyalama uygulamanın kendi mesaj menüsünden yapılır. */
+#chatMessages,
+#chatMessages .msg,
+#chatMessages .msg-bubble,
+#chatMessages .msg-text,
+#chatMessages .msg-sender,
+#chatMessages .msg-meta {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ===== Native his: tarayıcı metin seçimi / "arama sonuçları" balonu çıkmasın =====
+   Sadece gerçek giriş alanlarında seçim serbest. */
+html, body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+input, textarea, [contenteditable="true"], .allow-select {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}

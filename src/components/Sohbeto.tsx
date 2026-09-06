@@ -8,6 +8,11 @@ import {
   markFounderMessageDelivered,
   verifyFounderLogin,
 } from "@/pwa/registry";
+import { setMyKey, getPeerKey, enqueue, fetchQueue, markDelivered } from "@/pwa/asiliveri";
+import { initNativeNotifications } from "@/native/nativeNotify";
+import { syncFcmNames } from "@/native/fcm";
+
+
 
 
 /**
@@ -116,6 +121,53 @@ const Sohbeto: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // APK (Capacitor) tarafı: FCM'siz yerel bildirimler. Web/PWA'da devreye girmez.
+  useEffect(() => {
+    void initNativeNotifications((payload) => deliver(payload));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  // ASILI VERİ: uygulama açıkken sonradan gelen (offline) mesajları düzenli çek.
+  useEffect(() => {
+    let stopped = false;
+    const pull = async () => {
+      if (stopped) return;
+      if (!iframeReadyRef.current) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      try {
+        const list = await fetchQueue();
+        if (list.length) {
+          frameRef.current?.contentWindow?.postMessage({ type: "sohbeto:asili-kuyruk", list }, "*");
+        }
+      } catch {
+        /* ağ yoksa sessiz geç */
+      }
+    };
+    const timer = window.setInterval(pull, 15000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void pull();
+    };
+    const onWake = () => void pull();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", pull);
+    // FCM "uyan" sinyali / native yoklama → kuyruğu hemen çek (APK).
+    window.addEventListener("sohbeto:fcm-wake", onWake);
+    window.addEventListener("sohbeto:asili-yenile", onWake);
+    const first = window.setTimeout(pull, 1500);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      window.clearTimeout(first);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", pull);
+      window.removeEventListener("sohbeto:fcm-wake", onWake);
+      window.removeEventListener("sohbeto:asili-yenile", onWake);
+    };
+  }, []);
+
+
+
   const handleLoad = () => {
     setIframeReady(true);
     iframeReadyRef.current = true;
@@ -152,6 +204,18 @@ const Sohbeto: React.FC = () => {
             id?: string;
             rid?: string;
             pin?: string;
+            // asılı veri köprüsü
+            pubkey?: string;
+            code?: string;
+            toPhone?: string;
+            payload?: string;
+            iv?: string | null;
+            alg?: string;
+            kind?: string;
+            msgId?: string | null;
+            codes?: string[];
+            names?: Record<string, string>;
+
           }
         | null;
       if (!d) return;
@@ -191,7 +255,32 @@ const Sohbeto: React.FC = () => {
       } else if (d.type === "sohbeto:verify-founder") {
         const res = await verifyFounderLogin(String(d.phone || ""), String(d.pin || ""));
         win?.postMessage({ type: "sohbeto:founder-verified", rid: d.rid, ...res }, "*");
+      } else if (d.type === "sohbeto:asili-anahtar-yaz") {
+        // Verimetri açık anahtarı defterine yazılır (özel anahtar cihazda kalır).
+        await setMyKey(String(d.pubkey || ""));
+      } else if (d.type === "sohbeto:asili-anahtar-al") {
+        const pubkey = await getPeerKey(String(d.phone || ""));
+        win?.postMessage({ type: "sohbeto:asili-anahtar", phone: d.phone, pubkey }, "*");
+      } else if (d.type === "sohbeto:asili-gonder") {
+        await enqueue({
+          code: String(d.code || ""),
+          toPhone: String(d.toPhone || ""),
+          payload: String(d.payload || ""),
+          iv: d.iv ?? null,
+          alg: d.alg ?? null,
+          kind: d.kind ?? null,
+          msgId: d.msgId ?? null,
+        });
+      } else if (d.type === "sohbeto:asili-cek") {
+        const list = await fetchQueue();
+        if (list.length) win?.postMessage({ type: "sohbeto:asili-kuyruk", list }, "*");
+      } else if (d.type === "sohbeto:asili-teslim") {
+        await markDelivered(d.codes || []);
+      } else if (d.type === "sohbeto:rehber-adlari") {
+        // APK bildirim başlığı için rehber adları (numara → ad). Web'de etkisiz.
+        await syncFcmNames((d.names || {}) as Record<string, string>);
       }
+
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);

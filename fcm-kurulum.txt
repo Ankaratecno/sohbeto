@@ -1,0 +1,119 @@
+SOHBETO — FCM (APK BİLDİRİMLERİ) KURULUM KILAVUZU
+=================================================
+
+GİZLİLİK: Google'a (FCM) giden paket SADECE {"t":"1"} = "uyan" sinyalidir.
+Mesaj metni, gönderen numarası, başlık, gövde — HİÇBİRİ Google'dan geçmez.
+Telefon uyanınca kendi Supabase'inden "kim yazdı / arama mı" biletini çeker
+ve bildirimi cihazda kurar: "Ayşe: yeni mesaj" / "Ayşe seni arıyor".
+Mesajın kendisi zaten asili_veri'de şifreli blob olarak durur; yalnızca
+uygulama içinde çözülür.
+
+Web (GitHub Pages / PWA) tarafı DEĞİŞMEDİ: Web Push aynen çalışır.
+google-services.json eklenmezse APK eski yoklama akışıyla çalışmaya devam eder.
+
+-----------------------------------------------------------------
+ADIM 1 — FIREBASE PROJESİ AÇ
+-----------------------------------------------------------------
+1. https://console.firebase.google.com  → "Proje ekle" (Add project)
+2. Proje adı: Sohbeto (istediğin ad) → Devam
+3. Google Analytics: KAPAT (gerekmez) → "Proje oluştur"
+
+-----------------------------------------------------------------
+ADIM 2 — ANDROID UYGULAMASINI EKLE
+-----------------------------------------------------------------
+1. Proje ana sayfasında Android simgesine tıkla ("Uygulama ekle")
+2. Android paket adı:   app.sohbeto.mobile     ← BİREBİR AYNI olmalı
+3. Takma ad: Sohbeto (isteğe bağlı) → "Uygulamayı kaydet"
+4. "google-services.json'ı indir" → dosyayı bilgisayarına kaydet
+5. Kalan adımları (SDK ekleme vb.) ATLA → "Konsola devam et"
+
+-----------------------------------------------------------------
+ADIM 3 — google-services.json'ı GITHUB'A KOY (SECRET OLARAK)
+-----------------------------------------------------------------
+Dosyayı repoya YÜKLEME; secret olarak ver:
+1. GitHub → repo → Settings → Secrets and variables → Actions
+2. "New repository secret"
+3. Name:  GOOGLE_SERVICES_JSON
+4. Secret: google-services.json dosyasının İÇERİĞİNİ olduğu gibi yapıştır
+   (Not Defteri ile aç, Ctrl+A, Ctrl+C)
+5. Add secret
+
+(Alternatif: yerelde derliyorsan dosyayı android-patch/google-services.json
+olarak koyabilirsin; patch-android.sh otomatik kopyalar. Repoya commit ETME.)
+
+-----------------------------------------------------------------
+ADIM 4 — SERVİS HESABI ANAHTARI (SUNUCUNUN GOOGLE'A KONUŞMASI İÇİN)
+-----------------------------------------------------------------
+1. Firebase Console → sol üst dişli ⚙ → "Proje ayarları"
+2. Üstte "Hizmet hesapları" (Service accounts) sekmesi
+3. "Firebase Admin SDK" seçili → "Yeni özel anahtar oluştur" → "Anahtar oluştur"
+4. Bir .json dosyası iner (içinde project_id, client_email, private_key var)
+   BU DOSYA GİZLİDİR. Kimseyle paylaşma, repoya koyma.
+
+-----------------------------------------------------------------
+ADIM 5 — CLOUD MESSAGING API'Yİ AÇ
+-----------------------------------------------------------------
+1. Proje ayarları → "Cloud Messaging" sekmesi
+2. "Firebase Cloud Messaging API (V1)" → Etkin (Enabled) olmalı.
+   "Devre dışı" yazıyorsa üç noktaya tıkla → Google Cloud Console'da aç → "Enable"
+
+-----------------------------------------------------------------
+ADIM 6 — SUPABASE'E SECRET EKLE
+-----------------------------------------------------------------
+1. https://supabase.com/dashboard → projen (vtqfkrxakvltyurjcwqe)
+2. Sol menü: Edge Functions → "Secrets" (ya da Project Settings → Edge Functions)
+3. "Add new secret"
+   Name:  FCM_SERVICE_ACCOUNT
+   Value: Adım 4'te inen .json dosyasının İÇERİĞİ (tamamı, tek parça)
+4. Save
+
+-----------------------------------------------------------------
+ADIM 7 — SQL ÇALIŞTIR
+-----------------------------------------------------------------
+1. Supabase → SQL Editor → New query
+2. Bu projedeki  supabase/fcm.sql  dosyasının içeriğini yapıştır → RUN
+   (fcm_tokens, fcm_tickets tabloları + upsert_fcm_token fonksiyonu oluşur)
+
+-----------------------------------------------------------------
+ADIM 8 — send-push FONKSİYONUNU YENİDEN DEPLOY ET
+-----------------------------------------------------------------
+Bilgisayarında terminalden (Supabase CLI kuruluysa):
+   supabase functions deploy send-push
+ya da Supabase Dashboard → Edge Functions → send-push → kodu
+supabase/functions/send-push/index.ts içeriğiyle güncelle → Deploy.
+
+-----------------------------------------------------------------
+ADIM 9 — APK'YI YENİDEN DERLE
+-----------------------------------------------------------------
+1. Kodu main dalına push et → GitHub Actions "Build Android APK" çalışır
+2. Log'da şu satırı gör:  "FCM: etkin (google-services.json bulundu)"
+3. Release'ten yeni APK'yı indir, telefona kur
+4. Uygulamayı aç, bildirim iznini ver, numaranla giriş yap
+
+-----------------------------------------------------------------
+KONTROL
+-----------------------------------------------------------------
+- Supabase → Table Editor → fcm_tokens: telefonun için bir satır olmalı.
+- Başka bir cihazdan bu numaraya mesaj at (uygulama kapalıyken):
+  üst barda "Ayşe: yeni mesaj" (rehberdeki ad) ya da numara görünmeli.
+- Arama: tam ekran "Ayşe seni arıyor" + Cevapla / Reddet.
+- send-push cevabında  fcm_sent: 1  görünmeli (tarayıcı konsolu: [Sohbeto] send-push:)
+
+-----------------------------------------------------------------
+SIK SORUNLAR
+-----------------------------------------------------------------
+- fcm_note: "FCM_SERVICE_ACCOUNT yok"  → Adım 6 eksik.
+- fcm_sent: 0, fcm_tokens boş         → APK eski sürüm ya da google-services.json
+                                          secret'ı yok (Adım 3), APK'yı yeniden derle.
+- 403 / PERMISSION_DENIED             → Adım 5 (API etkin değil) ya da servis
+                                          hesabı yanlış projeden.
+- Bildirimde ad yerine numara         → kişi rehberde kayıtlı değil; rehbere
+                                          ekleyince 30 sn içinde ad senkronlanır.
+- Xiaomi/Huawei/Oppo                  → Ayarlar → Pil → Sohbeto → "Kısıtlama yok"
+                                          + Otomatik başlat AÇIK.
+
+NEDEN MESAJ METNİ ("merhaba") BİLDİRİMDE GÖRÜNMÜYOR?
+Metin uçtan uca şifrelidir; anahtar yalnızca uygulamanın içindedir. Bildirimi
+kuran native katman metni çözemez (ve çözmemelidir). Bu yüzden bildirimde
+"kişi adı + yeni mesaj" görünür; metin uygulama açılınca çözülür. Bu, FCM'e
+hiçbir şey sızdırmamanın bedelidir ve bilinçli tercihtir.

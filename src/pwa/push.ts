@@ -49,6 +49,13 @@ export async function setPushPhone(phone: string): Promise<void> {
   if (error) console.warn("[Sohbeto] Profil numarası yazılamadı:", error.message);
   // Abonelik satırındaki phone alanı boş kalmış olabilir → her girişte tazele.
   if ("Notification" in window && Notification.permission === "granted") await enablePush();
+  // APK: FCM token kaydına da numarayı yaz (web'de etkisiz).
+  try {
+    const { refreshFcmPhone } = await import("@/native/fcm");
+    await refreshFcmPhone(p);
+  } catch {
+    /* native yok */
+  }
 }
 
 

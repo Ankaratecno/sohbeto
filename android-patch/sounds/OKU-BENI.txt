@@ -1,0 +1,21 @@
+ÖZEL BİLDİRİM SESLERİ
+=====================
+
+Bu klasöre kendi ses dosyalarını koy, APK derlenirken otomatik eklenir:
+
+  android-patch/sounds/ringtone.mp3   → gelen arama zil sesi
+  android-patch/sounds/message.mp3    → yeni mesaj sesi
+
+Kurallar:
+- Dosya adı TAM olarak "ringtone" ve "message" olmalı (küçük harf).
+- mp3, ogg veya wav olabilir.
+- Dosya adında boşluk, Türkçe karakter veya tire olmasın (Android res/raw kuralı).
+- Zil sesi 20-30 sn, mesaj sesi 1-3 sn önerilir.
+
+Dosya yoksa: arama için telefonun varsayılan zil sesi, mesaj için varsayılan
+bildirim sesi kullanılır.
+
+ÖNEMLİ: Android bildirim kanalının sesini KURULUMDA kaydeder. Ses değiştirirsen
+kanal adını (CallNotificationPlugin.java içindeki CH_CALLS / CH_MESSAGES
+"..._v2" son ekini "_v3" yap) değiştirmen ya da uygulamayı kaldırıp yeniden
+kurman gerekir.

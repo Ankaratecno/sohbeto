@@ -1,0 +1,840 @@
+SOHBETO — PROFESYONEL SOHBET KAYDI
+Tüm tarih/saatler Ankara saatidir (UTC+3).
+Bu dosya, projenin başından itibaren yapılan tüm konuşmaların kaydıdır ve
+her yeni konuşmada güncellenir.
+Son güncelleme: 05.09.2026 23:58 (Ankara)
+
+================================================================================
+KULLANICI
+================================================================================
+merhaba lovable bu zip dosyasını olduğu gibi oluştur hiçbir kod eksik olmasın
+olduğu gibi sonra geliştirmeye devam edeceğiz seninle
+
+================================================================================
+LOVABLE
+================================================================================
+Yüklenen sohbeto0006.zip açıldı, .git verileri hariç tüm dosyalar projeye
+olduğu gibi kopyalandı. Bağımlılıklar kuruldu, uygulama sorunsuz açıldı ve
+build "OK" verdi.
+
+================================================================================
+KULLANICI
+================================================================================
+bu proje hem github pages hemde apk olarak telefona yüklendi github pageste
+bildirim geliyor galiba test ettiğimde fakat apk da gelmiyor bunun için
+foreground service mi kullanmak gerekiyor tespitim doğrumu? ayrıca sohbet
+içinde ki ekran paylaş capacitor apk sında çalışması için ne gerekli? önce
+cevaplar lütfen, kodlama ben sana kodla dediğimde yap.
+
+================================================================================
+LOVABLE
+================================================================================
+Tespitin doğru. APK şu an gerçek push kullanmıyor; 5–15 saniyede bir sunucuyu
+yoklayan bir zamanlayıcı var (src/native/nativeNotify.ts). Android uygulamayı
+arka plana attığında ya da öldürdüğünde bu zamanlayıcı durur, bildirim gelmez.
+
+Çözüm: asıl yol FCM (native push). Foreground service sadece aktif arama
+sırasında mantıklı; sürekli açık kalan bir yoklama servisi pil yer ve yine de
+öldürülebilir.
+
+Ekran paylaşımı: Android WebView tarayıcıdaki getDisplayMedia'yı desteklemez.
+APK'da ekran paylaşımı için Android MediaProjection API'si, bunu köprüleyen
+bir native Capacitor eklentisi, FOREGROUND_SERVICE_MEDIA_PROJECTION izni,
+kullanıcı onayı ve yakalanan ekran görüntüsünün WebRTC akışına eklenmesi
+gerekir.
+
+================================================================================
+KULLANICI
+================================================================================
+sen lovablede fcm var dedin bu fcm sınırsız mı ücretsiz mi? free varsa kaç
+bildirim? ekran paylaşımın capacitor apk'sında çalışmasına sevindim.
+
+================================================================================
+LOVABLE
+================================================================================
+FCM ile bildirim göndermek ücretsiz, mesaj başına ücret yok. Ama "sonsuz"
+değil: kota, hız sınırı, adil kullanım ve konu/cihaz abonelik sınırları var.
+Normal bir sohbet uygulaması için fazlasıyla yeterli. Capacitor Android,
+Web Push değil, Google Play Servisleri üzerinden native FCM kullanır.
+
+================================================================================
+KULLANICI
+================================================================================
+peki bu fcm sohbeto da kaç kişiyi kaldırır? 1000 mi, 100.000 mi, 1 milyon mu?
+ayrıca mesajlarım supabase'e şifreli yazılıyor, fcm'ye kullanıcı mesajı
+gitmeyecek değil mi? supabase'deki veritabanını firebase'de de görecek miyim?
+
+================================================================================
+LOVABLE
+================================================================================
+FCM'de "toplam kullanıcı tavanı" yok; önemli olan anlık gönderim hızı ve kota.
+Kabaca saniyede ~1000 doğrudan gönderim üzerinden düşünürsek 100.000 eşzamanlı
+bildirim ~1,5–2 dakika, 1 milyon ~16–17 dakika sürer.
+
+FCM'ye sadece "yeni mesaj var" / "gelen arama" gibi genel bir sinyal gider,
+mesaj içeriği gitmez. Şifreli mesajlar Supabase'de kalır, uygulama çeker ve
+cihazda çözer. Firebase tarafında yalnızca FCM token/konu kayıtları görünür;
+Sohbeto mesaj veritabanı orada olmaz.
+
+================================================================================
+KULLANICI
+================================================================================
+yani mesela telegram bunu mu kullanıyor?
+
+================================================================================
+LOVABLE
+================================================================================
+Benzer bir mantık ama birebir aynısı değil. Telegram'ın normal bulut sohbetleri
+istemci-sunucu şifreli, yani Telegram teknik olarak okuyabilir; "gizli
+sohbetler" uçtan uca şifreli. Telegram bildirimlerde FCM/APNs'e sınırlı
+üstveri gönderir ve kendi MTProto/push altyapısını kullanır. Sohbeto'da hedef:
+şifreli mesaj Supabase'de kalsın, FCM sadece uyandırma sinyali olsun.
+
+================================================================================
+KULLANICI
+================================================================================
+telegramın üyeliği ile benimki aynı mı? telegramı 1 milyar kişi kullanıyor,
+1 milyar kişiden saniyede 1000 mesaj çıkar mesela, onu diyorum ben.
+
+================================================================================
+LOVABLE
+================================================================================
+Telegram tek başına FCM'e bağlı değil; kendi küresel dağıtık MTProto ve push
+ağını işletir, FCM/APNs'i sadece cihaza ulaşma kanalı olarak kullanır. Sohbeto
+doğrudan FCM gönderiminde proje kotalarına tabidir; geniş duyurular için konu
+(topic) yayını kullanılabilir. Birebir mesaj ve arama bildirimleri sorun
+olmaz; Telegram ölçeği için çoklu proje, bölgesel kuyruklar, kota artırımı ve
+özel dağıtım mimarisi gerekir.
+
+================================================================================
+KULLANICI
+================================================================================
+yani 1 milyar kullanıcım olursa yeterli değil öyle mi? ayrıca ben de telegram
+gibi kendi push sistemimi geliştirip uygulama uyuduğunda bildirim göndermek
+istiyorum, mümkün mü? telefonlarda fcm zorunlu gibi bir şey diye biliyorum.
+
+================================================================================
+LOVABLE
+================================================================================
+"Saniyede tam 1000" diye evrensel bir katı sınır yok; mesaj tipine, kotaya ve
+projeye göre değişir, paralel işleme ve kuyruk vardır. 1 milyar kayıtlı
+kullanıcı, 1 milyar eşzamanlı bildirim demek değildir.
+
+Kendi push arka ucunu yazabilirsin (yönlendirme, kuyruk, dağıtım). Ama
+telefondaki son "uyandırma" kanalını tam güvenilir şekilde değiştiremezsin:
+Google sertifikalı Android'de FCM, iOS'ta APNs. Foreground service bağlantıyı
+ayakta tutar ama pil yer, kalıcı bildirim gösterir ve yine de öldürülebilir;
+zorla durdurulmuş uygulamayı hiçbir push uyandıramaz. Telegram da açıkken kendi
+bağlantısını, uykudayken büyük ölçüde FCM/APNs'i kullanır.
+
+================================================================================
+KULLANICI
+================================================================================
+anladım, fcm'ye mecburuz. peki bunu nasıl bağlayacağız, otomatik mi oluyor?
+apk çıktısını githubdan alıp samsung store'a koysam fcm çalışacak mı?
+
+================================================================================
+LOVABLE
+================================================================================
+Lovable'ın Firebase Cloud Messaging bağlayıcısı sunucu/geçit tarafını verir,
+ama native APK entegrasyonu otomatik değil. Web/GitHub Pages için FCM web
+yapılandırması ve service worker + VAPID değerleri gerekir. Capacitor Android
+için @capacitor-firebase/messaging gibi bir eklenti, android/app/ içine
+google-services.json, Gradle ayarları, token'ın Supabase'e kaydı ve aramalar
+için yüksek öncelikli veri mesajı gerekir. Mağaza sürümünde aynı paket adı ve
+imza korunmalı. Google Play Servisi olan Samsung cihazlarda çalışır; olmayan
+cihazlarda yedek olarak yoklama kalır.
+
+================================================================================
+KULLANICI
+================================================================================
+yani firebase'e üye olmak zorunda mıyım?
+
+================================================================================
+LOVABLE
+================================================================================
+Evet. FCM Google'ın hizmeti; bir Firebase projesi açıp uygulamanı tanımlaman
+gerekir. Lovable bağlayıcısı sunucu tarafını kolaylaştırır ama Firebase hesabı
+olmadan FCM çalışmaz.
+
+================================================================================
+KULLANICI
+================================================================================
+gunesos (webos) projemi apk yapsam ve sohbetoyu içine koysam, kendi push
+bildirimimi bunun içine koymam için ne gerekli? gunesos uyandırılıp sohbetoya
+"sana mesaj var" diyebilir mi, fcm olmadan olur mu?
+
+================================================================================
+LOVABLE
+================================================================================
+Evet, FCM'siz yapılabilir ama bedeli var. GunesOS APK'sı içinde sürekli açık
+bir WebSocket/MQTT bağlantısı tutan bir foreground service çalışır; Android'de
+arka planda kalıcı bağlantı ancak böyle mümkün ve kalıcı bir bildirim
+göstermek zorundadır. Sunucun "sohbeto: yeni mesaj / gelen arama" sinyalini
+GunesOS'a yollar, o da Sohbeto'yu uyandırır. Pil optimizasyonu, üretici
+kısıtları (Samsung/Xiaomi vb.) ve mağaza gerekçelendirmesi ana zorluklardır.
+Önerim hibrit: GunesOS kendi köprüsünü çalıştırsın, FCM yedek uyandırıcı
+olsun.
+
+================================================================================
+KULLANICI
+================================================================================
+sence kullanıcı hangisini daha çok sever, gunesos içinde ki sohbeto mu yoksa
+dışında ki bağımsız sohbeto mu?
+
+================================================================================
+LOVABLE
+================================================================================
+Çoğu kullanıcı bağımsız Sohbeto'yu sever: ayrı simge, daha güvenilir bildirim,
+daha doğal izin akışı. GunesOS içindeki sürüm ise ekosistem kullanıcısı için
+değerli. Önerim: ana ürün bağımsız Sohbeto APK, GunesOS'ta ise mini uygulama /
+kısayol olarak aynı hesapla erişim.
+
+================================================================================
+KULLANICI
+================================================================================
+bu fcm kredi kartı istemiyor değil mi?
+
+================================================================================
+LOVABLE
+================================================================================
+Hayır. Firebase projesi açmak için Google hesabı yeterli; FCM ücretsiz. Sadece
+Firebase'in diğer ürünleri (Firestore, Storage, Functions) ücretsiz limitleri
+aşarsa faturalama gerekebilir.
+
+================================================================================
+KULLANICI
+================================================================================
+kota artırımını ilk açılışta yapmak mümkün mü?
+
+================================================================================
+LOVABLE
+================================================================================
+Otomatik veya tek tıkla değil. Yeni projede varsayılan kotalar verilir; daha
+fazlası için Google Cloud Console > Quotas üzerinden talep açılır ve Google
+inceler. Yüksek kotalarda faturalama hesabı istenebilir. Normal kullanımda
+baştan artırım yapmaya gerek yoktur.
+
+================================================================================
+KULLANICI
+================================================================================
+yani 1000 kişi saniyede ortalaması demek sohbetoyu kaç kişi kullanacak demek?
+
+================================================================================
+LOVABLE
+================================================================================
+Hayır, ikisi farklı. Toplam kullanıcı = uygulamayı kuran kişi sayısı; saniyede
+1000 bildirim = aynı saniyede kaç kişiye gönderebildiğin. 1 milyon kullanıcın
+olabilir, bu FCM'yi zorlamaz; zorlayan şey aynı anda milyonlarca kişiye
+eşzamanlı bildirimdir. Birebir mesaj ve aramada bu nadirdir.
+
+================================================================================
+KULLANICI
+================================================================================
+ilerideki hayallerim: sohbeto içinden evdeki pc'yi kontrol etmek, iş yerinden
+pc'ye tam hakimiyet. ayrıca arayüz çeşitliliği; mevcut SO ve A2 arayüzleri var,
+F1 olarak fenerbahçe taraftar arayüzü olsun, arma 3d gibi dursun. 2 örnek
+tasarla. kodlama yapma.
+
+================================================================================
+LOVABLE
+================================================================================
+İki Fenerbahçe taraftar arayüzü örneği hazırlandı (fb-arayuz-1.jpg: sohbet
+listesi, 3D kabartmalı arma, sarı-lacivert cam kartlar; fb-arayuz-2.jpg:
+sohbet ekranı, dev 3D arma filigranı, sarı balonlar, stadyum ışığı).
+
+PC kontrolü üç seviyede mümkün:
+1) Ekran + fare/klavye tam hakimiyet: PC'ye küçük bir "ajan" programı kurulur,
+   ekranı WebRTC ile Sohbeto'ya yayınlar, dokunuşların fare/klavyeye çevrilir.
+2) Dosya ve komut seviyesi: dosya listeleme, indirme, yükleme, uygulama
+   başlatma, kapatma/uyutma gibi komutlar.
+3) Basit otomasyon: önceden tanımlı görevler.
+Güvenlik için eşleştirme kodu ve "sadece bu hesap" kilidi şart.
+
+Not: kulüp arması ve isimleri tescillidir; para karşılığı satmadan önce lisans
+gerekir. Lisanssız yol: armasız, sadece renk ve desen temelli taraftar paketi.
+
+================================================================================
+[04.09.2026 23:27 Ankara] KULLANICI
+================================================================================
+pc hakimiyetinde 2. olanı mı öneriyorsun? pc ekranını hangisinde görebilirim?
+dosya al gönder veya dosya kaydet müthiş bir şey olur. uyku modunda pc
+elektrik harcıyor mu, uykudayken uyandırma mümkün mü, kapalıyken zaten
+açamayız değil mi? pc'deki oyunu açıp oynanabilir mi 2. seçenekte? böyle bir
+uygulama var mı mobilde? arayüzler çok güzel, aynısını yapabilir misin? son
+olarak sohbeto ismi güzel mi, böyle kalmalı mı? iyi kodlarsak kullanıcı sayımız
+ne olur? ayrıca çoklu profil fotoğrafı istiyorum: x kişiye farklı, y kişiye
+farklı, rehberimde olmayanlara farklı. kodlama yapma, tüm konuşmaları
+profesyonelsohbet.txt içine yaz.
+
+================================================================================
+[04.09.2026 23:27 Ankara] LOVABLE
+================================================================================
+PC HAKİMİYETİ — HANGİSİ?
+Önerim: 1 + 2'yi birlikte kur, ama 2 ile başla.
+- Ekranı GÖRMEK ve fare/klavye kullanmak = 1. seçenek. Ekranı sadece burada
+  görürsün. Oyun açıp oynamak da yalnızca burada mümkün (ekran akışı + girdi
+  kontrolü gerekir). Mobil ekranda oyun oynamak teknik olarak olur ama gecikme
+  yüzünden hızlı oyunlar zor, strateji/yönetim oyunları rahat.
+- Dosya alma, gönderme, kaydetme, program açma/kapatma = 2. seçenek. Bu daha
+  hafif, daha hızlı ve daha güvenilir. Ekran görüntüsü olmadan da çalışır.
+Yani "dosya al/gönder/kaydet" için 2, "ekranı gör ve oyna" için 1 gerekir.
+İkisi aynı ajan programının iki yeteneği olur; tek kurulum yeter.
+
+UYKU MODU, UYANDIRMA, KAPALI PC
+- Uyku modunda PC elektrik harcar ama çok az; genelde 1–3 watt seviyesinde
+  (RAM'i beslemek ve ağ kartını canlı tutmak için). Hazırda beklet (hibernate)
+  neredeyse sıfır harcar ama ağdan uyandırılamaz.
+- Uykudayken uzaktan uyandırmak mümkün: Wake-on-LAN. Aynı ev ağındaki başka
+  bir cihaz (modem, ikinci mini PC, hatta Raspberry Pi) üzerinden "sihirli
+  paket" gönderilir. Anakart ve ağ kartı ayarlarında WoL açık olmalı, kablolu
+  bağlantı çok daha güvenilirdir (Wi-Fi'de çoğu zaman çalışmaz).
+- Tamamen kapalı PC: normal şartlarda uzaktan açılamaz. İstisna: WoL bazı
+  anakartlarda "kapalıyken de dinle" modunu destekler ve kurumsal makinelerde
+  Intel vPro/AMT gibi donanım özellikleri vardır. Ev PC'sinde pratik cevap:
+  hayır, kapalıyken açamayız — bu yüzden PC'yi uykuda bırakmak doğru yol.
+
+BÖYLE BİR UYGULAMA VAR MI?
+Uzaktan masaüstü uygulamaları var (ekranı gösteren, fare/klavye veren). Dosya
+aktarımı yapan ayrı uygulamalar da var. Ama bunların hiçbiri bir MESAJLAŞMA
+uygulamasının içinde değil. Sohbeto'nun farkı tam burada: sohbet ederken aynı
+pencerede "PC'm" sekmesine geçip dosyanı alman, kaydetmen, ekranı görmen ve
+bunu sohbete anında göndermen. Bu birleşim gerçekten yeni ve satılabilir bir
+fikir.
+
+ARAYÜZLER
+Evet, gönderdiğim iki görseldeki görünümün aynısını gerçek arayüz olarak
+yapabilirim: 3D kabartmalı arma, sarı-lacivert cam kartlar, filigranlı sohbet
+zemini, sarı balonlar. Tema paketi olarak SO ve A2'nin yanına eklenir.
+Hatırlatma: arma tescilli; ücretli satış için kulüp lisansı gerekir, lisanssız
+sürümde armasız renk/desen paketi güvenli yoldur.
+
+"SOHBETO" İSMİ
+Bence iyi bir isim: Türkçe kökü net ("sohbet"), söylenişi kolay, akılda kalıyor,
+markalaşmaya uygun ve aynı isimde bilinen bir mesajlaşma uygulaması yok. Yayına
+çıkmadan önce marka tescili başvurusu yapmanı öneririm. İsim kalabilir.
+
+KULLANICI SAYISI TAHMİNİ
+Dürüst tahmin (Türkiye odaklı, iyi kodlanmış, düzenli tanıtım ile):
+- İlk 6 ay: 1.000 – 20.000 kurulum. Bu aşamada asıl belirleyici tanıtım, kod
+  kalitesi değil.
+- 1–2 yıl, PC kontrolü ve taraftar temaları gerçekten çalışırsa: 50.000 –
+  300.000 kurulum mümkün.
+- Viral olur ve bir taraftar kitlesi sahiplenirse: 1 milyon üzeri de olabilir
+  ama bu şansa ve doğru zamanlamaya bağlı; garanti edilemez.
+Belirleyici olan üç şey: bildirimlerin gerçekten gelmesi, aramaların net
+çalışması ve insanların arkadaşlarını davet etmesi.
+
+ÇOKLU PROFİL FOTOĞRAFI
+Çok iyi bir fikir ve teknik olarak zor değil. Planı şöyle kuralım:
+- Varsayılan foto (herkes),
+- Rehberde olmayanlar için ayrı foto,
+- Kişi bazlı istisna: tek bir kişiye özel foto, başka birine bambaşka foto,
+- İstersen grup/etiket bazlı (aile, iş, arkadaş) foto.
+Gösterim sırası: kişiye özel > etiket > rehberde değil > varsayılan.
+Kişi kartında "Bu kişiye özel fotoğraf" seçeneği olur. Bunu kodlamaya
+başladığımızda profil fotoğrafı görünürlük kuralları da gizlilik ayarlarına
+bağlanır.
+
+Kodlama yapılmadı; istediğinde başlarız.
+
+================================================================================
+[05.09.2026 00:36 Ankara] KULLANICI
+================================================================================
+peki pc kontrolünde pc ye yazacağımız kod 1 ve 2 için çokmu zahmetli .exe
+dosyası olarakmı çıkacak mesela bunuda pazarlarken kendi markamız ile pazarlama
+şansı varmı örneğin web den sohbeto uygulamsına girer oradan indiri gibi
+
+================================================================================
+[05.09.2026 00:36 Ankara] LOVABLE
+================================================================================
+PC AJANI — ZORLUK & ÇIKTI
+- Seçenek 2 (dosya al/gönder, komut çalıştırma, uykuya al/uyandır): Orta
+  zorluk. Windows'ta C#/.NET veya Node.js + NW.js/Electron ile yazılır;
+  ekran görüntüsü almadığı için hafif ve kararlıdır.
+- Seçenek 1 (ekranı canlı görüp fare/klavye kontrolü): Daha zahmetli.
+  Ekran yakalama (DXGI/Desktop Duplication), WebRTC sunucu/istemci, fare/klavye
+  girdi enjeksiyonu ve izinler gerektirir. Oyun oynamak ek gecikme ve akış
+  kalitesi optimizasyonu ister.
+- En mantıklısı: tek kurulumla her ikisini de içeren bir ajan. Başlangıçta
+  sadece 2 aktif, ileride 1 de açılır.
+
+DAĞITIM
+- Evet, PC tarafı .exe (installer) olarak çıkar. Seçenekler:
+  a) C#/.NET: tek EXE + framework/runtime içine paketlenebilir.
+  b) Node.js + pkg/nexe: tek EXE yapılır ama imza/anti-virüs konusu daha
+     hassas olabilir.
+  c) Electron tabanlı: arayüz olur, ama paket büyüktür.
+- Kurulum: kullanıcı "Sohbeto PC Ajanı"nı indirir, kurar, açar, ekranda bir
+  eşleştirme kodu görür; Sohbeto mobil/web üzerinden kodu girer. Ajan, güvenlik
+  için "sadece bu Sohbeto hesabı"na izin verir.
+
+MARKALAŞMA
+- Kesinlikle kendi markanla pazarlanabilir. İsim önerileri:
+  "Sohbeto PC Ajanı", "Sohbeto Remote", "Sohbeto PC Köprüsü".
+- İndirme: sohbeto.com veya uygulama içinde "PC'm" / "Bilgisayarım" sekmesi
+  üzerinden "Sohbeto PC Ajanı İndir" butonu ile verilir.
+- Windows'ta güvenilir görünmesi için kod imzalama (code signing) sertifikası
+  şart değil ama önerilir; imzasız EXE'leri Windows Defender / SmartScreen
+  ilk açılışta uyarıyla karşılayabilir.
+
+ÖZET
+- Zahmetli değil, profesyonel bir proje; 2 seçeneği 2–4 haftada işlevsel
+  prototip çıkar. 1 seçenek 1–2 ayı bulur. .EXE installerla dağıtılır,
+  kendi markanla pazarlanır ve Sohbeto web/mobil içinden indirilir.
+
+Kodlama yapılmadı; istediğinde başlarız.
+
+================================================================================
+[05.09.2026 23:54 Ankara] KULLANICI
+================================================================================
+pc raminin farkını görme şansı var mı, pc nin diskini kullanma şansı var mı?
+ilerde pc sini kiralayanlara dağıtık ağda görev vermek hayalim: depolama,
+sunuculuk gibi. ramde veri durur, x kişi alır veri silinir gibi (blob verisi).
+bu sohbetoda yapılabilirse dünyada ilk oluruz değil mi? ilerde bu gücü push
+bildirimi için de kullanabiliriz. 1 milyon üyeden 800 bin pc sisteme kayıtlı
+olsun dünyada dağınık. sosyal ağ düşün: verin kendi pc ndeki sohbeto deposunda
+tutuluyor, telefonunda yer kaplamıyor. hayal et ve viral olma olasılığını
+paylaş.
+
+================================================================================
+[05.09.2026 23:54 Ankara] LOVABLE
+================================================================================
+RAM VE DİSK GÖRÜNÜRLÜĞÜ
+Evet. PC ajanı kurulduğunda toplam/boş RAM, CPU yükü, disk bölümleri ve boş
+alan bilgisi kolayca okunur ve Sohbeto içinde "PC'm" ekranında canlı gösterilir.
+Bu en kolay kısım; birkaç günlük iş.
+
+PC DİSKİNİ KULLANMAK (KİŞİSEL BULUT)
+Tamamen mümkün ve en gerçekçi büyük özellik bu. Kendi PC'n Sohbeto'nun deposu
+olur: fotoğraf/video/dosya telefonda yer kaplamaz, PC'de durur, telefondan
+listelenir, önizlenir, indirilir. Telefon-PC arası doğrudan (P2P) aktarım
+yapılır, sunucu sadece buluşturur. PC kapalıyken erişilemez; çözüm ya
+Wake-on-LAN ya da "son bakılanlar" için küçük bir bulut önbelleği.
+
+RAM'DE GEÇİCİ VERİ ("al ve sil")
+Teknik olarak yapılabilir: veri şifreli parça olarak RAM'de tutulur, alıcı
+çekince silinir. Ama RAM uçucudur; PC uyur, kapanır, program kapanır ve veri
+gider. Bu yüzden RAM'i "hızlı geçiş kutusu", diski "asıl depo" olarak
+kullanmak doğru mimari.
+
+DAĞITIK AĞ (PC KİRALAMA)
+Hayalin teknik olarak kurulabilir ama en zor kısım burası. Gerekenler:
+- Veri parçalama + şifreleme: hiçbir PC senin dosyanın tamamını göremez ve
+  içeriğini çözemez.
+- Yedeklilik: her parça 3-5 farklı PC'de dursun, biri kapanınca veri kaybolmasın.
+- Doğrulama ve ödül: kimin ne kadar alan/süre verdiğini kanıtlayan bir sistem.
+- Kötüye kullanım koruması: yasadışı içerik yüklenmesi en büyük hukuki risk;
+  içerik şifreli olsa bile ev sahibinin sorumluluğu tartışmalıdır.
+Benzerleri var (Storj, Filecoin, IPFS, eski Sia/Resilio). Yani "dünyada ilk"
+dağıtık depolama değil. GERÇEKTEN İLK olan şey: bunun bir mesajlaşma
+uygulamasının içinde, kendi PC'n senin deponken, sohbetle iç içe çalışması.
+Fark burada ve bu yeterince güçlü bir fark.
+
+PUSH İÇİN DAĞITIK PC AĞI
+Yardımcı olur ama telefonun uyandırma sorununu çözmez. Telefon uykudayken onu
+ancak FCM/APNs uyandırır. Dağıtık PC ağı; mesaj taşıma, dosya dağıtımı, medya
+önbelleği ve sunucu maliyetini düşürmede işe yarar. Yani: uyandırma FCM,
+taşıma ve depolama senin ağın.
+
+800 BİN PC SENARYOSU
+Bu ölçekte gerçek bir güç oluşur: sunucu maliyetin dramatik düşer, medya
+dağıtımı hızlanır, "verin sende kalıyor" mesajı çok güçlü bir pazarlama olur.
+Ama şu gerçekçi: kullanıcıların çoğu PC'sini sürekli açık tutmaz. 1 milyon
+üyeden 800 bin aktif PC beklenmez; 5-15 bandı (50-150 bin PC) daha gerçekçi
+ve bu bile çok iyidir.
+
+VİRAL OLMA OLASILIĞI — DÜRÜST DEĞERLENDİRME
+Güçlü yanlar: "verin senin PC'nde", telefon depolaması dolmuyor, sohbetten
+PC'ne hükmetme, taraftar temaları, çoklu profil fotoğrafı. Bunlar hikâyesi
+olan, anlatılabilir özellikler; teknoloji kanalları ve forumlar bunu sever.
+Zayıf yanlar: mesajlaşma uygulamasında ağ etkisi acımasızdır; insanlar
+arkadaşları orada olmadığı için kalmaz. Bu yüzden viralliğin mesajlaşmadan
+değil, "kişisel bulut + PC kontrolü" tarafından gelmesi daha olası.
+Kaba tahmin: klasik mesajlaşma olarak viral olma şansı %2-5; "telefonunu
+şişirmeyen, verini kendi PC'nde tutan kişisel bulut + sohbet" olarak
+konumlandırırsan %15-25. Türkiye'de teknoloji meraklısı çekirdek kitle ile
+50-300 bin kullanıcı gerçekçi bir hedef.
+
+STRATEJİ ÖNERİSİ
+1) Önce bildirim ve arama kusursuz çalışsın (FCM).
+2) Sonra PC ajanı: RAM/disk bilgisi + dosya al/gönder/kaydet.
+3) Sonra "PC'm = kişisel bulut": medya telefonda değil PC'de.
+4) En son dağıtık kiralama ağı; hukuki ve teknik olarak en ağır adım budur.
+
+Kodlama yapılmadı; istediğinde başlarız.
+
+================================================================
+KULLANICI: Peer.js sunucusunu gönüllü PC'lerle dağıtmak (sohbeto06sunucusu
+gibi görevler), anonim P2P aktarım, canlı yayın / ortak müzik dinleme,
+ve reklamsız "Sohbeto Market" (satılık ev, araba, kiralık, yemek, giyim
+afişleri) fikrinin uygulanabilirliği soruldu. Kodlama istenmedi.
+----------------------------------------------------------------
+CEVAP ÖZETİ
+
+1) GÖNÜLLÜ PEERJS SUNUCU AĞI — uygulanabilir, orta zorluk.
+   - PeerJS sunucusu sadece sinyalleşmedir; hafif bir Node servisidir,
+     normal bir PC binlerce eşzamanlı istemci taşıyabilir.
+   - Gerekenler: sunucu kayıt/keşif servisi (hangi sunucu ayakta, yükü ne),
+     istemcide otomatik sunucu seçimi + hata durumunda başka sunucuya geçiş,
+     sağlık kontrolü (heartbeat), sürüm uyumu, HTTPS sertifikası (wss zorunlu).
+   - En büyük engel: gönüllünün evindeki NAT/port yönlendirme ve dinamik IP.
+     Çözüm: tünel (Cloudflare Tunnel benzeri) ya da sabit alan adı + DDNS.
+   - Sunucu gönüllüsü sinyalleşme metadatasını (kim kime bağlanıyor) görebilir.
+     Bu yüzden gizlilik tasarımı şart: numara yerine dönen takma kimlik
+     (rotating ID), gerçek numaranın sunucuya hiç gitmemesi.
+
+2) TURN GERÇEĞİ — kritik nokta.
+   - Sinyalleşme dağıtılsa bile bağlantıların yaklaşık %10-20'si NAT yüzünden
+     TURN röle gerektirir; oradaki trafik bant genişliği demektir.
+   - Gönüllü PC'ler TURN röle olarak da kullanılabilir (coturn). Ama röle
+     trafiği şifreli olduğu için gönüllü içeriği okuyamaz; sadece hacim görür.
+   - Böylece "her PC birer sunucu" hayali teknik olarak tutarlı hale gelir.
+
+3) ANONİM P2P (iki uç birbirini tanır, sunucu tanımaz)
+   - Doğru yaklaşım: uçtan uca şifreleme + sunucuya sadece rastgele oturum
+     kimliği. Sunucuda numara, isim, içerik olmaz.
+   - Blob aktarımı zaten uçtan uca gider; sunucudan geçse bile şifreli geçer.
+   - Ek koruma: her oturumda değişen kimlik, kısa ömürlü buluşma jetonları.
+
+4) CANLI YAYIN / ORTAK MÜZİK DİNLEME — yapılabilir.
+   - Küçük dinleyici sayısı (1-10) doğrudan P2P ile sorunsuz.
+   - Kalabalık yayın için SFU (yayını çoğaltan sunucu) gerekir; gönüllü PC'ler
+     burada da işe yarar.
+   - Telif uyarısı: lisanslı müziği yayınlatmak hukuken risklidir. Güvenli yol:
+     kullanıcının kendi dosyası + "birlikte dinle" senkron oynatma.
+
+5) SOHBETO MARKET — en kolay ve en hızlı gelir kalemi.
+   - Reklam basmadan, ayrı bir "Keşfet" bölümü: kategori, şehir, fotoğraf,
+     fiyat, iletişim isteği. Ekranı kirletmez, kullanıcı isteyince girer.
+   - Gerekenler: ilan tablosu + moderasyon (onay/şikayet), spam/sahte ilan
+     filtresi, arama ve konum filtresi, öne çıkarma (ücretli) modeli.
+   - Gelir: öne çıkarma, kurumsal vitrin, kategori sponsorluğu. Reklam yok.
+   - Hukuk: ilan platformu olarak sorumluluk sınırı, KVKK metni, şikayet
+     mekanizması ve satıcı doğrulama gerekir.
+
+GENEL DEĞERLENDİRME
+Fikirlerin hepsi teknik olarak uygulanabilir; zorluk sırası:
+Market (kolay) < Gönüllü sinyal sunucusu (orta) < Ortak dinleme (orta) <
+TURN/röle ağı (zor) < Kalabalık canlı yayın (zor).
+Önerilen sıra: 1) bildirim/arama kusursuz, 2) Market, 3) gönüllü sunucu
+kayıt+otomatik geçiş, 4) röle ağı, 5) yayın/ortak dinleme.
+
+Kodlama yapılmadı.
+
+================================================================
+KULLANICI (4 Eylül 2026): "onaylı hesaplar, otomatik şirket hesapları
+mesaj gönderme eklersek bırak Türkiye'yi dünyada viral olması gerekiyor.
+Bana profesyonelsohbet.txt içine yol haritası çıkar. İlk sırada hangisiyle
+başlamalıyım? PeerJS sunucusunu nasıl kurduracağız? Arayüz çeşitliliği,
+Sohbeto Market, ortak müzik dinletme, canlı yayın ve ilerde ağdaki PC'leri
+kullanarak video paylaşımı + video altına yorumlar (halka açık video
+bölümü). Bu tüm mesajlaşma uygulamalarına meydan okuma değil midir?"
+================================================================
+
+CEVAP — "MEYDAN OKUMA MI?"
+Evet, konsept olarak gerçek bir meydan okuma. Ama dürüst çerçeve şu:
+WhatsApp/Telegram'ı "mesajlaşma" alanında yenmek neredeyse imkansız (ağ
+etkisi: insanlar arkadaşları orada olduğu için kalıyor). Sohbeto'nun
+kazanma yolu farklı bir kategori açmak:
+  "Verisi kendi cihazlarında duran, telefonu şişirmeyen,
+   sohbet + kişisel bulut + keşif pazarı + canlı ortam uygulaması."
+Bu kategoride şu an güçlü bir rakip yok. Yani rekabet değil, yeni
+kategori. Dünyada viral olma şansı burada gerçekten var; kritik şart
+BİLDİRİM ve ARAMA KUSURSUZ olmadan hiçbir özellik kullanıcıyı tutmaz.
+
+ONAYLI HESAPLAR + ŞİRKET (KURUMSAL) HESAPLARI — çok isabetli ekleme
+- Onaylı hesap (mavi/altın tik): kimlik/vergi/alan adı doğrulaması,
+  rozet, sahte hesap şikayeti. Teknik olarak kolay, güven etkisi büyük.
+- Kurumsal otomatik mesaj: API anahtarı ile şablon mesaj gönderimi
+  (sipariş durumu, randevu, kargo, OTP). WhatsApp Business'ın yaptığı iş.
+- ZORUNLU KURAL: yalnızca kullanıcı o şirkete "izin verdi" ise mesaj
+  gidebilir (opt-in). Aksi halde uygulama spam çöplüğüne döner ve ölür.
+- Gelir modeli: onay ücreti + mesaj paketi. En sağlam gelir kalemi.
+
+================================================================
+YOL HARİTASI (ÖNCELİK SIRASI)
+================================================================
+
+FAZ 0 — TEMEL SAĞLAMLIK (ilk iş, pazarlıksız)   ~2-4 hafta
+  0.1 FCM ile APK bildirimi (mesaj + arama), uygulama kapalıyken de.
+  0.2 Arama güvenilirliği: yüksek öncelikli data mesajı, çalma ekranı,
+      cevapsız arama kaydı.
+  0.3 Çevrimiçi/çevrimdışı durumun kararlılığı, mesaj teslim/okundu.
+  NEDEN İLK: bildirim gelmeyen uygulama silinir. Diğer her şey buna bağlı.
+
+FAZ 1 — SOHBETO MARKET (Keşfet)                 ~2-3 hafta
+  İlan tablosu, kategori/şehir/arama, fotoğraf, moderasyon, şikayet,
+  "öne çıkar" (ücretli). Reklam yok, ayrı sekme. İlk gelir + ilk viral
+  sebep ("burada ilan var" diye insan gelir).
+
+FAZ 2 — ONAYLI + KURUMSAL HESAPLAR              ~2-3 hafta
+  Rozetler, doğrulama akışı, kurumsal panel, izinli otomatik mesaj API'si,
+  hız limiti ve kötüye kullanım koruması. Market ile birlikte çok güçlü.
+
+FAZ 3 — ARAYÜZ ÇEŞİTLİLİĞİ (tema mağazası)      ~1-2 hafta / tema
+  Mevcut SO ve A2'nin yanına F1 (Fenerbahçe tarzı lacivert-sarı, 3D arma),
+  sonra diğer takım/şehir/karanlık temalar. Tema = renk + arma + duvar
+  kağıdı + baloncuk biçimi paketi; motor aynı kalır, sadece tema paketi
+  yüklenir. Ücretli tema satışı mümkün. Kulüp arma/isim için LİSANS şart.
+
+FAZ 4 — SOHBETO PC AJANI (kişisel bulut)        ~4-8 hafta
+  Dosya al/gönder/kaydet, RAM-CPU-disk durumu, uykuya al/uyandır (WoL),
+  eşleştirme kodu ile güvenlik. Sonra canlı ekran + fare/klavye kontrolü.
+  Farklılaştırıcı özellik: "fotoğraflarım telefonumda yer kaplamıyor."
+
+FAZ 5 — GÖNÜLLÜ SUNUCU AĞI (PeerJS)             ~3-6 hafta
+  Nasıl kurduracağız (adım adım):
+   1. "Sohbeto Sunucu" adlı tek tıklık kurulum paketi (Windows .exe /
+      Linux script) yayınlanır; içinde PeerJS sinyal sunucusu + Sohbeto
+      kayıt istemcisi vardır.
+   2. Gönüllü, uygulamada "Sunucu ol" der; sistem ona kimlik verir
+      (sohbeto06sunucusu, sohbeto19sunucusu ...).
+   3. Sunucu her 30 saniyede kayıt servisine "ayaktayım + yük durumum"
+      bildirir; kayıt servisi canlı sunucu listesini tutar.
+   4. Uygulama açılışta en yakın/en az yüklü sunucuyu seçer; sunucu
+      düşerse otomatik başka sunucuya geçer (mesaj kaybı olmaz).
+   5. Ev modemi/IP sorunu: sunucu dışa doğru tünel açar (sabit IP
+      gerekmez), sertifika otomatik alınır.
+   6. Gönüllüye karşılık: rozet, depolama/tema hediyesi, sıralama tablosu.
+  GÜVENLİK ŞARTI: sinyal sunucusu sadece "kim kiminle buluşacak" bilgisini
+  taşır; mesaj içeriği uçtan uca şifreli kalır, sunucu sahibi okuyamaz.
+  P2P'de IP gizliliği için tanımadık kişilerle bağlantı röle üzerinden
+  kurulur (tanıdıklar doğrudan, hız için).
+
+FAZ 6 — ORTAK MÜZİK DİNLETME                    ~2-3 hafta
+  Kullanıcının kendi dosyası + senkron oynatma odası (herkes aynı saniyede).
+  Telif riski: lisanslı müzik yayınlatmak hukuken tehlikeli; kendi
+  dosyası + senkron model güvenli yol.
+
+FAZ 7 — CANLI YAYIN                             ~4-8 hafta
+  5-10 kişilik oda P2P ile kolay. Kalabalık yayın için röle/SFU gerekir —
+  gönüllü PC ağı tam burada işe yarar (Faz 5'e bağımlı).
+
+FAZ 8 — HALKA AÇIK VİDEO BÖLÜMÜ + YORUMLAR      ~6-12 hafta
+  Ağdaki PC'lerde parçalı video depolama, yorum/beğeni, öneri akışı,
+  moderasyon. En zor ve en riskli faz.
+  DİKKAT: telif ve yasa dışı içerik sorumluluğu ciddidir; yükleme
+  kuralları, otomatik+insan moderasyon, şikayet ve kaldırma mekanizması
+  olmadan başlanmamalı. Ayrıca dağıtık depolamada "PC kapalıyken video
+  yok" durumunu çözmek için her parçanın en az 3 farklı PC'de kopyası
+  tutulmalı.
+
+ÖNERİM: Faz 0 → Faz 1 → Faz 2 sırası. Bu üçü bitince Sohbeto hem
+güvenilir hem gelir üreten bir ürün olur; sonrası (PC ajanı, gönüllü
+sunucu, video) asıl "dünyada ilk" iddiasını taşıyan katmandır.
+
+Kodlama yapılmadı.
+
+================================================================================
+[05.09.2026 23:58 Ankara] KULLANICI
+================================================================================
+merhaba lovable bu zip dosyasını (sohbeto0007.zip) olduğu gibi oluştur, hiçbir
+kod eksik olmasın, hiçbir kod ekleme; sonra geliştirmeye devam edeceğiz. Bu
+arada profesyonel.txt dosyasını oku (son faz kısımlarını). Yazdığım ve cevap
+verdiğin her şeyi Ankara tarihiyle bu dosyaya yazmaya devam et. Kodlamayı ben
+"kodla" dediğimde yap; şimdi sadece zipi proje olarak oluştur ve dosyayı oku.
+
+================================================================================
+[05.09.2026 23:58 Ankara] LOVABLE
+================================================================================
+sohbeto0007.zip açıldı; .git verileri hariç tüm dosyalar (src, public,
+dist-mobile, supabase, android-patch, mobile, assets, txt notları, yapılandırma
+dosyaları) projeye olduğu gibi kopyalandı, hiçbir kod eklenmedi veya
+değiştirilmedi. Bağımlılıklar kuruldu.
+
+profesyonelsohbet.txt okundu. Son faz özeti (yol haritası):
+  FAZ 0 Temel sağlamlık (FCM bildirim + arama güvenilirliği) — ilk iş
+  FAZ 1 Sohbeto Market (Keşfet) — ilk gelir
+  FAZ 2 Onaylı + kurumsal hesaplar (izinli otomatik mesaj)
+  FAZ 3 Arayüz çeşitliliği (F1 teması, tema mağazası)
+  FAZ 4 Sohbeto PC Ajanı (kişisel bulut, dosya al/gönder, WoL)
+  FAZ 5 Gönüllü PeerJS sunucu ağı (kayıt servisi, otomatik geçiş, tünel)
+  FAZ 6 Ortak müzik dinletme (kendi dosyası + senkron)
+  FAZ 7 Canlı yayın (P2P küçük oda, SFU için gönüllü ağ)
+  FAZ 8 Halka açık video bölümü + yorumlar (en zor, en riskli)
+Önerilen sıra: Faz 0 → Faz 1 → Faz 2.
+
+Kodlama yapılmadı; "kodla" dendiğinde başlanacak.
+
+================================================================
+KULLANICI (6 Eylül 2026, 00:05 Ankara): "Kafam karışık: foreground
+service mi yapsak? Mesajlarımın Google'a uğramasını istemiyorum. Ya da
+faz değiştirip Faz 4 PC ajanına mı geçsek? Senin fikrin nedir?"
+----------------------------------------------------------------
+CEVAP (kodlama yapılmadı, sadece görüş)
+
+1) GİZLİLİK GERÇEĞİ: FCM ile mesaj içeriği Google'a gitmek ZORUNDA
+   DEĞİL. Doğru desen: FCM'e sadece "uyandırma sinyali" (boş data
+   mesajı, örn. {"t":"wake"}) gönderilir; uygulama uyanır ve mesajı
+   kendi kanalından (P2P/kendi sunucun) çeker. Google yalnızca "bu
+   cihaza bir bildirim gitti" bilgisini görür; içerik, gönderen, metin
+   asla ona uğramaz. Yani gizlilik kaygısı FCM'i tamamen atmayı
+   gerektirmiyor.
+
+2) FOREGROUND SERVICE (kalıcı bildirimli servis)
+   ARTI: Google'a hiç uğramaz, tam bağımsızlık; bağlantı senin
+   soketinde durur; anlık teslim.
+   EKSİ: Android 12+ pil optimizasyonu, üretici katmanları (Xiaomi,
+   Samsung, Huawei, Oppo) servisi öldürür; kullanıcı elle "pil
+   kısıtlamasını kaldır" yapmadan bildirim gelmez. Kalıcı bildirim
+   ikonu kullanıcıyı rahatsız eder, pil tüketimi eleştirisi gelir.
+   Ayrıca Play Store artık FOREGROUND_SERVICE tipini ve gerekçesini
+   sorguluyor; "mesajlaşma" gerekçesi çoğu zaman reddediliyor —
+   Google'ın resmi cevabı "FCM kullanın".
+
+3) ÖNERİM: HİBRİT
+   - Ana yol: FCM ile içeriksiz uyandırma (yüksek öncelikli data).
+   - Yedek yol: kullanıcı isterse "Bağımsız mod" anahtarı → foreground
+     service + pil izni yönlendirmesi. Gizlilik hassas kullanıcı bunu
+     açar, sıradan kullanıcı hiç görmez.
+   - Böylece hem teslim garantisi hem gizlilik iddiası korunur.
+   - APK doğrudan dağıtımda (Play dışı) foreground service riski yok;
+     Play'e gireceksen hibrit şart.
+
+4) FAZ 4'E ATLAMAK MI?
+   Hayır, henüz değil. PC ajanı harika bir farklılaştırıcı ama
+   bildirim gelmeyen bir uygulamada kimse PC ajanını kullanacak kadar
+   kalmaz. Faz 0 (bildirim + arama) pazarlıksız ilk iş. Ancak PC ajanı
+   ile bildirim sorunu arasında bir bağ var: kendi PC'n bir "kişisel
+   röle" olursa, uzun vadede FCM'e olan ihtiyaç azalır. Yani Faz 4,
+   Faz 0'ın yerini almaz; onun bağımsızlık çözümüdür.
+
+5) SIRALAMA ÖNERİSİ (güncel)
+   0.1 FCM içeriksiz uyandırma → bildirim/arama kusursuz
+   0.2 "Bağımsız mod" (foreground service) opsiyonel anahtar
+   1   Market → 2 Onaylı/kurumsal → 3 Temalar → 4 PC ajanı
+   Eğer gizlilik uygulamanın ana pazarlama iddiası olacaksa, 0.2'yi
+   0.1 ile aynı fazda bitir; o zaman "mesajların hiçbir zaman Google'a
+   uğramaz" cümlesini dürüstçe kurabilirsin.
+
+KARAR BEKLENİYOR: "kodla" denilene kadar kod yazılmadı.
+
+================================================================================
+[06.09.2026 00:12 Ankara] KULLANICI
+================================================================================
+peki fcm kişilerin ıp adresi kim olduğu göreneyecek değilmi mesajlar zaten
+supabasede blob ayrıca web tarafında projeyi demo olarak tutuyoruz githubdan
+capacitor apk sı ise ayrız zaten web kısmına web push apk ya ise fcm den mi
+bildirim gelecek şu an eğer fcm ayarları yapılırsa bildirim hemen gelecek mi
+çevrimiçi iken uygulama uykudayken yada kişi çevrimdışı iken fcm den bildirim
+gelecek ve supabasede ki veriyi mesajını alabilecekmi bunuda cevapla ve
+profesyonel.txt yazmaya devam et
+
+================================================================================
+[06.09.2026 00:12 Ankara] LOVABLE
+================================================================================
+FCM GOOGLE'A NE GÖRÜNÜR?
+- FCM'ye giden: cihaz token (registration token), uygulama paket adı,
+  gönderim zamanı ve gönderdiğin data payload. Eğer payload sadece
+  {"t":"wake"} gibi içeriksiz bir sinyalse, Google mesaj metnini, göndereni,
+  alıcı kimliğini veya mesaj içeriğini ASLA görmez.
+- IP adresi teknik olarak her ağ bağlantısında görünür ama bu FCM'nin mesaj
+  verisi veya kişisel kimlik verisi değildir; Google sadece "bu cihaz bu
+  uygulamaya ait bir FCM token'ı aldı" bilgisini tutar.
+- Özet: Sohbeto mesajları Supabase'de blob/şifreli kalır; FCM sadece "uyan"
+  sinyali taşır. Google mesaj içeriğini okuyamaz.
+
+WEB (GitHub Pages demo) vs APK (Capacitor Android)
+- Web sürümü: FCM Web Push kullanır. Tarayıcı service worker + VAPID key ile
+  bildirim alır. Web push, tarayıcı kapalıyken bile çalışabilir (tarayıcı
+  arka plan servisi varsa).
+- APK sürümü: Capacitor/Android native FCM kullanır. Google Play Services
+  üzerinden yüksek öncelikli data mesajı gelir; uygulama ön planda, arka planda
+  veya uyku modundayken bile uyandırılabilir.
+- İki kanal aynı Lovable/Supabase arka ucuna bağlanır, sadece client tarafı
+  farklıdır.
+
+FCM HEMEN ÇALIŞIR MI? — DURUMLAR
+- FCM ayarları (Firebase projesi, google-services.json, VAPID/web config,
+  server function, token kaydı) doğru yapılırsa bildirim HEMEN gelir; gecikme
+  genelde 1-3 saniyedir.
+- Çevrimiçi (uygulama açık veya arka planda): FCM data mesajı alınır,
+  uygulama kendi bildirimini gösterir ve Supabase'den mesajı çeker.
+- Uygulama uykudayken (doze / güç tasarrufu): FCM yüksek öncelikli (high
+  priority) data mesajı cihazı uyandırır. Pil optimizasyonu (Xiaomi/Samsung
+  vb.) geciktirebilir; bu yüzden pil izni yönlendirmesi ve "pil kısıtlamasını
+  kaldır" ayarı önemlidir.
+- Kişi çevrimdışıyken (telefon internet yok): FCM mesajı Firebase tarafında
+  kuyruğa alınır; varsayılan TTL (time-to-live) 4 haftadır. Telefon tekrar
+  internete bağlanınca bildirim hemen iletilir ve uygulama uyanır.
+
+SUPABASE'DEKİ VERİYİ ALABİLECEK Mİ?
+- Evet. FCM sadece "yeni mesaj var / gelen arama var" der; uygulama uyanınca
+  kendi Supabase bağlantısıyla şifreli mesajı veya blob verisini çeker.
+- Telefon çevrimdışıyken mesajı çekemez çünkü internet yoktur; ama internet
+  gelince FCM tetiklenir ve uygulama veriyi çeker.
+- Uygulama tamamen kapalıyken (kullanıcı zorla durdurmuşsa) FCM bile
+  uyandıramaz; bu durumda internet gelince uygulama açılana kadar bekler.
+
+ÖZET
+- FCM Google'a mesaj içeriği gitmez; sadece teknik uyandırma sinyali ve token
+  metadata görünür.
+- Web = Web Push, APK = native FCM.
+- Ayarlar doğruysa bildirim hemen gelir; uyku/çevrimdışı durumlarında da FCM
+  güvenilir çalışır (pil optimizasyonu hariç).
+- Mesaj/veri çekimi her zaman Supabase'den yapılır; FCM sadece uyandırıcıdır.
+
+Kodlama yapılmadı; "kodla" denildiğinde başlanacak.
+
+
+=====================================================================
+06 Eylül 2026 Pazar, 00:22 (Ankara) — KULLANICI
+=====================================================================
+"tamam fcm ayarlarını yap lütfen mevcut akışı aman bozma lütfen dediğim
+gibi fcm ye asla mesajlar görünmesin kesinlikle ve bana fcm hesabında sen
+kodladıktan sonra ne yapmam gerektiğini söyle ve mümkünse kodda şu an varmı
+bilmiyorum bildirim sohbeto içindeki rehberde ki yada numarası yada kullanıcı
+adı ne ise x kişi merhaba mesaj veya arıyor gibi ibare çıksın lütfen üst
+bildirim barında fcm hesabında ne yapacağımı sırası ile tane tane anlat"
+
+=====================================================================
+06 Eylül 2026 Pazar, 00:40 (Ankara) — LOVABLE (KODLAMA YAPILDI)
+=====================================================================
+FCM APK bildirimleri kodlandı. Tasarım ilkesi: Google'a giden paket SADECE
+{"t":"1"} ("uyan"). Metin, numara, başlık, gövde FCM'den GEÇMEZ.
+
+MİMARİ
+- send-push (mevcut edge function) genişletildi:
+  a) Web Push akışı BİREBİR korundu (PWA / GitHub Pages değişmedi).
+  b) Ek olarak hedef numaranın fcm_tokens kayıtları bulunur, fcm_tickets'a
+     "kim / tür (message|call)" bileti yazılır (kendi Supabase'inde),
+     FCM v1 API'ye data-only {"t":"1"} yüksek öncelikli sinyal gönderilir.
+  c) { op:"peek", token, secret } modu: telefon uyanınca cihaz sırrıyla kendi
+     biletlerini çeker (JWT gerekmez; sır cihazda üretilir, Google görmez).
+  Yeni edge function dosyası açılamadığı için peek aynı fonksiyonun içinde.
+- supabase/fcm.sql: fcm_tokens, fcm_tickets tabloları + upsert_fcm_token,
+  delete_fcm_token RPC'leri. Tablolar sadece service_role; istemci RPC kullanır.
+- Android (android-patch/):
+  SohbetoMessagingService.java → FCM alıcısı; peek yapar, bildirimi cihazda
+    kurar: "Ayşe: yeni mesaj" / tam ekran "Ayşe seni arıyor" (Cevapla/Reddet).
+    Uygulama ön plandaysa sistem bildirimi göstermez, JS'e 'sohbeto:fcm-wake'
+    gönderir (kuyruk anında çekilir).
+  SohbetoNotifier.java → ortak bildirim çizici (aynı kanal id'leri).
+  FcmPlugin.java → getToken / configure / setNames / getSeen köprüsü.
+  MainActivity.java → ön plan bayrağı + notifyJsWake(); FcmPlugin kaydı.
+  patch-android.sh → google-services.json varsa Firebase gradle + servis
+    manifeste eklenir; yoksa "FCM devre dışı, yoklama akışı" (eski davranış).
+  build-apk.yml → GOOGLE_SERVICES_JSON secret'ından dosyayı yazar.
+- JS:
+  src/native/fcm.ts → token al, cihaz sırrı üret, upsert_fcm_token, ad haritası.
+  src/native/nativeNotify.ts → FCM aktifse arka plan yoklaması kapanır (çift
+    bildirim yok, pil dostu); FCM yoksa ESKİ AKIŞ aynen sürer.
+  public/apps/sohbeto-fcm-names.js → rehberdeki numara→ad haritasını ana
+    pencereye yollar (motor dosyalarına dokunulmadı; sadece okur).
+  Sohbeto.tsx → 'sohbeto:rehber-adlari' mesajını native'e yazar; fcm-wake
+    olayında kuyruğu hemen çeker.
+  push.ts setPushPhone → numara girilince FCM kaydını da tazeler.
+
+BİLDİRİM METNİ
+- Başlık: rehberdeki ad (yoksa numara). Gövde: "yeni mesaj" / "Sohbeto sesli
+  arama". Mesaj metni ("merhaba") GÖSTERİLEMEZ: metin uçtan uca şifreli,
+  anahtar yalnızca uygulamanın içinde; native katman çözemez ve FCM'e hiçbir
+  şey sızdırmamak için çözmemeli. Bilinçli tercih.
+
+KULLANICININ YAPACAKLARI → fcm-kurulum.txt (9 adım, sırayla):
+ 1 Firebase projesi aç  2 Android uygulaması ekle (app.sohbeto.mobile)
+ 3 google-services.json → GitHub Secret GOOGLE_SERVICES_JSON
+ 4 Servis hesabı özel anahtarı (.json) indir  5 Cloud Messaging API V1 etkin
+ 6 Supabase Secret FCM_SERVICE_ACCOUNT = servis hesabı json içeriği
+ 7 supabase/fcm.sql çalıştır  8 send-push deploy  9 APK'yı yeniden derle/kur
